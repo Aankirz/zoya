@@ -40,3 +40,6 @@
 
 ## 2026-09-14 — Sequential build loop
 - Replaced parallel session plan with one-session, phase-by-phase build/test/fix/approve prompts; removed parallel wording from README, AGENTS.md, phase briefs.
+
+## 2026-09-14 — Voice: Kiara + conversational answers
+- Zoya voice set to Nova 2 Sonic kiara (feminine en-IN/Hindi), Polly Kajal fallback; §9.2 conversational question handling; Phase 2 tests 7-10; D15; audition.sh no longer uses robotic say.

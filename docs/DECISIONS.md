@@ -18,3 +18,4 @@ Settled choices for Zoya. Agents must not change these without the owner's appro
 | D12 | 2026-09-13 | `anthropics/commerce-agents` used for **patterns only**, not as a dependency | Built for store-owned backends and never places orders | §9.12 |
 | D13 | 2026-09-13 | Clicky (farzaa/clicky) used for **patterns now**, possible Swift shell **after** the hackathon | Swift + Python in 48 h is too costly | §9.1, §9.11, §20 |
 | D14 | 2026-09-13 | Examples use **₹ / Amazon.in**; hackathon length **48 h**; budget **$100 AWS credits** | Owner's context | §14 |
+| D15 | 2026-09-14 | Zoya's voice: **Nova 2 Sonic `kiara`** (feminine, English-India + Hindi); alternative `tiffany`; Polly fallback `Kajal`. Zoya answers questions conversationally, not only commands | Owner wants a natural female voice; Indian users and Hinglish | §7.4, §9.2 |

@@ -374,7 +374,9 @@ ffmpeg -i zen/processing.ogg -af "loudnorm=I=-38:TP=-12"                    soun
 ```
 
 ### 7.4 Voice persona
-- **Voice:** the calmest available Nova 2 Sonic voice (audition all; pick a warm mid-pitch one).
+- **Voice: `kiara`** — Amazon Nova 2 Sonic's feminine voice for **English (India)** and **Hindi**, so Zoya sounds natural to Indian users and handles Hinglish. Alternative: **`tiffany`** (feminine, en-US), a polyglot voice that speaks all 7 supported languages. Source: https://docs.aws.amazon.com/nova/latest/nova2-userguide/sonic-language-support.html
+- **Fallback voice (Transcribe + Polly path):** Amazon Polly **`Kajal`** (feminine, Indian English/Hindi, neural). Verify availability in the chosen region during Phase 2.
+- **Not Zoya's voice:** the robotic voice in `sounds/audition.sh` is only the macOS `say` command used to label sounds during audition.
 - **Style prompt:** *"Brief, warm, calm. Max two sentences unless reading content. State results before details. Never say 'certainly' or 'as an AI'."*
 - **Numbers & money:** always read back important values ("412 rupees", "Rahul Sharma").
 - **Speed:** default normal; user-adjustable, stored in memory.
@@ -469,7 +471,12 @@ ffmpeg -i zen/processing.ogg -af "loudnorm=I=-38:TP=-12"                    soun
   - `stop_task(name: str | "all")` → cancels one task ("stop the presentation") or everything.
   - `task_status(name: str | None)` → one task's step, or a summary of all.
   - `answer_confirmation(task: str, decision: "confirm"|"cancel")` → resolves that task's pending confirmation.
-- **Simple questions** (chit-chat, "what time is it") are answered by Sonic directly — no orchestrator call → fast.
+- **Zoya is conversational, not just a command runner.** Nova 2 Sonic is a speech-to-speech foundation model: it understands the question and speaks an answer in one step.
+  - **General questions** ("what's the capital of Japan?", "explain UPI simply", chit-chat) → answered by Sonic directly, no orchestrator call → fast.
+  - **Questions needing live or personal data** ("what's the weather today?", "what's my usual order?", "what's on my screen?") → Sonic calls `start_task`; the router/orchestrator fetches it (browser search, memory, screen describer) and Sonic speaks the result.
+  - **Hard reasoning questions** (long comparisons, summarising a document) → orchestrator on Sonnet 5; Sonic reads back the answer.
+  - **Actions** ("open Spotify", "order groceries") → `start_task` as before.
+  - **Follow-ups keep context** within the session ("and what about tomorrow?").
 - **Pushing progress to voice:** orchestrator publishes events (`narrate`, `confirm_request`, `result`) to an `asyncio.Queue`; the voice layer speaks them. If `BidiAgent` can't accept injected text mid-session, speak those via **Amazon Polly** directly through the audio engine.
 - **Fallback path (if BidiAgent fights us):** Amazon Transcribe Streaming (STT) → orchestrator → Polly (TTS). Slightly higher latency, same architecture.
 - **Session lifecycle:** Sonic sessions have a maximum duration; open a session on wake word, close on idle timeout, and reconnect transparently.
@@ -932,7 +939,7 @@ When the user says *"No, I meant Rahul Verma"* or *"I said Keynote, not Kino"*, 
 Flow's magic is not having to review output. Zoya reads back only when it adds safety: low-confidence recognition, money, recipients, deletions. Routine commands get a success earcon, not a spoken echo.
 
 **8. Code-switching (Hinglish).**
-Flow calls out that most people mix languages in one sentence. Test utterances like *"Zoya, Amazon pe mera usual grocery order kar do"* in Phase 5. If Nova 2 Sonic handles it poorly, note it as a known limitation for the demo (speak English on stage) and a roadmap item.
+Flow calls out that most people mix languages in one sentence. Nova 2 Sonic officially supports Hindi and code-switching within a sentence, and the `kiara` voice covers both English (India) and Hindi. Test utterances like *"Zoya, Amazon pe mera usual grocery order kar do"* in Phase 2; if recognition is weak on stage-quality audio, demo in English and keep Hinglish as a showcase line.
 
 **Deliberately not adopted:** custom-trained ASR models, whisper/subvocal speech, token-level personal writing style — all real Wispr problems, none needed for a 48h agent demo.
 

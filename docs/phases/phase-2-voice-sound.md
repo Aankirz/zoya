@@ -32,5 +32,9 @@
 4. ☐ "Zoya, stop" while Zoya is talking silences it in **< 300 ms**.
 5. ☐ Push-to-talk works when the wake word is disabled.
 6. ☐ There is never more than ~1 s of silence during any action (working loop covers waits).
+7. ☐ Zoya speaks in the **`kiara`** feminine voice (set via `NOVA_SONIC_VOICE`), not a system/robot voice.
+8. ☐ "Hey Zoya, what's the capital of Japan?" → correct spoken answer with no action taken; a follow-up ("and its population?") keeps context.
+9. ☐ "Hey Zoya, what's the weather in Bangalore today?" → Zoya says it's checking, then answers (live data via a task).
+10. ☐ Hinglish: "Zoya, Spotify khol do" → Spotify opens.
 
-**Judge demo (60 s):** hands visibly off the laptop: "Hey Zoya, open YouTube" → "Hey Zoya, write a note: call mom at six" → mid-sentence "Zoya, stop." Point out each sound's meaning.
+**Judge demo (60 s):** hands visibly off the laptop: "Hey Zoya, what's the capital of Japan?" → "Hey Zoya, open YouTube" → "Hey Zoya, write a note: call mom at six" → mid-sentence "Zoya, stop." Point out each sound's meaning.

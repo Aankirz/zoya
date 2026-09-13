@@ -1,5 +1,6 @@
 #!/bin/zsh
-# Plays every Zoya earcon candidate, announced by voice, so you can pick a pack by ear.
+# Plays every Zoya earcon candidate with its label printed, so you can pick a pack by ear.
+# These are only the short UI sounds. Zoya's real voice (Nova 2 Sonic "kiara") arrives in Phase 2.
 # Usage: ./audition.sh [zen|soft]   (default: both)
 DIR="${0:A:h}/candidates"
 EVENTS=(
@@ -22,10 +23,10 @@ EVENTS=(
   "add-to-cart:Added to cart"
 )
 for pack in ${1:-zen soft}; do
-  say "$pack pack"
+  echo "\n=== $pack pack ==="
   for entry in $EVENTS; do
     cue=${entry%%:*}; label=${entry#*:}
-    say "$label"
+    echo "▶ $label"
     afplay "$DIR/$pack/$cue.mp3"
     sleep 0.6
   done
