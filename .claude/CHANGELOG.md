@@ -52,3 +52,6 @@
 
 ## 2026-09-14 — Regions + no Cloudflare
 - D17 regions (ap-south-1, Sonic in ap-northeast-1), D18 no Cloudflare; env and credentials updated.
+
+## 2026-09-14 — Single region Tokyo
+- D17 changed to ap-northeast-1 for all models; removed AWS_REGION_NOVA_SONIC.
