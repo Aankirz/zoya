@@ -36,7 +36,7 @@ A phase is done only when **every item in its "Done when" list passes on the rea
 
 - Python 3.12, formatted with **Black + isort**, linted with **Ruff**, tested with **pytest**.
 - Small functions (< 40 lines), early returns, named constants (no magic numbers), explicit error handling with user-friendly spoken messages.
-- Every non-trivial logic path (branches, parsers, money/safety paths) gets a test.
+- **Tests only where a silent bug hurts a user (D37):** privacy (`store=false`), the safety gate / confirmation tokens / "stop" (§9.9), cost caps and money paths, and parsers. Keep each test small. Everything else is verified by running it against the phase's "Done when" list — don't write tests for UI, voice, browser steps or simple helpers.
 - Log per-stage latency for anything on the voice path (§13.5).
 - Run before every commit: `ruff check . && black --check . && isort --check . && pytest`.
 
