@@ -55,3 +55,6 @@
 
 ## 2026-09-14 — Single region Tokyo
 - D17 changed to ap-northeast-1 for all models; removed AWS_REGION_NOVA_SONIC.
+
+## 2026-09-14 — Verified model IDs
+- Filled Bedrock model/inference-profile IDs in .env.example from ap-northeast-1 listing; created local .env.
