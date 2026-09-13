@@ -49,3 +49,6 @@
 
 ## 2026-09-14 — Trim env + fix audition
 - .env.example reduced to 9 account-specific values; settings moved to config.py constants; Sarvam removed; audition.sh pack loop fixed (zsh word-splitting bug).
+
+## 2026-09-14 — Regions + no Cloudflare
+- D17 regions (ap-south-1, Sonic in ap-northeast-1), D18 no Cloudflare; env and credentials updated.
