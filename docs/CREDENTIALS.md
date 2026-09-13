@@ -7,7 +7,7 @@ Prepare these before Phase 0. **Put secret values only in your local `.env` file
 | # | What | Where to get it | Goes into | Notes |
 |---|---|---|---|---|
 | 1 | **AWS account with the $100 credits** | AWS console | — | Apply credits to this account |
-| 2 | **AWS credentials for the Mac** — preferably an SSO/CLI **profile name**; otherwise an IAM user access key ID + secret | IAM Identity Center (`aws configure sso`) or IAM → Users → Security credentials | `AWS_PROFILE` (an access-key profile from `aws configure` also works) | Least privilege: see IAM permissions below |
+| 2 | **AWS credentials for the Mac** — preferably an SSO/CLI **profile name**; otherwise an IAM user access key ID + secret | IAM Identity Center (`aws configure sso`) or IAM → Users → Security credentials | `AWS_PROFILE=zoya` (set up with `aws login --profile zoya --remote`) | Least privilege: see IAM permissions below |
 | 3 | **AWS regions** | Decided (D17), confirmed by latency in Phase 0 | `AWS_REGION=ap-south-1`, `AWS_REGION_NOVA_SONIC=ap-northeast-1` | Nova 2 Sonic isn't offered in Mumbai |
 | 4 | **Bedrock model access** enabled for: Nova 2 Sonic, Claude Sonnet 5, Claude Haiku 4.5, Nova Micro, Nova 2 Lite, Nova Canvas | Bedrock console → Model access | — | Anthropic models may require a short use-case form |
 | 5 | **Bedrock model / inference-profile IDs** for each model above | Bedrock console → model catalog / cross-region inference | `BEDROCK_MODEL_*` | Copy exactly from the console; never guess |
