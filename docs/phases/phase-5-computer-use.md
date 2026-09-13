@@ -19,6 +19,9 @@
 - AX API tier T1 (`ax_read`, `ax_press`) before pixels (§9.4).
 - `screen_describer` on `VISION_MODEL` (chosen in Phase 0); re-run the screen benchmark with real Zoya prompts.
 - Context pruning: last 2 screenshots only (§9.3).
+- Context pruning: last 2 screenshots only (§9.3).
+- **Amazon Textract**: "read this PDF / bill / letter to me" (text + tables read aloud).
+- **Rekognition DetectText** as a fast OCR tool for "read the text on my screen".
 - `tests/test_coords.py`.
 
 **Not in this phase:** multitasking, overlay.

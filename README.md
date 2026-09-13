@@ -47,14 +47,16 @@ Built for the **Vision OS** hackathon with the **Strands Agents SDK** and **AWS*
       brain model: OpenAI / Fireworks (Bedrock later)
         ├─ browser_agent    (Playwright, own Chrome profile)
         ├─ computer_agent   (ScreenCaptureKit screenshots + clicks + Accessibility API)
-        ├─ ppt_agent        (python-pptx, text slides)
+        ├─ document_agent   (Word, Excel, slides, PDF — read back aloud)
         ├─ screen_describer (vision model)
         └─ memory           (Supermemory)
    Safety layer: spoken-confirmation tokens + click guard (Strands hook)
                  │ streamed reply
                  ▼
-   ElevenLabs streaming voice (Indian female) ─► speaker   · earcons (UI SFX zen)
-   AWS: CloudWatch traces, SNS trusted-contact alerts, Polly fallback voice
+   Polly Kajal / ElevenLabs voice (Indian female) ─► speaker   · earcons (UI SFX zen)
+   AWS: Polly voice · Transcribe · Translate · Rekognition/Textract (read screen & documents)
+        DynamoDB (history, audit) · SNS alerts · S3 sharing · EventBridge+Lambda reminders
+        Secrets Manager · CloudWatch/X-Ray traces · Location Service   (Bedrock models: pending)
 ```
 
 Everything that controls the Mac runs **locally**.

@@ -17,7 +17,9 @@
 - Shopping skill prompt + grounding rule: confirmation summary read from the live checkout page (§9.12).
 - Supermemory tools `memory_add` / `memory_search` with the secret filter (§9.8); auto-save after confirmed tasks; corrections memory (§13.5.6).
 - Earcons: `progress-step`, `add-to-cart`, `purchase`, `checkpoint`, `mention`, `blocked`.
-- Login/CAPTCHA handoff flow (Flow 10).
+- Login/CAPTCHA handoff flow (Flow 10), plus an **SNS email to the trusted contact** when Zoya is blocked.
+- **Order history + key-memory copy** in DynamoDB (fallback when Supermemory is unavailable).
+- **Amazon Location Service** tool: "nearest pharmacy / what's near me".
 - `tests/test_memory_filter.py`.
 
 **Not in this phase:** pixel computer use, multiple simultaneous tasks, PPT.

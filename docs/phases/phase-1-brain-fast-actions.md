@@ -26,7 +26,8 @@
 - `narrate(text)` via **ElevenLabs** streaming (chosen voice), macOS voice fallback.
 - Simple text REPL: type a command, see route + tool + timing.
 - **Router eval** (§17.1b) re-run against the chosen `ROUTER_MODEL`.
-- Per-stage timing logs (§13.5.1).
+- Per-stage timing logs (§13.5.1), exported via Strands OpenTelemetry to **CloudWatch/X-Ray** (STACK §8).
+- **AWS Secrets Manager** for provider keys; **Amazon Translate** to normalise Hindi commands before the router; **DynamoDB** table for task history.
 
 **Not in this phase:** microphone, wake word, earcons, browser, screenshots, memory.
 

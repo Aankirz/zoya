@@ -11,11 +11,11 @@
 **Goal:** sighted judges can follow every step visually without it affecting the blind user's experience or the agent.
 
 **Build**
+- **CloudWatch dashboard** for judges: live agent traces (X-Ray), task latency, tool calls, AWS services used per task.
 - Keep the overlay out of the model's screenshots with ScreenCaptureKit window exclusion (fallback: hide the panel ~50 ms during capture). `NSWindowSharingNone` does NOT work on macOS 15+ (AUDIT B11).
 - Stage overlay (§9.11): non-activating, click-through `NSPanel`; avatar per state (Plane Agent Avatar Lab); live captions.
 - Action highlight ring drawn after screenshots (§9.11).
 - Computer-use prompt line to ignore the overlay.
-- Optional: CloudWatch trace dashboard via Strands OpenTelemetry.
 
 **Not in this phase:** new capabilities.
 

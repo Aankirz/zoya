@@ -73,3 +73,6 @@
 
 ## 2026-09-14 — Primary stack without AWS
 - Added docs/STACK.md; D26-D29; rewrote phase 0-2 briefs, patched 1/5/6; README architecture, env example, credentials, pyproject; banners on technical doc and audit.
+
+## 2026-09-14 — AWS services + document agent + voice test
+- STACK §8 AWS services (access verified), §9 documents (HeyClicky/Glide research); D30-D32; phase briefs 0-7 updated; pyproject docx/openpyxl/reportlab; ElevenLabs/Polly test evidence in D31.

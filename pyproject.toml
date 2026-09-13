@@ -11,7 +11,7 @@ dependencies = [
   "elevenlabs",
   "mlx-whisper",
   "strands-agents-tools",
-  "boto3",  # AWS non-model services (docs/STACK.md §8)
+  "boto3",  # AWS services (docs/STACK.md §8)
   "python-dotenv",
   "faster-whisper",
   "sounddevice",
@@ -23,6 +23,9 @@ dependencies = [
   "pyobjc-framework-ScreenCaptureKit",
   "playwright",
   "python-pptx",
+  "python-docx",
+  "openpyxl",
+  "reportlab",
   "supermemory",
   "rumps",
 ]

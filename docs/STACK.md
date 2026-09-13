@@ -100,16 +100,40 @@ The hackathon asks for **AWS + Strands**. Strands remains central. **AWS usage i
 | Supermemory | Free plan ($5 usage) | Local fallback cache |
 | Whisper, VAD, earcons | Local, free | — |
 
-## 8. AWS without Bedrock models (use now, pending a quick access check)
+## 8. AWS services in use (everything except Bedrock models)
 
-The zero quotas are on **Bedrock**. Other AWS services on the paid account may work and are covered by the credits. Phase 0 checks access first; build on them only if the check passes.
+**Access verified 2026-09-14** on account 567487920371 with tiny test calls (`zoya` profile, `ap-south-1` Mumbai — 23 ms from Bangalore): ✅ Polly (Kajal neural en-IN; Kajal *generative* only in `us-east-1`), Transcribe, Translate, Rekognition DetectText, Textract, SNS, DynamoDB, S3, Secrets Manager, SSM Parameter Store, CloudWatch Logs, X-Ray, Location Service, Lambda, EventBridge Scheduler. ❌ Bedrock (0 quotas).
 
-| AWS service | Use in Zoya | Value |
+**Rule:** use AWS wherever it does a real job for the user. Region `ap-south-1` for everything except Polly generative (`us-east-1`).
+
+| AWS service | Job in Zoya | Phase |
 |---|---|---|
-| **Amazon CloudWatch** (via Strands OpenTelemetry → AWS Distro / OTLP) | Traces of every agent turn, tool call and latency; a dashboard for judges | Shows AWS + Strands working together; debugging |
-| **Amazon SNS** (email) | "Trusted contact" alerts: Zoya emails a family member when it's blocked (CAPTCHA/login) or after an order is placed | Real accessibility feature; tiny cost |
-| **Amazon Polly** (neural, Indian English voice) | Second fallback voice if ElevenLabs fails (before the macOS voice) | Better than the robotic system voice |
-| **AWS Secrets Manager** | Stores the OpenAI / Fireworks / ElevenLabs / Supermemory keys instead of `.env` for the demo build | Good practice, visible AWS use |
-| **Amazon S3** | Stores benchmark results and demo recordings | Optional |
-| **Amazon Bedrock** | Brain / vision models | ⏳ Only after the support case unblocks quotas (§5) |
+| **Amazon Polly** (Kajal, Indian English female; neural in Mumbai, generative in us-east-1) | Zoya's voice candidate. Phase 0 A/B vs ElevenLabs: **if Polly is close in quality, Polly is primary and ElevenLabs is the fallback; otherwise the reverse.** Always one of the two, then macOS voice | 0, 2 |
+| **Amazon Transcribe** (streaming, en-IN / hi-IN) | Benchmarked vs local Whisper for Hinglish; used as the Hindi/Hinglish recogniser or fallback if it wins | 0, 2 |
+| **Amazon Translate** | Normalises Hindi commands to English before the router ("Spotify khol do" → "open Spotify") | 1 |
+| **AWS Secrets Manager** | Holds OpenAI / Fireworks / ElevenLabs / Supermemory keys; `.env` only names the secret | 1 |
+| **Amazon DynamoDB** | Task history, confirmation audit log (who confirmed what, amount, time), order history, local copy of key memories (fallback when Supermemory is down) | 1, 3, 4 |
+| **Amazon CloudWatch + AWS X-Ray** (Strands OpenTelemetry → ADOT/OTLP) | Traces of every agent turn and tool call, latency metrics, judge dashboard | 1, 7 |
+| **Amazon Rekognition DetectText** | Fast OCR of the screen; **double-checks amounts and names on the checkout page before a confirmation is spoken** (safety) | 3, 5 |
+| **Amazon Textract** | "Read this PDF / letter / bill to me" — document text and tables read aloud | 5 |
+| **Amazon SNS** (email) | Trusted-contact alerts: Zoya is blocked (CAPTCHA/login), order placed, emergency "tell my sister I need help" | 4 |
+| **Amazon S3** | Stores created documents for sharing (pre-signed link sent via SNS), benchmark results, demo recordings | 0, 6 |
+| **Amazon EventBridge Scheduler + AWS Lambda** | Reminders and routines ("remind me to take my medicine at 9 pm") → Lambda → SNS email + Zoya speaks when it fires | 6 |
+| **Amazon Location Service** | "What's the nearest pharmacy?" / place search tool | 4 |
+| **Amazon Bedrock** | Brain / vision models | ⏳ after the support case (§5) |
 
+## 9. Creating documents: docs, sheets, slides — "make anything"
+
+**How HeyClicky-style apps do it (researched 2026-09-14):** HeyClicky's current agent features are closed source. Its best-known open-source clone, **Glide** (shujanshaikh/glide), does **not** click around Google Sheets in a browser; it calls **app APIs through Composio** (Google Docs, Notion, Gmail, Slack…) so the model creates content directly via each app's API.
+
+**Zoya's approach — three tiers, fastest and most reliable first:**
+
+| Tier | How | Formats | When |
+|---|---|---|---|
+| **1. Local files (default)** | `document_agent` writes real files with libraries: **python-docx** (Word), **openpyxl** (Excel, incl. formulas), **python-pptx** (slides), **reportlab** (PDF), CSV/Markdown. Saves to `~/Documents/Zoya/`, opens in Pages/Numbers/Keynote/Word/Excel by bundle id, then **reads a summary aloud** ("Your budget sheet has 12 rows; total 18,400 rupees") | .docx .xlsx .pptx .pdf .csv .md | Every "make me a document / sheet / presentation" request |
+| **2. Share / cloud copy** | Upload to **S3**, send a pre-signed link via **SNS** email; optionally Google Docs/Sheets via the Google APIs (or Composio) once the user connects an account | Same files, shareable | "Send it to my teacher", "put it in Google Sheets" |
+| **3. Browser UI automation (last resort)** | `browser_agent` / `computer_agent` operates Google Sheets or Docs in Chrome | Anything the web app does | Only when the user explicitly wants to work inside an existing online doc |
+
+**Why not browser-first:** typing into Google Sheets' canvas grid by clicks is slow (many screenshots), fragile, expensive, and hard to verify for a blind user. Files + APIs are exact, fast and can be read back reliably.
+
+**Reading back is part of creating:** after every document, Zoya speaks the structure (title, sections or sheet columns, row count, totals) and offers "read section 2" / "read row 5".

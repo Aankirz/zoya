@@ -19,6 +19,9 @@
 - `warning` earcon ×2, 20 s timeout → re-prompt → auto-cancel.
 - Secure-field block for typing (§12.1); `<untrusted_content>` wrapping (§12.2).
 - `tests/test_safety.py` (§17.1).
+- `tests/test_safety.py` (§17.1).
+- **Confirmation audit log** in DynamoDB (action, amount, recipient, time, confirmed/cancelled).
+- **Amount check:** before speaking a purchase confirmation, OCR the page with **Rekognition DetectText** and verify the amount matches what the agent read; mismatch → ask again, never confirm.
 
 **Not in this phase:** real shopping — use a local test HTML page with a "Place order" button.
 
