@@ -20,7 +20,7 @@ Prepare these before Phase 0. **Put secret values only in your local `.env` file
 |---|---|
 | Strands Agents SDK key | Strands is open source; it uses your AWS credentials for Bedrock |
 | Anthropic API key | Claude models are called through Amazon Bedrock |
-| Picovoice key | Its free tier ended on 30 June 2026; the wake word uses open-source sherpa-onnx instead (D19) |
+| Picovoice key | Its free tier ended on 30 June 2026; the wake word uses local open-source Whisper instead (D19) |
 | OpenAI / ElevenLabs / AssemblyAI keys | Voice is Amazon Nova 2 Sonic (fallback Transcribe + Polly) |
 
 ## Optional

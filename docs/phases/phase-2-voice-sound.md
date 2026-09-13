@@ -14,7 +14,7 @@
 **Goal:** Zoya is fully hands-free — wake word, natural conversation, and the calm earcon system — on top of Phase 1's actions.
 
 **Build**
-- Wake word **"Hey Zoya"** with **sherpa-onnx open-vocabulary keyword spotting** (English KWS model, keywords given as text; tune boost/threshold for few false triggers) + push-to-talk **Control + Option** (§9.1).
+- Wake word **"Hey Zoya"** with **local Whisper** (§9.1): Silero VAD detects speech → `faster-whisper` `base.en` (int8, CPU) transcribes the short segment with `initial_prompt="Zoya"` → lenient name match in the first 3 words; "stop" + name for the stop command + push-to-talk **Control + Option** (§9.1).
 - Voice layer: Strands `BidiAgent` + Nova 2 Sonic with `start_task` / `stop_task` / `task_status` tools (§9.2). Fallback flag: Transcribe + Polly.
 - Audio engine (§9.10): preloaded WAV earcons (processed per §7.3), speech channel, working loop with ducking.
 - Wire earcons: `wake`, `release`, `processing`, `success`, `error`, `stop`.
@@ -26,7 +26,7 @@
 **Doc sections:** §7, §9.1, §9.2, §9.10, §13.1, §13.5.2.
 
 **Done when**
-1. ☐ "Hey Zoya" triggers from 1.5 m; the `wake` earcon plays in **< 200 ms**.
+1. ☐ "Hey Zoya" triggers from 1.5 m in ≥ 9 of 10 tries by the owner's real voice; the `wake` earcon plays **< 500 ms** after the phrase ends; no trigger on 10 everyday sentences incl. "Hey Sonia".
 2. ☐ Zoya does **not** wake itself from its own speech (10 tries).
 3. ☐ "Hey Zoya, open Spotify" → opened + `success` earcon, speech end → done ≤ 1.5 s.
 4. ☐ "Zoya, stop" while Zoya is talking silences it in **< 300 ms**.

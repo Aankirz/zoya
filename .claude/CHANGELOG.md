@@ -64,3 +64,6 @@
 
 ## 2026-09-14 — Replace Picovoice
 - Picovoice free tier ended; switched wake word to sherpa-onnx KWS (D19) across docs, pyproject, env, gitignore.
+
+## 2026-09-14 — Wake word -> Whisper
+- Benchmarked sherpa-onnx KWS vs faster-whisper on 54 clips; switched D19 to Whisper base.en + VAD; updated docs, pyproject, Phase 2 test.
