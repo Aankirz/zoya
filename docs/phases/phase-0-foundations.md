@@ -24,7 +24,7 @@
 - **AWS voice/speech benchmark (STACK §8):** voice already chosen (Polly Kajal neural, D33) — measure its time-to-first-audio on 5 Zoya sentences incl. Hinglish; Amazon Transcribe (en-IN/hi-IN) vs local Whisper on the 20 recorded commands. Decide primary vs fallback and record in DECISIONS.
 - Create S3 bucket for benchmark results; store results there too.
 - Grant Microphone, Accessibility, Screen Recording to the terminal/Python that will run Zoya.
-- Pick the earcon pack: `sounds/audition.sh` (`zen` or `soft`).
+- Earcon pack: ✅ already chosen — `zen` (D9).
 
 **Not in this phase:** agent logic, voice loop, UI.
 
@@ -35,6 +35,6 @@
 3. ☐ Owner has listened to the ElevenLabs samples and picked the voice.
 4. ☐ Spending limits set.
 5. ☐ `screencapture` and a test click work without permission errors.
-6. ☐ Earcon pack chosen.
+6. ✅ Earcon pack chosen (`zen`).
 
 **Judge demo (45 s):** show the benchmark table: "we tested N models on tool use, screen reading and speed, and picked these with evidence" + play the chosen Zoya voice.

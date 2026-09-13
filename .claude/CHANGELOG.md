@@ -85,3 +85,6 @@
 
 ## 2026-09-14 — store=false
 - D36: store=false on all OpenAI requests; STACK §3 rule with verified Strands behaviour; AGENTS security rule; Phase 0/1 tests.
+
+## 2026-09-14 — Earcons: zen
+- D9 confirmed zen; Phase 0 brief updated.
