@@ -13,8 +13,11 @@
 **Goal:** every cloud service and macOS permission Zoya needs is proven to work on the demo Mac, before any product code exists.
 
 **Build**
+- `brew install portaudio` (needed by Strands' PyAudio voice I/O — docs/AUDIT.md B1). Pin `strands-agents[bidi,bidi-pyaudio,bidi-aec,otel]==1.55.1`.
+- **Claude billing check (AUDIT A2):** Billing → Credits → which services are covered; one tiny Haiku 4.5 call to see if the Marketplace subscription succeeds; record the result in DECISIONS.
+- **Latency check (AUDIT B17):** end-to-end response time of Nova Micro, Haiku 4.5 and Sonnet 5 from `ap-south-1` vs `ap-northeast-1`; Nova 2 Sonic from Tokyo.
 - Repo skeleton (§15.2), `pyproject.toml`, `.env.example`, Black/isort/Ruff configured.
-- Enable Bedrock model access: Nova 2 Sonic, Claude Sonnet 5, Claude Haiku 4.5, Nova Micro, Nova 2 Lite, Nova Canvas.
+- Enable Bedrock model access: Nova 2 Sonic, Claude Sonnet 5, Claude Haiku 4.5, Nova Micro, Nova 2 Lite.
 - `scripts/check_models.py`: one tiny call to each model, prints latency per model.
 - `scripts/check_regions.py`: round-trip time to candidate Bedrock regions → pick the nearest with all models (§13.5.4).
 - AWS Budgets alarms at $25 / $50 / $75.

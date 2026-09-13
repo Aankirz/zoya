@@ -67,3 +67,6 @@
 
 ## 2026-09-14 — Wake word -> Whisper
 - Benchmarked sherpa-onnx KWS vs faster-whisper on 54 clips; switched D19 to Whisper base.en + VAD; updated docs, pyproject, Phase 2 test.
+
+## 2026-09-14 — Architecture audit
+- Added docs/AUDIT.md (3 research agents + local tests: Supermemory, latency, wake word). Removed Nova Canvas, fixed coords/overlay/Strands APIs/caching, pinned strands extras, D20-D25, phase briefs updated.

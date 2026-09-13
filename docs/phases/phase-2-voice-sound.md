@@ -15,7 +15,7 @@
 
 **Build**
 - Wake word **"Hey Zoya"** with **local Whisper** (§9.1): Silero VAD detects speech → `faster-whisper` `base.en` (int8, CPU) transcribes the short segment with `initial_prompt="Zoya"` → lenient name match in the first 3 words; "stop" + name for the stop command + push-to-talk **Control + Option** (§9.1).
-- Voice layer: Strands `BidiAgent` + Nova 2 Sonic with `start_task` / `stop_task` / `task_status` tools (§9.2). Fallback flag: Transcribe + Polly.
+- Voice layer: Strands `BidiAgent` + `BedrockNovaSonicModel(model_id=..., region=..., audio={"voice": "kiara"})` with `BidiAudioIO(audio_processor=True)` for echo cancellation; progress via `agent.send()` phrased as an instruction; re-announce task results after reconnects; bidi imports wrapped in one adapter module (AUDIT B1–B4). Nova 2 Sonic with `start_task` / `stop_task` / `task_status` tools (§9.2). Fallback flag: Transcribe + Polly.
 - Audio engine (§9.10): preloaded WAV earcons (processed per §7.3), speech channel, working loop with ducking.
 - Wire earcons: `wake`, `release`, `processing`, `success`, `error`, `stop`.
 - Mic gating while Zoya speaks + local "Zoya, stop" spotter (§9.1).

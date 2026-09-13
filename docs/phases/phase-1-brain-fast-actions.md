@@ -20,7 +20,7 @@
 
 **Build**
 - **Contracts first:** `config.py` (loads the few `.env` values; all other settings — voices `kiara`/`Kajal`, limits, sound pack, paths — are named constants here, not env vars), `events.py` (event names + payload dataclasses for narrate, earcon, task, confirmation, overlay), and the tool/agent registration convention (each tools/agents module exposes a `TOOLS` list; the orchestrator collects them).
-- Strands orchestrator agent on Sonnet 5 (§9.3) with prompt caching.
+- Strands orchestrator agent on Sonnet 5 (§9.3) with `CacheConfig(strategy="auto", system_prompt_ttl=True, tools_ttl=True)` (not the deprecated `cache_prompt`); low thinking effort; one Agent instance per task (AUDIT B6–B8).
 - **Intent router** (§13.5.3): rule matcher first, then Nova Micro.
 - T0 tools (§9.4): `open_app`, `open_url`, `run_applescript` (allow-listed apps), `notes_create/search/append`, volume, time.
 - `narrate(text)` via **Amazon Polly** (temporary voice until Phase 2).

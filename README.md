@@ -21,6 +21,7 @@ Built for the **Vision OS** hackathon with the **Strands Agents SDK** and **Amaz
 | [`AGENTS.md`](AGENTS.md) | **Rules for every coding agent.** Read before touching code. |
 | [`docs/ZOYA_TECHNICAL_DOC.md`](docs/ZOYA_TECHNICAL_DOC.md) | Source of truth: product, user flows, audio design, architecture, performance, cost, risks |
 | [`docs/DECISIONS.md`](docs/DECISIONS.md) | Decisions already made — don't relitigate |
+| [`docs/AUDIT.md`](docs/AUDIT.md) | Verified findings: what was tested, what was wrong, correct APIs and costs |
 | [`docs/phases/`](docs/phases/) | One self-contained brief per build phase |
 | [`docs/SESSION_PLAN.md`](docs/SESSION_PLAN.md) | The prompts to build, fix and approve each phase |
 | [`docs/PROGRESS.md`](docs/PROGRESS.md) | Checkpoint log: what works at each tag |
@@ -43,7 +44,7 @@ Built for the **Vision OS** hackathon with the **Strands Agents SDK** and **Amaz
    notes, AppleScript)             (Strands Agent + Claude Sonnet 5)
                                         ├─ browser_agent   (Playwright, own Chrome profile)
                                         ├─ computer_agent  (screenshots + mouse/keyboard)
-                                        ├─ ppt_agent       (python-pptx + Nova Canvas)
+                                        ├─ ppt_agent       (python-pptx, text slides)
                                         ├─ screen_describer (Claude Haiku 4.5)
                                         └─ memory          (Supermemory)
    Safety layer: spoken-confirmation tokens + click guard on every risky action

@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 # Versions are pinned in Phase 0 after verifying against official docs (see AGENTS.md).
 dependencies = [
-  "strands-agents",
+  "strands-agents[bidi,bidi-pyaudio,bidi-aec,otel]==1.55.1",
   "strands-agents-tools",
   "boto3",
   "python-dotenv",
@@ -17,6 +17,7 @@ dependencies = [
   "pyautogui",
   "pyobjc-framework-Quartz",
   "pyobjc-framework-ApplicationServices",
+  "pyobjc-framework-ScreenCaptureKit",
   "playwright",
   "python-pptx",
   "supermemory",

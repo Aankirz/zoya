@@ -5,10 +5,11 @@ Zoya is built one phase at a time by coding agents. These rules exist so that no
 ## 1. Sources of truth (in priority order)
 
 1. **Your phase brief** in `docs/phases/phase-N-*.md` — the scope of your work.
-2. **`docs/DECISIONS.md`** — settled choices. Do not change them without the human owner's approval.
-3. **`docs/SESSION_PLAN.md`** — the build → test → fix → approve loop.
-4. **`docs/ZOYA_TECHNICAL_DOC.md`** — product, flows, architecture. Phase briefs cite it as `§x.y`.
-5. **Official library/vendor documentation** — for any API signature, model ID, parameter or limit.
+2. **`docs/AUDIT.md`** — verified facts, correct APIs and costs; overrides the technical doc.
+3. **`docs/DECISIONS.md`** — settled choices. Do not change them without the human owner's approval.
+4. **`docs/SESSION_PLAN.md`** — the build → test → fix → approve loop.
+5. **`docs/ZOYA_TECHNICAL_DOC.md`** — product, flows, architecture. Phase briefs cite it as `§x.y`.
+6. **Official library/vendor documentation** — for any API signature, model ID, parameter or limit.
 
 If these disagree, stop and ask. If they are silent, ask — do not guess.
 
