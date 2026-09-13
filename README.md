@@ -22,7 +22,7 @@ Built for the **Vision OS** hackathon with the **Strands Agents SDK** and **Amaz
 | [`docs/ZOYA_TECHNICAL_DOC.md`](docs/ZOYA_TECHNICAL_DOC.md) | Source of truth: product, user flows, audio design, architecture, performance, cost, risks |
 | [`docs/DECISIONS.md`](docs/DECISIONS.md) | Decisions already made — don't relitigate |
 | [`docs/phases/`](docs/phases/) | One self-contained brief per build phase |
-| [`docs/SESSION_PLAN.md`](docs/SESSION_PLAN.md) | Which Claude session builds what, merge order, test checkpoints |
+| [`docs/SESSION_PLAN.md`](docs/SESSION_PLAN.md) | The prompts to build, fix and approve each phase |
 | [`docs/PROGRESS.md`](docs/PROGRESS.md) | Checkpoint log: what works at each tag |
 | [`docs/CREDENTIALS.md`](docs/CREDENTIALS.md) | Accounts, keys and permissions to prepare |
 | [`.env.example`](.env.example) | Every environment variable |
@@ -66,7 +66,7 @@ Everything that controls the Mac runs **locally**; AWS Bedrock provides the mode
 | 7 | Judges can see what Zoya is doing | [phase-7](docs/phases/phase-7-stage-polish.md) |
 | 8 | Demo runs clean 3× in a row | [phase-8](docs/phases/phase-8-rehearsal-submission.md) |
 
-**Parallel lanes:** after Phase 1, Phases 2 and 3 can run together; after Phase 3, Phases 4 and 5 can run together; Phase 7 can start any time after Phase 2.
+**Phases are built one at a time.** Each must pass its checklist before the next starts. How: [`docs/SESSION_PLAN.md`](docs/SESSION_PLAN.md).
 
 ## Getting started (after Phase 0 lands)
 

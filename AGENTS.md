@@ -1,12 +1,12 @@
 # AGENTS.md — Rules for coding agents building Zoya
 
-Several agents build Zoya in parallel. These rules exist so that nobody invents requirements, APIs or model IDs, and nobody overwrites another agent's work.
+Zoya is built one phase at a time by coding agents. These rules exist so that nobody invents requirements, APIs or model IDs.
 
 ## 1. Sources of truth (in priority order)
 
 1. **Your phase brief** in `docs/phases/phase-N-*.md` — the scope of your work.
 2. **`docs/DECISIONS.md`** — settled choices. Do not change them without the human owner's approval.
-3. **`docs/SESSION_PLAN.md`** — your session's scope, branch, merge order and hotspot-file rules.
+3. **`docs/SESSION_PLAN.md`** — the build → test → fix → approve loop.
 4. **`docs/ZOYA_TECHNICAL_DOC.md`** — product, flows, architecture. Phase briefs cite it as `§x.y`.
 5. **Official library/vendor documentation** — for any API signature, model ID, parameter or limit.
 
@@ -22,7 +22,7 @@ If these disagree, stop and ask. If they are silent, ask — do not guess.
 ## 3. Scope discipline
 
 - Build **only** what your phase brief lists under **Build**. Respect **Not in this phase**.
-- **Only edit files your phase owns** (listed at the top of the brief). Need a change elsewhere? Note it in your hand-off report as a request for the owning phase.
+- Prefer editing the files your phase lists. Changing a file from an earlier phase is fine when needed; say so in your hand-off report.
 - No speculative abstractions, no extra dependencies beyond `pyproject.toml` without asking.
 - The **safety gate (§9.9), the "stop" command, and earcons are never cut or bypassed**, including in tests or demos.
 

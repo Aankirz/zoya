@@ -4,7 +4,7 @@
 >
 > **Branch:** `phase-0-foundations` · **Depends on:** nothing
 
-**Files this phase owns** (other agents must not edit them during this phase):
+**Files this phase creates:**
 - `pyproject.toml`
 - `scripts/check_models.py`
 - `scripts/check_regions.py`

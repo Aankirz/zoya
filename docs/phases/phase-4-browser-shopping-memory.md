@@ -2,9 +2,9 @@
 
 > Section numbers (§) refer to [`docs/ZOYA_TECHNICAL_DOC.md`](../ZOYA_TECHNICAL_DOC.md). Read [`AGENTS.md`](../../AGENTS.md) before starting.
 >
-> **Branch:** `phase-4-browser-shopping-memory` · **Depends on:** Phases 1 and 3 ("Done when" passing) · **Note:** memory tools can start right after Phase 1
+> **Branch:** `phase-4-browser-shopping-memory` · **Depends on:** previous phase approved
 
-**Files this phase owns** (other agents must not edit them during this phase):
+**Files this phase creates:**
 - `zoya/tools/browser.py`
 - `zoya/agents/browser_agent.py`
 - `zoya/tools/memory.py`

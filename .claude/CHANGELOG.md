@@ -37,3 +37,6 @@
 
 ## 2026-09-14 — No-PR workflow
 - Sessions push branches and fast-forward merge into main after human approval; no pull requests (per owner).
+
+## 2026-09-14 — Sequential build loop
+- Replaced parallel session plan with one-session, phase-by-phase build/test/fix/approve prompts; removed parallel wording from README, AGENTS.md, phase briefs.

@@ -2,11 +2,9 @@
 
 > Section numbers (§) refer to [`docs/ZOYA_TECHNICAL_DOC.md`](../ZOYA_TECHNICAL_DOC.md). Read [`AGENTS.md`](../../AGENTS.md) before starting.
 >
-> **Branch:** `phase-2-voice-sound` · **Depends on:** Phase 1 ("Done when" passing)
+> **Branch:** `phase-2-voice-sound` · **Depends on:** previous phase approved
 
-**Split across two sessions** (see `docs/SESSION_PLAN.md`): **2a audio** (`phase-2a-audio`: `zoya/audio.py`, `scripts/build_sounds.sh`, `sounds/*.wav`) merges first; **2b voice** (`phase-2b-voice`: `zoya/voice.py`, `zoya/main.py`) builds on it.
-
-**Files this phase owns** (other agents must not edit them during this phase):
+**Files this phase creates:**
 - `zoya/voice.py`
 - `zoya/audio.py`
 - `zoya/main.py`

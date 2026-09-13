@@ -2,9 +2,9 @@
 
 > Section numbers (§) refer to [`docs/ZOYA_TECHNICAL_DOC.md`](../ZOYA_TECHNICAL_DOC.md). Read [`AGENTS.md`](../../AGENTS.md) before starting.
 >
-> **Branch:** `phase-6-multitasking-ppt` · **Depends on:** Phases 2 and 4 ("Done when" passing)
+> **Branch:** `phase-6-multitasking-ppt` · **Depends on:** previous phase approved
 
-**Files this phase owns** (other agents must not edit them during this phase):
+**Files this phase creates:**
 - `zoya/tasks.py`
 - `zoya/agents/ppt_agent.py`
 

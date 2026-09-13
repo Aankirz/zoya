@@ -2,9 +2,9 @@
 
 > Section numbers (§) refer to [`docs/ZOYA_TECHNICAL_DOC.md`](../ZOYA_TECHNICAL_DOC.md). Read [`AGENTS.md`](../../AGENTS.md) before starting.
 >
-> **Branch:** `phase-1-brain-fast-actions` · **Depends on:** Phase 0 ("Done when" passing)
+> **Branch:** `phase-1-brain-fast-actions` · **Depends on:** previous phase approved
 
-**Files this phase owns** (other agents must not edit them during this phase):
+**Files this phase creates:**
 - `zoya/orchestrator.py`
 - `zoya/router.py`
 - `zoya/prompts.py`
@@ -19,7 +19,7 @@
 **Goal:** a typed command makes the Mac do something within about a second, and Zoya says what it did.
 
 **Build**
-- **Contracts first (merge within ~1 hour, before other sessions branch):** `config.py` (env loading), `events.py` (event names + payload dataclasses for narrate, earcon, task, confirmation, overlay), and the tool/agent registration convention (each tools/agents module exposes a `TOOLS` list; the orchestrator collects them). See `docs/SESSION_PLAN.md`.
+- **Contracts first:** `config.py` (env loading), `events.py` (event names + payload dataclasses for narrate, earcon, task, confirmation, overlay), and the tool/agent registration convention (each tools/agents module exposes a `TOOLS` list; the orchestrator collects them).
 - Strands orchestrator agent on Sonnet 5 (§9.3) with prompt caching.
 - **Intent router** (§13.5.3): rule matcher first, then Nova Micro.
 - T0 tools (§9.4): `open_app`, `open_url`, `run_applescript` (allow-listed apps), `notes_create/search/append`, volume, time.

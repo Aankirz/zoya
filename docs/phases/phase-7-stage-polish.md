@@ -2,9 +2,9 @@
 
 > Section numbers (§) refer to [`docs/ZOYA_TECHNICAL_DOC.md`](../ZOYA_TECHNICAL_DOC.md). Read [`AGENTS.md`](../../AGENTS.md) before starting.
 >
-> **Branch:** `phase-7-stage-polish` · **Depends on:** Phase 2 ("Done when" passing) · **Note:** can run in parallel with Phases 4–6
+> **Branch:** `phase-7-stage-polish` · **Depends on:** previous phase approved
 
-**Files this phase owns** (other agents must not edit them during this phase):
+**Files this phase creates:**
 - `zoya/overlay.py`
 - `assets/avatars/*`
 

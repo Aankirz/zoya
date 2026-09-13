@@ -2,9 +2,9 @@
 
 > Section numbers (§) refer to [`docs/ZOYA_TECHNICAL_DOC.md`](../ZOYA_TECHNICAL_DOC.md). Read [`AGENTS.md`](../../AGENTS.md) before starting.
 >
-> **Branch:** `phase-5-computer-use` · **Depends on:** Phases 1 and 3 ("Done when" passing) · **Note:** can run in parallel with Phase 4
+> **Branch:** `phase-5-computer-use` · **Depends on:** previous phase approved
 
-**Files this phase owns** (other agents must not edit them during this phase):
+**Files this phase creates:**
 - `zoya/tools/computer.py`
 - `zoya/tools/ax.py`
 - `zoya/agents/computer_agent.py`

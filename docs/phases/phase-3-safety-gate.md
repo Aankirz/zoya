@@ -2,9 +2,9 @@
 
 > Section numbers (§) refer to [`docs/ZOYA_TECHNICAL_DOC.md`](../ZOYA_TECHNICAL_DOC.md). Read [`AGENTS.md`](../../AGENTS.md) before starting.
 >
-> **Branch:** `phase-3-safety-gate` · **Depends on:** Phase 1 ("Done when" passing) · **Note:** can run in parallel with Phase 2; test confirmations by typing until Phase 2 lands
+> **Branch:** `phase-3-safety-gate` · **Depends on:** previous phase approved
 
-**Files this phase owns** (other agents must not edit them during this phase):
+**Files this phase creates:**
 - `zoya/safety.py`
 - `tests/test_safety.py`
 - `tests/fixtures/place_order.html`
