@@ -64,6 +64,13 @@
 
 All model calls go through **one adapter module** (`zoya/models.py`) so switching providers never touches agent code.
 
+**Privacy rule — `store=false` on every OpenAI request (D36, mandatory):** Zoya's requests contain screenshots, voice commands, addresses and orders, so nothing may be stored in OpenAI's logs.
+- `OpenAIResponsesModel`: keep `stateful=False` (the default). Strands then sends `"store": False` on every request (verified in `strands/models/openai_responses.py`, where `store` is set from `stateful` after `params`). Never set `stateful=True`.
+- `OpenAIModel` (Chat Completions): pass `params={"store": False, ...}`.
+- Any direct `openai` SDK call outside Strands (router, benchmarks, scripts): pass `store=False` explicitly.
+- Enforced in one place: `zoya/models.py` builds every OpenAI client/model; a unit test fails if any OpenAI config lacks `store=False` / `stateful=False`.
+- Owner check after Phase 1: platform.openai.com → **Logs** shows no stored Zoya requests.
+
 ## 4. Phase 0 benchmark (decides the models)
 
 Run before any product code, with real calls, saving raw results to `tests/evals/results/`:

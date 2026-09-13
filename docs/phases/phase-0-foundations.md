@@ -16,7 +16,7 @@
 
 **Build**
 - Pin dependencies after verifying on PyPI/docs: `strands-agents[openai,otel]`, `openai`, `elevenlabs`, `mlx-whisper`, `faster-whisper`, plus the existing list.
-- `zoya/models.py`: one function returning a Strands model for `MODEL_PROVIDER` (STACK §3). Fireworks via `OpenAIModel` with its OpenAI-compatible base URL (verify in Fireworks docs).
+- `zoya/models.py`: one function returning a Strands model for `MODEL_PROVIDER` (STACK §3), with **`store=False` enforced for OpenAI** (D36) and a unit test `tests/test_models_privacy.py` that fails if any OpenAI config can store data. Benchmark scripts also pass `store=False`. Fireworks via `OpenAIModel` with its OpenAI-compatible base URL (verify in Fireworks docs).
 - `scripts/check_providers.py`: lists models on the OpenAI key (primary) and confirms the Fireworks fallback answers; one tiny call each; ElevenLabs voices list; Supermemory ping. Never prints keys.
 - **Benchmarks (STACK §4):** tool calling (40 utterances), screen understanding (10 screenshots), 3 computer-use loops on local test pages, brain latency, Whisper `large-v3-turbo` on 20 recorded commands, ElevenLabs time-to-first-audio on 5 sentences with 3–5 Indian female voices (save audio files for the owner).
 - Record chosen `BRAIN_MODEL`, `VISION_MODEL`, `ROUTER_MODEL`, `ELEVENLABS_VOICE_ID` in `.env` and the reasoning + numbers in `docs/DECISIONS.md`.
@@ -30,6 +30,7 @@
 
 **Done when**
 1. ☐ `check_providers.py` lists models and gets a reply from each provider; no key printed.
+1b. ☐ `pytest tests/test_models_privacy.py` passes; platform.openai.com → Logs shows no stored requests from the benchmark.
 2. ☐ All STACK §4 benchmarks run; results saved; models + voice chosen and recorded in DECISIONS.
 3. ☐ Owner has listened to the ElevenLabs samples and picked the voice.
 4. ☐ Spending limits set.

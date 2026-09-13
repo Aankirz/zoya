@@ -39,5 +39,6 @@
 3. ☐ "Plan a trip and book a hotel" is routed to the orchestrator, not the fast path.
 4. ☐ Router eval passes ≥ 95% with the chosen router model.
 5. ☐ Unknown app → polite spoken error, no crash.
+6. ☐ After a session of commands, platform.openai.com → Logs shows **no stored Zoya requests** (`store=false`, D36).
 
 **Judge demo (45 s):** type three commands in a row; Mac reacts instantly and speaks; show the timing log with sub-second fast paths.
