@@ -61,3 +61,6 @@
 
 ## 2026-09-14 — Blank .env.example
 - Removed all values from .env.example per owner; real values only in local .env.
+
+## 2026-09-14 — Replace Picovoice
+- Picovoice free tier ended; switched wake word to sherpa-onnx KWS (D19) across docs, pyproject, env, gitignore.

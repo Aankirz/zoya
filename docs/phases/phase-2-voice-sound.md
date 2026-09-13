@@ -14,7 +14,7 @@
 **Goal:** Zoya is fully hands-free — wake word, natural conversation, and the calm earcon system — on top of Phase 1's actions.
 
 **Build**
-- Porcupine custom wake word **"Hey Zoya"** + push-to-talk **Control + Option** (§9.1).
+- Wake word **"Hey Zoya"** with **sherpa-onnx open-vocabulary keyword spotting** (English KWS model, keywords given as text; tune boost/threshold for few false triggers) + push-to-talk **Control + Option** (§9.1).
 - Voice layer: Strands `BidiAgent` + Nova 2 Sonic with `start_task` / `stop_task` / `task_status` tools (§9.2). Fallback flag: Transcribe + Polly.
 - Audio engine (§9.10): preloaded WAV earcons (processed per §7.3), speech channel, working loop with ducking.
 - Wire earcons: `wake`, `release`, `processing`, `success`, `error`, `stop`.

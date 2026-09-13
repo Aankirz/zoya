@@ -64,7 +64,6 @@ Rules:
 | Rehearsal + submission | 8 | `phase-8-rehearsal-submission.md` | `v1.0-demo` |
 
 **Extra prep before specific phases**
-- Phase 2: the "Hey Zoya" `.ppn` wake-word file from Picovoice.
 - Phase 4: log into Amazon.in inside the Zoya Chrome profile when Claude asks.
 - Phase 7: avatar images exported into `assets/avatars/`.
 

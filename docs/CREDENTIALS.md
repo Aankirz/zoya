@@ -12,9 +12,7 @@ Prepare these before Phase 0. **Put secret values only in your local `.env` file
 | 4 | **Bedrock model access** enabled for: Nova 2 Sonic, Claude Sonnet 5, Claude Haiku 4.5, Nova Micro, Nova 2 Lite, Nova Canvas | Bedrock console → Model access | — | Anthropic models may require a short use-case form |
 | 5 | **Bedrock model / inference-profile IDs** for each model above | Bedrock console → model catalog / cross-region inference | `BEDROCK_MODEL_*` | Copy exactly from the console; never guess |
 | 6 | **Supermemory API key** | https://console.supermemory.ai | `SUPERMEMORY_API_KEY` | Free plan: $0/month with $5 usage included. You already have a key in `~/.env` from an earlier project — you can reuse it or create a separate one for Zoya |
-| 7 | **Picovoice AccessKey** | https://console.picovoice.ai | `PICOVOICE_ACCESS_KEY` | Free tier |
-| 8 | **"Hey Zoya" custom wake-word file** for macOS (Apple Silicon) | Picovoice Console → Porcupine → train keyword "Hey Zoya" → download `.ppn` for macOS | Save as `assets/wakeword/hey-zoya_mac.ppn` (git-ignored) | Keyword files are tied to your AccessKey — don't commit |
-| 9 | **Amazon.in account** logged in inside the **Zoya Chrome profile**, with a saved address and payment method | Done in Phase 4 onboarding | — | Zoya never sees or stores the password or card |
+| 7 | **Amazon.in account** logged in inside the **Zoya Chrome profile**, with a saved address and payment method | Done in Phase 4 onboarding | — | Zoya never sees or stores the password or card |
 
 ## Not needed
 
@@ -22,6 +20,7 @@ Prepare these before Phase 0. **Put secret values only in your local `.env` file
 |---|---|
 | Strands Agents SDK key | Strands is open source; it uses your AWS credentials for Bedrock |
 | Anthropic API key | Claude models are called through Amazon Bedrock |
+| Picovoice key | Its free tier ended on 30 June 2026; the wake word uses open-source sherpa-onnx instead (D19) |
 | OpenAI / ElevenLabs / AssemblyAI keys | Voice is Amazon Nova 2 Sonic (fallback Transcribe + Polly) |
 
 ## Optional

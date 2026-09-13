@@ -30,7 +30,7 @@ Built for the **Vision OS** hackathon with the **Strands Agents SDK** and **Amaz
 ## Architecture at a glance
 
 ```
-"Hey Zoya" ─► Wake word (Porcupine, on-device) ─► earcon
+"Hey Zoya" ─► Wake word (sherpa-onnx keyword spotting, on-device, no key) ─► earcon
                  │
                  ▼
    Voice layer: Strands BidiAgent + Amazon Nova 2 Sonic   (talk, interrupt, status)

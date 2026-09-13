@@ -18,7 +18,7 @@
 - `scripts/check_models.py`: one tiny call to each model, prints latency per model.
 - `scripts/check_regions.py`: round-trip time to candidate Bedrock regions → pick the nearest with all models (§13.5.4).
 - AWS Budgets alarms at $25 / $50 / $75.
-- Supermemory + Picovoice API keys in `.env`.
+- Supermemory API key in `.env`.
 - Grant Microphone, Accessibility, Screen Recording to the terminal/Python that will run Zoya.
 - Pick the sound pack: run `sounds/audition.sh`, choose `zen` or `soft` (§7.3).
 
