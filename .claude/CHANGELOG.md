@@ -58,3 +58,6 @@
 
 ## 2026-09-14 — Verified model IDs
 - Filled Bedrock model/inference-profile IDs in .env.example from ap-northeast-1 listing; created local .env.
+
+## 2026-09-14 — Blank .env.example
+- Removed all values from .env.example per owner; real values only in local .env.
