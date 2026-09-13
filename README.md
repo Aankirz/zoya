@@ -6,7 +6,7 @@ Say **"Hey Zoya"** and describe a goal — *"order my usual groceries"*, *"make 
 
 > *VoiceOver tells you what's on the screen. Zoya does what you meant.*
 
-Built for the **Vision OS** hackathon with the **Strands Agents SDK** and **Amazon Bedrock**.
+Built for the **Vision OS** hackathon with the **Strands Agents SDK** and **AWS**.
 
 ---
 
@@ -19,6 +19,7 @@ Built for the **Vision OS** hackathon with the **Strands Agents SDK** and **Amaz
 | Doc | What it's for |
 |---|---|
 | [`AGENTS.md`](AGENTS.md) | **Rules for every coding agent.** Read before touching code. |
+| [`docs/STACK.md`](docs/STACK.md) | **Current models, voice and providers** — overrides the technical doc |
 | [`docs/ZOYA_TECHNICAL_DOC.md`](docs/ZOYA_TECHNICAL_DOC.md) | Source of truth: product, user flows, audio design, architecture, performance, cost, risks |
 | [`docs/DECISIONS.md`](docs/DECISIONS.md) | Decisions already made — don't relitigate |
 | [`docs/AUDIT.md`](docs/AUDIT.md) | Verified findings: what was tested, what was wrong, correct APIs and costs |
@@ -30,28 +31,33 @@ Built for the **Vision OS** hackathon with the **Strands Agents SDK** and **Amaz
 
 ## Architecture at a glance
 
+> Current stack: [`docs/STACK.md`](docs/STACK.md). AWS Bedrock is blocked on our account (zero quotas), so models come from OpenAI/Fireworks for now; Bedrock plugs in later via one setting.
+
 ```
-"Hey Zoya" ─► Wake word (local Whisper + VAD, on-device, no key) ─► earcon
+"Hey Zoya" ─► Silero VAD + Whisper base.en (local) ─► earcon
+                 │
+                 ▼  your command
+   Whisper large-v3-turbo on Apple GPU (local, multilingual) → text
                  │
                  ▼
-   Voice layer: Strands BidiAgent + Amazon Nova 2 Sonic   (talk, interrupt, status)
-                 │ start_task(goal)
+   Router: rules (0 ms) ──► fast Mac actions (open app/URL, notes, AppleScript)
+                 │ otherwise
                  ▼
-   Intent router: rules (0 ms) → Amazon Nova Micro
-        │ simple                         │ multi-step
-        ▼                                ▼
-   Fast tools (open app/URL,       Task Manager → one orchestrator per task
-   notes, AppleScript)             (Strands Agent + Claude Sonnet 5)
-                                        ├─ browser_agent   (Playwright, own Chrome profile)
-                                        ├─ computer_agent  (screenshots + mouse/keyboard)
-                                        ├─ ppt_agent       (python-pptx, text slides)
-                                        ├─ screen_describer (Claude Haiku 4.5)
-                                        └─ memory          (Supermemory)
-   Safety layer: spoken-confirmation tokens + click guard on every risky action
-   Audio engine: UI SFX "zen" earcons (CC0) + speech, never silent
+   Strands Agents SDK — Task Manager → one orchestrator Agent per task
+      brain model: OpenAI / Fireworks (Bedrock later)
+        ├─ browser_agent    (Playwright, own Chrome profile)
+        ├─ computer_agent   (ScreenCaptureKit screenshots + clicks + Accessibility API)
+        ├─ ppt_agent        (python-pptx, text slides)
+        ├─ screen_describer (vision model)
+        └─ memory           (Supermemory)
+   Safety layer: spoken-confirmation tokens + click guard (Strands hook)
+                 │ streamed reply
+                 ▼
+   ElevenLabs streaming voice (Indian female) ─► speaker   · earcons (UI SFX zen)
+   AWS: CloudWatch traces, SNS trusted-contact alerts, Polly fallback voice
 ```
 
-Everything that controls the Mac runs **locally**; AWS Bedrock provides the models. Details: §8–§10 of the technical doc.
+Everything that controls the Mac runs **locally**.
 
 ## Build phases
 

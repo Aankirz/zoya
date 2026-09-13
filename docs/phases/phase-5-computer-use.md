@@ -1,6 +1,6 @@
 # Phase 5 — Computer use (31–36h)
 
-> Section numbers (§) refer to [`docs/ZOYA_TECHNICAL_DOC.md`](../ZOYA_TECHNICAL_DOC.md). Read [`AGENTS.md`](../../AGENTS.md) before starting.
+> Read [`AGENTS.md`](../../AGENTS.md) and [`docs/STACK.md`](../STACK.md) first (STACK overrides the technical doc for models/voice/AWS). Section numbers (§) refer to [`docs/ZOYA_TECHNICAL_DOC.md`](../ZOYA_TECHNICAL_DOC.md).
 >
 > **Branch:** `phase-5-computer-use` · **Depends on:** previous phase approved
 
@@ -17,7 +17,7 @@
 **Build**
 - `computer_agent` (§9.6): `screenshot` (ScreenCaptureKit, excluding Zoya's own windows; per-display scale from `NSScreen.backingScaleFactor()`, captured at point size so screenshot coords = click coords; ~1280×800 ≈ 1,334 tokens), `click`, `type_text` (clipboard for Unicode), `key`, `scroll`; **Retina scaling**; verify-after-act; GUI lock.
 - AX API tier T1 (`ax_read`, `ax_press`) before pixels (§9.4).
-- `screen_describer` on Haiku 4.5 + **screen description benchmark** vs Nova 2 Lite (§17.1b).
+- `screen_describer` on `VISION_MODEL` (chosen in Phase 0); re-run the screen benchmark with real Zoya prompts.
 - Context pruning: last 2 screenshots only (§9.3).
 - `tests/test_coords.py`.
 

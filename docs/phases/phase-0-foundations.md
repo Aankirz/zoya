@@ -1,39 +1,38 @@
 # Phase 0 — Foundations (0–2h)
 
-> Section numbers (§) refer to [`docs/ZOYA_TECHNICAL_DOC.md`](../ZOYA_TECHNICAL_DOC.md). Read [`AGENTS.md`](../../AGENTS.md) before starting.
+> Read [`AGENTS.md`](../../AGENTS.md) and [`docs/STACK.md`](../STACK.md) first (STACK overrides the technical doc for models/voice/AWS). Section numbers (§) refer to [`docs/ZOYA_TECHNICAL_DOC.md`](../ZOYA_TECHNICAL_DOC.md).
 >
 > **Branch:** `phase-0-foundations` · **Depends on:** nothing
 
 **Files this phase creates:**
-- `pyproject.toml`
-- `scripts/check_models.py`
-- `scripts/check_regions.py`
-- `.env (local only, never committed)`
+- `pyproject.toml` (pinned versions)
+- `zoya/models.py` (provider adapter: `openai` | `fireworks` | `bedrock`)
+- `scripts/check_providers.py`
+- `tests/evals/router_eval.py`, `tests/evals/screen_benchmark.py`, `tests/evals/voice_benchmark.py`
+- `tests/evals/results/` (raw benchmark outputs)
+- `.env` (local only, never committed)
 
-**Goal:** every cloud service and macOS permission Zoya needs is proven to work on the demo Mac, before any product code exists.
+**Goal:** every provider, local model and macOS permission Zoya needs is proven on the demo Mac, and the models are **chosen by benchmark**, before product code exists.
 
 **Build**
-- `brew install portaudio` (needed by Strands' PyAudio voice I/O — docs/AUDIT.md B1). Pin `strands-agents[bidi,bidi-pyaudio,bidi-aec,otel]==1.55.1`.
-- **Claude billing check (AUDIT A2):** Billing → Credits → which services are covered; one tiny Haiku 4.5 call to see if the Marketplace subscription succeeds; record the result in DECISIONS.
-- **Latency check (AUDIT B17):** end-to-end response time of Nova Micro, Haiku 4.5 and Sonnet 5 from `ap-south-1` vs `ap-northeast-1`; Nova 2 Sonic from Tokyo.
-- Repo skeleton (§15.2), `pyproject.toml`, `.env.example`, Black/isort/Ruff configured.
-- Enable Bedrock model access: Nova 2 Sonic, Claude Sonnet 5, Claude Haiku 4.5, Nova Micro, Nova 2 Lite.
-- `scripts/check_models.py`: one tiny call to each model, prints latency per model.
-- `scripts/check_regions.py`: round-trip time to candidate Bedrock regions → pick the nearest with all models (§13.5.4).
-- AWS Budgets alarms at $25 / $50 / $75.
-- Supermemory API key in `.env`.
+- Pin dependencies after verifying on PyPI/docs: `strands-agents[openai,otel]`, `openai`, `elevenlabs`, `mlx-whisper`, `faster-whisper`, plus the existing list.
+- `zoya/models.py`: one function returning a Strands model for `MODEL_PROVIDER` (STACK §3). Fireworks via `OpenAIModel` with its OpenAI-compatible base URL (verify in Fireworks docs).
+- `scripts/check_providers.py`: lists models on the OpenAI and Fireworks keys; one tiny call each; ElevenLabs voices list; Supermemory ping. Never prints keys.
+- **Benchmarks (STACK §4):** tool calling (40 utterances), screen understanding (10 screenshots), 3 computer-use loops on local test pages, brain latency, Whisper `large-v3-turbo` on 20 recorded commands, ElevenLabs time-to-first-audio on 5 sentences with 3–5 Indian female voices (save audio files for the owner).
+- Record chosen `BRAIN_MODEL`, `VISION_MODEL`, `ROUTER_MODEL`, `ELEVENLABS_VOICE_ID` in `.env` and the reasoning + numbers in `docs/DECISIONS.md`.
+- Set spending limits: OpenAI dashboard monthly limit; note Fireworks/ElevenLabs balances.
+- **Optional AWS (non-model) check (STACK §8):** can the `zoya` profile call Polly, CloudWatch Logs and SNS? Record results; don't build on them yet.
 - Grant Microphone, Accessibility, Screen Recording to the terminal/Python that will run Zoya.
-- Pick the sound pack: run `sounds/audition.sh`, choose `zen` or `soft` (§7.3).
+- Pick the earcon pack: `sounds/audition.sh` (`zen` or `soft`).
 
-**Not in this phase:** any agent, voice, or UI code.
-
-**Doc sections:** §10, §13.5, §14.3, §15.
+**Not in this phase:** agent logic, voice loop, UI.
 
 **Done when**
-1. ☐ `check_models.py` gets a reply from all 6 models.
-2. ☐ Region chosen and written into `config.py`, with measured latency noted.
-3. ☐ Budget alarms visible in the AWS console.
-4. ☐ `screencapture` and a test `pyautogui` click work without permission errors.
-5. ☐ Sound pack chosen.
+1. ☐ `check_providers.py` lists models and gets a reply from each provider; no key printed.
+2. ☐ All STACK §4 benchmarks run; results saved; models + voice chosen and recorded in DECISIONS.
+3. ☐ Owner has listened to the ElevenLabs samples and picked the voice.
+4. ☐ Spending limits set.
+5. ☐ `screencapture` and a test click work without permission errors.
+6. ☐ Earcon pack chosen.
 
-**Judge demo (30 s):** run `check_models.py` → "All six AWS models answer in X ms from region Y."
+**Judge demo (45 s):** show the benchmark table: "we tested N models on tool use, screen reading and speed, and picked these with evidence" + play the chosen Zoya voice.

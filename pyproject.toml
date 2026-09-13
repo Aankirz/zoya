@@ -6,9 +6,12 @@ readme = "README.md"
 requires-python = ">=3.12"
 # Versions are pinned in Phase 0 after verifying against official docs (see AGENTS.md).
 dependencies = [
-  "strands-agents[bidi,bidi-pyaudio,bidi-aec,otel]==1.55.1",
+  "strands-agents[openai,otel]",
+  "openai",
+  "elevenlabs",
+  "mlx-whisper",
   "strands-agents-tools",
-  "boto3",
+  "boto3",  # AWS non-model services (docs/STACK.md §8)
   "python-dotenv",
   "faster-whisper",
   "sounddevice",
@@ -26,6 +29,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest", "ruff", "black", "isort"]
+# Only if AWS Bedrock is unblocked (docs/STACK.md §5)
+bedrock = ["boto3"]
 
 [build-system]
 requires = ["setuptools>=68"]

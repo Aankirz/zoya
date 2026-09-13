@@ -1,5 +1,7 @@
 # Architecture Audit — 2026-09-14
 
+> Bedrock/Nova/Claude-on-AWS findings apply only to the optional Bedrock provider. Current primary stack: [`STACK.md`](STACK.md).
+
 Every major assumption in the design was checked against **primary evidence**: installed package source code, official AWS/Anthropic docs and pricing data, GitHub issues, and real tests on the owner's Mac (macOS 26, Apple Silicon, Bangalore). No design claim is trusted without one of these.
 
 Verdicts: ✅ verified · ⚠️ risky / needs a design change · ❌ wrong.

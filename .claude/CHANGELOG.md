@@ -70,3 +70,6 @@
 
 ## 2026-09-14 — Architecture audit
 - Added docs/AUDIT.md (3 research agents + local tests: Supermemory, latency, wake word). Removed Nova Canvas, fixed coords/overlay/Strands APIs/caching, pinned strands extras, D20-D25, phase briefs updated.
+
+## 2026-09-14 — Primary stack without AWS
+- Added docs/STACK.md; D26-D29; rewrote phase 0-2 briefs, patched 1/5/6; README architecture, env example, credentials, pyproject; banners on technical doc and audit.

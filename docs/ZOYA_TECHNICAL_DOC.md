@@ -1,6 +1,6 @@
 # Zoya — Product & Technical Design Doc
 
-> ⚠️ **Read [`AUDIT.md`](AUDIT.md) first.** Where this document and the audit disagree, the audit (verified 2026-09-14) wins.
+> ⚠️ **Read [`STACK.md`](STACK.md) and [`AUDIT.md`](AUDIT.md) first.** Models, voice, regions and AWS in this document describe the original Bedrock design; the current primary stack (no Bedrock, Whisper + ElevenLabs voice, OpenAI/Fireworks brain) is in STACK.md, which wins on those topics.
 
 > Repo: https://github.com/Aankirz/zoya · Phase briefs: [`docs/phases/`](phases/) · Decisions: [`DECISIONS.md`](DECISIONS.md)
 

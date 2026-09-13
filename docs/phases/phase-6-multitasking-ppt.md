@@ -1,6 +1,6 @@
 # Phase 6 — Multitasking + PPT subagent (36–41h)
 
-> Section numbers (§) refer to [`docs/ZOYA_TECHNICAL_DOC.md`](../ZOYA_TECHNICAL_DOC.md). Read [`AGENTS.md`](../../AGENTS.md) before starting.
+> Read [`AGENTS.md`](../../AGENTS.md) and [`docs/STACK.md`](../STACK.md) first (STACK overrides the technical doc for models/voice/AWS). Section numbers (§) refer to [`docs/ZOYA_TECHNICAL_DOC.md`](../ZOYA_TECHNICAL_DOC.md).
 >
 > **Branch:** `phase-6-multitasking-ppt` · **Depends on:** previous phase approved
 
@@ -15,7 +15,7 @@
 - Voice tools: `list_tasks`, `stop_task(name|"all")`, `task_status(name)`, task-named `answer_confirmation` (§9.2).
 - Announcement queue: never talk over the user; always name the task; one pending confirmation at a time.
 - GUI-task pause/resume when the user issues a foreground command.
-- `ppt_agent` (§9.5): Sonnet 5 text-only content, `python-pptx`, text-only slides (Nova Canvas reaches end-of-life in Tokyo on 2026-09-30 — AUDIT A3), saves to `~/Documents/Zoya/`; "read slide N"; edits.
+- `ppt_agent` (§9.5): `BRAIN_MODEL` text-only content, `python-pptx`, text-only slides (Nova Canvas reaches end-of-life in Tokyo on 2026-09-30 — AUDIT A3), saves to `~/Documents/Zoya/`; "read slide N"; edits.
 - Earcons: `queued`, `complete`.
 
 **Not in this phase:** overlay, WhatsApp/email flows.

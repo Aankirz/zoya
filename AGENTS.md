@@ -5,18 +5,19 @@ Zoya is built one phase at a time by coding agents. These rules exist so that no
 ## 1. Sources of truth (in priority order)
 
 1. **Your phase brief** in `docs/phases/phase-N-*.md` — the scope of your work.
-2. **`docs/AUDIT.md`** — verified facts, correct APIs and costs; overrides the technical doc.
-3. **`docs/DECISIONS.md`** — settled choices. Do not change them without the human owner's approval.
-4. **`docs/SESSION_PLAN.md`** — the build → test → fix → approve loop.
-5. **`docs/ZOYA_TECHNICAL_DOC.md`** — product, flows, architecture. Phase briefs cite it as `§x.y`.
-6. **Official library/vendor documentation** — for any API signature, model ID, parameter or limit.
+2. **`docs/STACK.md`** — current models, voice pipeline and providers; overrides AUDIT and the technical doc on those topics.
+3. **`docs/AUDIT.md`** — verified facts, correct APIs and costs; overrides the technical doc.
+4. **`docs/DECISIONS.md`** — settled choices. Do not change them without the human owner's approval.
+5. **`docs/SESSION_PLAN.md`** — the build → test → fix → approve loop.
+6. **`docs/ZOYA_TECHNICAL_DOC.md`** — product, flows, architecture. Phase briefs cite it as `§x.y`.
+7. **Official library/vendor documentation** — for any API signature, model ID, parameter or limit.
 
 If these disagree, stop and ask. If they are silent, ask — do not guess.
 
 ## 2. No hallucination rules
 
-- **Never invent** a Bedrock model ID, Strands API, SDK method, CLI flag or config key. Look it up in the official docs (Strands: https://strandsagents.com, Bedrock console/docs, Supermemory: https://supermemory.ai/docs, faster-whisper: https://github.com/SYSTRAN/faster-whisper) and cite the URL in your hand-off report.
-- Model IDs and region come **only** from environment variables (`.env.example`). Never hard-code them.
+- **Never invent** a Bedrock model ID, Strands API, SDK method, CLI flag or config key. Look it up in the official docs (Strands: https://strandsagents.com, Bedrock console/docs, Supermemory: https://supermemory.ai/docs, faster-whisper: https://github.com/SYSTRAN/faster-whisper, OpenAI: https://platform.openai.com/docs, Fireworks: https://docs.fireworks.ai, ElevenLabs: https://elevenlabs.io/docs) and cite the URL in your hand-off report.
+- Model IDs and provider come **only** from environment variables (`.env.example`), chosen by the Phase 0 benchmark. Never hard-code them.
 - `strands.experimental.bidi` (BidiAgent) is experimental: verify the current API against the docs before using it, and pin the version.
 - If a capability in the brief turns out to be impossible or different in reality, **stop and report** with evidence rather than building a workaround silently.
 

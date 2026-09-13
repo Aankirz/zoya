@@ -2,26 +2,29 @@
 
 Prepare these before Phase 0. **Put secret values only in your local `.env` file** (git-ignored). Never paste them into chats, issues, PRs or commits.
 
-## Required
+## Required (primary stack — docs/STACK.md)
 
 | # | What | Where to get it | Goes into | Notes |
 |---|---|---|---|---|
-| 1 | **AWS account with the $100 credits** | AWS console | — | Apply credits to this account |
-| 2 | **AWS credentials for the Mac** — preferably an SSO/CLI **profile name**; otherwise an IAM user access key ID + secret | IAM Identity Center (`aws configure sso`) or IAM → Users → Security credentials | `AWS_PROFILE=zoya` (set up with `aws login --profile zoya --region ap-northeast-1 --remote`) | Least privilege: see IAM permissions below |
-| 3 | **AWS region** | Decided (D17): Tokyo, confirmed by latency in Phase 0 | `AWS_REGION=ap-northeast-1` | Nova 2 Sonic isn't in Mumbai; Phase 0 compares Mumbai vs Tokyo latency for the text models (AUDIT B17) |
-| 4 | **Bedrock model access** enabled for: Nova 2 Sonic, Claude Sonnet 5, Claude Haiku 4.5, Nova Micro, Nova 2 Lite | Bedrock console → Model access | — | Anthropic models may require a short use-case form |
-| 5 | **Bedrock model / inference-profile IDs** for each model above | Bedrock console → model catalog / cross-region inference | `BEDROCK_MODEL_*` | Copy exactly from the console; never guess |
-| 6 | **Supermemory API key** | https://console.supermemory.ai | `SUPERMEMORY_API_KEY` | Free plan: $0/month with $5 usage included. You already have a key in `~/.env` from an earlier project — you can reuse it or create a separate one for Zoya |
-| 7 | **Amazon.in account** logged in inside the **Zoya Chrome profile**, with a saved address and payment method | Done in Phase 4 onboarding | — | Zoya never sees or stores the password or card |
+| 1 | **OpenAI API key** | https://platform.openai.com/api-keys | `OPENAI_API_KEY` | Set a monthly usage limit in the dashboard |
+| 2 | **Fireworks API key** | https://fireworks.ai/account/api-keys | `FIREWORKS_API_KEY` | Kimi and other models; benchmarked against OpenAI in Phase 0 |
+| 3 | **ElevenLabs API key** | https://elevenlabs.io/app/settings/api-keys | `ELEVENLABS_API_KEY` | Voice ID chosen by ear in Phase 0 → `ELEVENLABS_VOICE_ID` |
+| 4 | **Supermemory API key** | https://console.supermemory.ai | `SUPERMEMORY_API_KEY` | ✅ Already added and tested |
+| 5 | **Amazon.in account** logged in inside the **Zoya Chrome profile** | Phase 4 onboarding | — | Zoya never sees or stores the password or card |
+
+## Optional: AWS
+
+| What | Goes into | Status |
+|---|---|---|
+| AWS profile `zoya` (account 567487920371, `aws login`) | `AWS_PROFILE=zoya`, `AWS_REGION=ap-northeast-1` | ✅ Connected. Non-model services (STACK §8) pending access check; **Bedrock blocked** (0 quotas, case #178933419100474) |
 
 ## Not needed
 
 | Item | Why not |
 |---|---|
-| Strands Agents SDK key | Strands is open source; it uses your AWS credentials for Bedrock |
-| Anthropic API key | Claude models are called through Amazon Bedrock |
+| Strands Agents SDK key | Strands is open source; it uses the provider keys above |
+| Claude Pro / ChatGPT Pro subscriptions | Can't power a product (D29); used only to build Zoya |
 | Picovoice key | Its free tier ended on 30 June 2026; the wake word uses local open-source Whisper instead (D19) |
-| OpenAI / ElevenLabs / AssemblyAI keys | Voice is Amazon Nova 2 Sonic (fallback Transcribe + Polly) |
 
 ## Optional
 
