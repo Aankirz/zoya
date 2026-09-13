@@ -9,7 +9,7 @@ Who builds what, in which Claude Code session, when to wait, when to merge, and 
 ## 1. The shape of the plan
 
 - **At most 3 build sessions at once** (called **A**, **B**, **C**). More sessions means more merge conflicts and more for you to review, without finishing sooner.
-- **You are the integrator.** Sessions open PRs; they never merge. You test the branch, then merge and tag.
+- **You are the integrator. No pull requests.** Sessions push their branch and hand off; you test the branch; when you say **"merge approved"**, the session fast-forwards it into `main` and pushes. You tag.
 - **One git worktree per session**, so sessions never share a checkout.
 - **Contracts first:** before anyone works in parallel, Session A merges the shared contracts (`config.py`, `events.py`, tool registration). Everything else builds on them.
 - **8 test checkpoints (T0–T7 + final).** Each one ends in a tag and a short screen recording, which together show the project growing.
@@ -56,11 +56,11 @@ Relevant technical doc sections are cited in the brief as §x.y in docs/ZOYA_TEC
 
 Your job: <scope line from the wave table below>.
 - Build only what the brief lists; only edit files your brief owns (plus append-only edits to hotspot files, see SESSION_PLAN §6).
-- Verify every API, model ID and SDK method against official docs; cite URLs in the PR.
+- Verify every API, model ID and SDK method against official docs; cite URLs in your hand-off report.
 - Run: ruff check . && black --check . && isort --check . && pytest
-- When done: push the branch, open a PR into main (gh pr create), and list each "Done when" item as
+- When done: push the branch (no pull request) and post a hand-off report listing each "Done when" item as
   ✅ verified by you, or 🧑 needs the human to test on the Mac (with exact steps).
-- Do not merge. Stop and wait for my test results.
+- Do not merge. Stop and wait for my test results. When I say "merge approved": rebase on origin/main, rerun tests, fast-forward merge into main, push main.
 ```
 
 When you report results back to a session, use the checklist numbers: *"Item 3 fails: the wake earcon takes ~600 ms. Items 1, 2, 4–6 pass."*
@@ -86,11 +86,11 @@ When you report results back to a session, use the checklist numbers: *"Item 3 f
 
 | Session | Worktree / branch | Scope | Wait for |
 |---|---|---|---|
-| **A** | `zoya-wt/A` · `phase-1-contracts` → then `phase-1-brain-fast-actions` | **Step 1 (~1 h):** contracts only (`config.py`, `events.py`, TOOLS registration convention). Small PR. **Step 2:** rest of Phase 1: router, fast tools, notes, `speech.py` (Polly), orchestrator, router eval | T0 merged |
-| **B** | `zoya-wt/B` · `phase-3-safety-gate` | Phase 3, **pure logic first:** confirmation tokens, click-guard matcher, secure-field check, untrusted-content wrapper, fixtures, `tests/test_safety.py`. Hook wiring into the orchestrator comes in Wave 2 | **Contracts PR merged** |
-| **C** | `zoya-wt/C` · `phase-2a-audio` | Phase 2 **audio half:** `scripts/build_sounds.sh` (ffmpeg loudness normalisation), `audio.py` earcon engine (preload, channels, ducking, loop, rate-limit) driven by `events.py`, a small script that plays every event | **Contracts PR merged** + your sound pack choice |
+| **A** | `zoya-wt/A` · `phase-1-contracts` → then `phase-1-brain-fast-actions` | **Step 1 (~1 h):** contracts only (`config.py`, `events.py`, TOOLS registration convention). Push and hand off as soon as it's done. **Step 2:** rest of Phase 1: router, fast tools, notes, `speech.py` (Polly), orchestrator, router eval | T0 merged |
+| **B** | `zoya-wt/B` · `phase-3-safety-gate` | Phase 3, **pure logic first:** confirmation tokens, click-guard matcher, secure-field check, untrusted-content wrapper, fixtures, `tests/test_safety.py`. Hook wiring into the orchestrator comes in Wave 2 | **Contracts merged into main** |
+| **C** | `zoya-wt/C` · `phase-2a-audio` | Phase 2 **audio half:** `scripts/build_sounds.sh` (ffmpeg loudness normalisation), `audio.py` earcon engine (preload, channels, ducking, loop, rate-limit) driven by `events.py`, a small script that plays every event | **Contracts merged into main** + your sound pack choice |
 
-**Merge order:** contracts → Phase 1 → (B and C open PRs but keep going; merge after T1).
+**Merge order:** contracts → Phase 1 → (B and C hand off but keep going; merge after T1).
 
 **🧪 Checkpoint T1 (hour ~8).** Test the Phase 1 list on the test bench → merge → `git tag v0.1-brain`.
 **🎥 Record (judge demo 1):** type three commands; the Mac reacts in under a second and speaks; show the timing log.
@@ -101,11 +101,11 @@ When you report results back to a session, use the checklist numbers: *"Item 3 f
 
 | Session | Worktree / branch | Scope | Wait for |
 |---|---|---|---|
-| **A** | `zoya-wt/A` · `phase-2b-voice` | Phase 2 **voice half:** Porcupine wake word, push-to-talk, BidiAgent + Nova 2 Sonic (Transcribe + Polly fallback flag), mic gating, local "stop" spotter, `main.py` wiring; `speech.py` narrate moves to the voice layer | T1 merged · **audio PR merged** (C) |
+| **A** | `zoya-wt/A` · `phase-2b-voice` | Phase 2 **voice half:** Porcupine wake word, push-to-talk, BidiAgent + Nova 2 Sonic (Transcribe + Polly fallback flag), mic gating, local "stop" spotter, `main.py` wiring; `speech.py` narrate moves to the voice layer | T1 merged · **audio merged** (C) |
 | **B** | `zoya-wt/B` · `phase-3-safety-gate` (rebased on main) | Phase 3 **wiring:** `ConfirmationGate` hook on the orchestrator, typed "confirm"/"cancel" until voice lands, then voice | T1 merged |
-| **C** | `zoya-wt/C` · `phase-2a-audio` | Finish audio → PR → **merge first in this wave** (A needs it). Then pause, or help B with the fixture pages | T1 merged |
+| **C** | `zoya-wt/C` · `phase-2a-audio` | Finish audio → hand off → **merge first in this wave** (A needs it). Then pause, or help B with the fixture pages | T1 merged |
 
-**Merge order:** audio (C) → safety (B) → voice (A). Each later PR rebases on `main` before you test it.
+**Merge order:** audio (C) → safety (B) → voice (A). Each later branch rebases on `main` before you test it.
 
 **🧪 Checkpoint T2 — hands-free (hour ~15).** Phase 2 list → merge → `git tag v0.2-voice`.
 **🧪 Checkpoint T3 — safety (hour ~17).** Phase 3 list → merge → `git tag v0.3-safety`.
@@ -116,7 +116,7 @@ When you report results back to a session, use the checklist numbers: *"Item 3 f
 ### 💤 Sleep (hours 17–23)
 
 - **Nothing merges while you sleep.**
-- Optional: leave **one** session drafting a PR for pure logic only (e.g. Phase 5 `tests/test_coords.py` + scaling math, or Phase 4 `memory.py` + `test_memory_filter.py`). Review it in the morning.
+- Optional: leave **one** session working on pure logic only (e.g. Phase 5 `tests/test_coords.py` + scaling math, or Phase 4 `memory.py` + `test_memory_filter.py`). Review it in the morning.
 
 ---
 
@@ -128,7 +128,7 @@ When you report results back to a session, use the checklist numbers: *"Item 3 f
 | **B** | `zoya-wt/B` · `phase-5-computer-use` | Phase 5: screenshots, click/type, Retina + multi-monitor scaling, AX tier, screen describer, screen benchmark | T3 merged |
 | **C** | `zoya-wt/C` · `phase-7-stage-polish` | Phase 7: overlay panel (avatar + captions) and action highlight ring, driven by `events.py` | T2 merged · avatar images exported from Plane Avatar Lab |
 
-**Merge order:** whichever passes its checklist first. Expect a small conflict in hotspot files (§6); the second PR rebases.
+**Merge order:** whichever passes its checklist first. Expect a small conflict in hotspot files (§6); the second branch rebases.
 
 **🧪 Checkpoint T4 — shopping (hour ~31).** Phase 4 list → merge → `git tag v0.4-shopping`.
 **🎥 Record (judge demo 3, the hero):** "remember my usual groceries" → "order my usual groceries" → real total read back → "confirm".
@@ -143,7 +143,7 @@ When you report results back to a session, use the checklist numbers: *"Item 3 f
 |---|---|---|---|
 | **A** | `zoya-wt/A` · `phase-6-multitasking-ppt` | Phase 6: Task Manager, per-task voice controls, announcement queue, PPT subagent | T4 merged |
 | **B** | `zoya-wt/B` · `fix/<topic>` | Fixes from your T4/T5 reports; failure branches (Flows 9–10); latency tuning from logs | T5 merged |
-| **C** | `zoya-wt/C` · `phase-7-stage-polish` | Finish Phase 7 → PR → merge → **session ends** | T5 merged (overlay must ignore screenshots) |
+| **C** | `zoya-wt/C` · `phase-7-stage-polish` | Finish Phase 7 → hand off → merge → **session ends** | T5 merged (overlay must ignore screenshots) |
 
 **🧪 Checkpoint T6 — multitasking (hour ~41).** Phase 6 list → merge → `git tag v0.6-multitask`.
 **🎥 Record:** PPT + grocery order running while "open Mail, read my latest email"; "what's running?"
@@ -156,7 +156,7 @@ When you report results back to a session, use the checklist numbers: *"Item 3 f
 
 | Session | Scope |
 |---|---|
-| **A only** | Phase 8: fixes found in rehearsal, one PR per fix. Everything else is closed. |
+| **A only** | Phase 8: fixes found in rehearsal, one commit per fix. Everything else is closed. |
 | **You** | Run the full demo script (§18) repeatedly; flow checklist (§17.3); noise test; backup video; submission |
 
 - **Code freeze at hour 46:** only fixes for demo-breaking bugs after that.
@@ -166,20 +166,19 @@ When you report results back to a session, use the checklist numbers: *"Item 3 f
 
 ## 5. How you test each checkpoint
 
-1. The session opens its PR and posts the checklist, marking what it verified (✅) and what needs you (🧑).
+1. The session pushes its branch and posts the checklist, marking what it verified (✅) and what needs you (🧑).
 2. On the test bench:
    ```bash
    cd ~/Desktop/zoya
-   gh pr checkout <PR number>
+   git fetch && git switch <branch>      # e.g. phase-1-brain-fast-actions
    source .venv/bin/activate && pip install -e ".[dev]"
    pytest
-   python -m zoya.main        # or the run command stated in the PR
+   python -m zoya.main        # or the run command stated in the hand-off
    ```
 3. Go through the phase's **Done when** list on the real Mac. Write down pass/fail by item number.
-4. **All pass:** merge and tag.
+4. **All pass:** tell the session **"merge approved"**. It rebases, fast-forwards `main`, and pushes. Then you tag:
    ```bash
-   gh pr merge <PR number> --squash --delete-branch
-   git checkout main && git pull
+   git switch main && git pull
    git tag v0.N-<name> && git push origin v0.N-<name>
    ```
 5. **Any fail:** paste the item numbers and what you observed into that session. It fixes on the same branch; test again.
@@ -202,10 +201,10 @@ When you report results back to a session, use the checklist numbers: *"Item 3 f
 | `zoya/events.py` | Append new event types only; never change existing payload fields (tell A if you must) |
 | `zoya/prompts.py` | One named constant per agent; edit only your constant |
 | `zoya/tools/__init__.py`, `zoya/agents/__init__.py` | Add one import line to the `TOOLS` / agents list |
-| `pyproject.toml` | Add dependencies only with a note in the PR; never bump others' pins |
+| `pyproject.toml` | Add dependencies only with a note in the hand-off report; never bump others' pins |
 | `.env.example` | Append-only, with a comment |
 
-**Before opening a PR:** `git fetch && git rebase origin/main`, rerun the tests.
+**Before handing off:** `git fetch && git rebase origin/main`, rerun the tests.
 
 ---
 
@@ -213,9 +212,9 @@ When you report results back to a session, use the checklist numbers: *"Item 3 f
 
 | If a session needs… | It waits for… |
 |---|---|
-| Shared contracts (`config`, `events`, TOOLS convention) | Contracts PR merged (Wave 1, ~hour 3) |
+| Shared contracts (`config`, `events`, TOOLS convention) | Contracts merged into main (Wave 1, ~hour 3) |
 | The orchestrator or fast tools | T1 |
-| Earcons playing | Audio PR merged (C, Wave 2) |
+| Earcons playing | Audio merged into main (C, Wave 2) |
 | Spoken "confirm" | T2 (until then, test by typing) |
 | Safety guard around clicks | T3 |
 | Real shopping | T3 + you logged into Amazon.in in the Zoya profile |

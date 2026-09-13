@@ -34,3 +34,6 @@
 
 ## 2026-09-14 — Session plan
 - Added docs/SESSION_PLAN.md (3 parallel Claude sessions, waves, merge order, test checkpoints T0-T7), docs/PROGRESS.md; Phase 1 owns contracts (config/events/speech); Phase 2 split into 2a audio / 2b voice.
+
+## 2026-09-14 — No-PR workflow
+- Sessions push branches and fast-forward merge into main after human approval; no pull requests (per owner).
