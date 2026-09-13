@@ -46,3 +46,6 @@
 
 ## 2026-09-14 — Sarvam decision
 - D16: Sarvam optional fallback voice via Phase 2 A/B only; SARVAM_API_KEY optional; roadmap Indian languages.
+
+## 2026-09-14 — Trim env + fix audition
+- .env.example reduced to 9 account-specific values; settings moved to config.py constants; Sarvam removed; audition.sh pack loop fixed (zsh word-splitting bug).

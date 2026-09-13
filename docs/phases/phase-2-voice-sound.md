@@ -21,8 +21,6 @@
 - Mic gating while Zoya speaks + local "Zoya, stop" spotter (§9.1).
 - Stream audio from wake/key-down, not after speech ends (§13.5.2).
 
-- **Optional, ≤ 30 min:** A/B listen of Nova 2 Sonic `kiara` vs **Sarvam Bulbul v3** feminine Indian voice on the same 5 sentences (incl. Hinglish and ₹ amounts). If Bulbul is clearly better, use it for the **fallback path only** (replacing Polly `Kajal`); Nova 2 Sonic stays the live voice. Record the verdict in `docs/DECISIONS.md` D16.
-
 **Not in this phase:** confirmation, browser, memory, multiple tasks.
 
 **Doc sections:** §7, §9.1, §9.2, §9.10, §13.1, §13.5.2.
@@ -34,7 +32,7 @@
 4. ☐ "Zoya, stop" while Zoya is talking silences it in **< 300 ms**.
 5. ☐ Push-to-talk works when the wake word is disabled.
 6. ☐ There is never more than ~1 s of silence during any action (working loop covers waits).
-7. ☐ Zoya speaks in the **`kiara`** feminine voice (set via `NOVA_SONIC_VOICE`), not a system/robot voice.
+7. ☐ Zoya speaks in the **`kiara`** feminine voice (a constant in `zoya/config.py`), not a system/robot voice.
 8. ☐ "Hey Zoya, what's the capital of Japan?" → correct spoken answer with no action taken; a follow-up ("and its population?") keeps context.
 9. ☐ "Hey Zoya, what's the weather in Bangalore today?" → Zoya says it's checking, then answers (live data via a task).
 10. ☐ Hinglish: "Zoya, Spotify khol do" → Spotify opens.

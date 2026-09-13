@@ -1200,7 +1200,6 @@ Pre-record the demo utterances as `.wav` files and feed them into the audio rout
 - Native Swift menu-bar app (signed, notarised, proper permission prompts, lower latency audio). **Start from a fork of Clicky** (MIT, https://github.com/farzaa/clicky): it already has the menu-bar shell, non-activating `NSPanel` overlays, ScreenCaptureKit capture, push-to-talk, and a companion state machine. Swap its AssemblyAI / ElevenLabs / Cloudflare Worker pipeline for a local socket to the Python Strands brain (or Nova Sonic via the AWS SDK for Swift).
 - Deeper AX-API tier to reduce pixel usage further.
 - Email, Calendar, Messages, Files flows.
-- More Indian languages (Tamil, Telugu, Bengali, Marathi…) via Sarvam AI speech models (Saarika STT, Bulbul TTS) where Nova 2 Sonic doesn't cover them.
 - User-customisable earcons and voices; multilingual (Hindi first).
 
 **6–12 months**
