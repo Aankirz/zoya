@@ -79,3 +79,6 @@
 
 ## 2026-09-14 — Voice locked: Polly Kajal neural
 - D33; STACK, phase 0-2 briefs, README updated.
+
+## 2026-09-14 — OpenAI primary + budget
+- D34 provider order, D35 no org credentials, STACK §7 budget with verified prices, Phase 0 limits.

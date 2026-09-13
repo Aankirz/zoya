@@ -11,9 +11,9 @@
 | Area | Primary path (now) | Was | Unchanged |
 |---|---|---|---|
 | **Agent framework** | **Strands Agents SDK** (normal `Agent`, streaming) | Strands `BidiAgent` for voice | ✅ Strands stays the core |
-| **Brain (planning, tools, computer use)** | **OpenAI** or **Fireworks (Kimi etc.)** — winner of the Phase 0 benchmark | Claude Sonnet 5 on Bedrock | |
-| **Screen understanding** | Vision-capable model from the same benchmark | Claude Haiku 4.5 | |
-| **Router** | Rules first (0 ms) → cheapest fast model from the benchmark | Nova Micro | |
+| **Brain (planning, tools, computer use)** | **OpenAI** (primary). Bedrock Claude when AWS unblocks. Fireworks = fallback only (D34) | Claude Sonnet 5 on Bedrock | |
+| **Screen understanding** | OpenAI vision model chosen in Phase 0 | Claude Haiku 4.5 | |
+| **Router** | Rules first (0 ms) → cheap OpenAI model (e.g. gpt-5.6-luna) | Nova Micro | |
 | **Listening (speech → text)** | **Local Whisper on the Mac** (`mlx-whisper`, `large-v3-turbo`, multilingual) | Nova 2 Sonic | |
 | **Speaking (text → speech)** | **Amazon Polly `Kajal` (neural, en-IN, ap-south-1)** — chosen by ear (D33); ElevenLabs fallback | Nova 2 Sonic `kiara` | |
 | **Wake word + stop** | Local Whisper `base.en` + Silero VAD (tested 21/24, 0 false triggers) | — | ✅ D19 |
@@ -54,7 +54,7 @@
 
 ## 3. Brain providers in Strands
 
-One setting, `MODEL_PROVIDER`, selects the provider; model IDs come from `.env`, chosen by the Phase 0 benchmark from the models each key actually lists (never guessed).
+**Provider order (D34): `openai` (primary now) → `bedrock` (when AWS unblocks) → `fireworks` (fallback only, used automatically if OpenAI errors).** One setting, `MODEL_PROVIDER`, selects the primary provider; model IDs come from `.env`, chosen by the Phase 0 benchmark from the models each key actually lists (never guessed).
 
 | Provider | Strands class | Notes |
 |---|---|---|
@@ -70,7 +70,7 @@ Run before any product code, with real calls, saving raw results to `tests/evals
 
 | Test | What | Pass bar |
 |---|---|---|
-| Model list | List models available on the OpenAI and Fireworks keys | — |
+| Model list | List models available on the OpenAI key (Fireworks only to confirm the fallback works) | — |
 | Tool calling | 40 router/tool utterances (incl. Hinglish, names) | ≥ 95% correct tool + args |
 | Screen understanding | 10 real screenshots (Amazon checkout, pop-up, error dialog, WhatsApp, login page…) | Zero misread amounts/names |
 | Computer-use loop | 3 short scripted click tasks on local test pages | ≥ 2/3 complete |
@@ -90,14 +90,27 @@ Run before any product code, with real calls, saving raw results to `tests/evals
 
 The hackathon asks for **AWS + Strands**. Strands remains central. **AWS usage is currently blocked by the account's zero Bedrock quotas**, so the AWS part of the requirement is **at risk** until the support case is resolved. Mitigations: keep the Bedrock provider ready behind the switch; ask the organisers whether a Strands build on other providers is acceptable given the blocked account; keep the support-case evidence.
 
-## 7. Budget
+## 7. Budget (keep usage very low)
+
+Verified prices, 2026-09-14 (per 1M tokens, input / output): **gpt-5.6-luna $0.20 / $1.20**, **gpt-5.6-terra $2.00 / $12.00**, gpt-5.6-sol $4.00 / $20.00 (promo). Fireworks fallback: DeepSeek V4 Flash $0.22 / $0.66.
+
+| Job | Model | Why |
+|---|---|---|
+| Common commands | Rules (no model) | Free, instant |
+| Router fallback, summaries, simple answers | gpt-5.6-luna | Cheapest |
+| Planning, screen understanding, computer use, confirmations | gpt-5.6-terra | Quality where it matters |
+
+**Estimated total for the hackathon: ~$8–15** (≈800 brain calls, ≈150 computer-use tasks, ≈300 screen descriptions, rehearsals). Voice (Polly) ≈ $1 from AWS credits.
+
+**Guardrails:** OpenAI monthly budget **$15** in the dashboard; hard stop **$0.50 per task** in code; page text before screenshots; keep only the last 2 screenshots; Phase 0 benchmark uses small test sets (< $1).
 
 | Service | Covered by | Guardrail |
 |---|---|---|
-| OpenAI API | Owner's key (paid) | Set a monthly limit in the OpenAI dashboard (e.g. $50); per-task cap $2 in code |
-| Fireworks | Owner's key (paid/credits) | Per-task cap in code |
-| ElevenLabs | Owner's credits | Track characters used; fallback voice when exhausted |
-| Supermemory | Free plan ($5 usage) | Local fallback cache |
+| OpenAI API | Owner's key | $15 monthly budget; $0.50 per-task cap |
+| Fireworks (fallback) | Owner's key | Only used when OpenAI fails; small top-ups |
+| AWS (Polly, DynamoDB, SNS…) | $120 credits | Budget alarm $75 |
+| ElevenLabs (fallback voice) | 10,000 characters | Fallback only |
+| Supermemory | Free plan | Local fallback copy in DynamoDB |
 | Whisper, VAD, earcons | Local, free | — |
 
 ## 8. AWS services in use (everything except Bedrock models)

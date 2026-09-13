@@ -17,10 +17,10 @@
 **Build**
 - Pin dependencies after verifying on PyPI/docs: `strands-agents[openai,otel]`, `openai`, `elevenlabs`, `mlx-whisper`, `faster-whisper`, plus the existing list.
 - `zoya/models.py`: one function returning a Strands model for `MODEL_PROVIDER` (STACK §3). Fireworks via `OpenAIModel` with its OpenAI-compatible base URL (verify in Fireworks docs).
-- `scripts/check_providers.py`: lists models on the OpenAI and Fireworks keys; one tiny call each; ElevenLabs voices list; Supermemory ping. Never prints keys.
+- `scripts/check_providers.py`: lists models on the OpenAI key (primary) and confirms the Fireworks fallback answers; one tiny call each; ElevenLabs voices list; Supermemory ping. Never prints keys.
 - **Benchmarks (STACK §4):** tool calling (40 utterances), screen understanding (10 screenshots), 3 computer-use loops on local test pages, brain latency, Whisper `large-v3-turbo` on 20 recorded commands, ElevenLabs time-to-first-audio on 5 sentences with 3–5 Indian female voices (save audio files for the owner).
 - Record chosen `BRAIN_MODEL`, `VISION_MODEL`, `ROUTER_MODEL`, `ELEVENLABS_VOICE_ID` in `.env` and the reasoning + numbers in `docs/DECISIONS.md`.
-- Set spending limits: OpenAI dashboard monthly limit; note Fireworks/ElevenLabs balances.
+- Set spending limits: OpenAI monthly budget **$15**; per-task cap **$0.50** constant in `config.py`; note Fireworks/ElevenLabs balances.
 - **AWS voice/speech benchmark (STACK §8):** voice already chosen (Polly Kajal neural, D33) — measure its time-to-first-audio on 5 Zoya sentences incl. Hinglish; Amazon Transcribe (en-IN/hi-IN) vs local Whisper on the 20 recorded commands. Decide primary vs fallback and record in DECISIONS.
 - Create S3 bucket for benchmark results; store results there too.
 - Grant Microphone, Accessibility, Screen Recording to the terminal/Python that will run Zoya.
