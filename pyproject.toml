@@ -1,0 +1,53 @@
+[project]
+name = "zoya"
+version = "0.0.1"
+description = "Voice-first AI agent that operates a Mac for blind and low-vision people."
+readme = "README.md"
+requires-python = ">=3.12"
+# Versions are pinned in Phase 0 after verifying against official docs (see AGENTS.md).
+dependencies = [
+  "strands-agents",
+  "strands-agents-tools",
+  "boto3",
+  "python-dotenv",
+  "pvporcupine",
+  "pvrecorder",
+  "sounddevice",
+  "soundfile",
+  "numpy",
+  "pyautogui",
+  "pyobjc-framework-Quartz",
+  "pyobjc-framework-ApplicationServices",
+  "playwright",
+  "python-pptx",
+  "supermemory",
+  "rumps",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff", "black", "isort"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["zoya*"]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
