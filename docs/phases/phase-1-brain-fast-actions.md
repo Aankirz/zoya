@@ -10,13 +10,16 @@
 - `zoya/prompts.py`
 - `zoya/tools/fast.py`
 - `zoya/tools/notes.py`
-- `zoya/audio.py (Polly narrate only)`
+- `zoya/speech.py` (Polly narrate; Phase 2 may replace its internals)
+- `zoya/events.py` (shared event names and payloads — the contract other phases build against)
+- `zoya/config.py` (shared settings loaded from env; other phases add keys append-only)
 - `tests/evals/router_eval.py`
 - `tests/test_router_rules.py`
 
 **Goal:** a typed command makes the Mac do something within about a second, and Zoya says what it did.
 
 **Build**
+- **Contracts first (merge within ~1 hour, before other sessions branch):** `config.py` (env loading), `events.py` (event names + payload dataclasses for narrate, earcon, task, confirmation, overlay), and the tool/agent registration convention (each tools/agents module exposes a `TOOLS` list; the orchestrator collects them). See `docs/SESSION_PLAN.md`.
 - Strands orchestrator agent on Sonnet 5 (§9.3) with prompt caching.
 - **Intent router** (§13.5.3): rule matcher first, then Nova Micro.
 - T0 tools (§9.4): `open_app`, `open_url`, `run_applescript` (allow-listed apps), `notes_create/search/append`, volume, time.

@@ -22,6 +22,8 @@ Built for the **Vision OS** hackathon with the **Strands Agents SDK** and **Amaz
 | [`docs/ZOYA_TECHNICAL_DOC.md`](docs/ZOYA_TECHNICAL_DOC.md) | Source of truth: product, user flows, audio design, architecture, performance, cost, risks |
 | [`docs/DECISIONS.md`](docs/DECISIONS.md) | Decisions already made — don't relitigate |
 | [`docs/phases/`](docs/phases/) | One self-contained brief per build phase |
+| [`docs/SESSION_PLAN.md`](docs/SESSION_PLAN.md) | Which Claude session builds what, merge order, test checkpoints |
+| [`docs/PROGRESS.md`](docs/PROGRESS.md) | Checkpoint log: what works at each tag |
 | [`docs/CREDENTIALS.md`](docs/CREDENTIALS.md) | Accounts, keys and permissions to prepare |
 | [`.env.example`](.env.example) | Every environment variable |
 

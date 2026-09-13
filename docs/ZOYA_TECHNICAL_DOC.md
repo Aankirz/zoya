@@ -1011,12 +1011,15 @@ zoya/                            # repo root (github.com/Aankirz/zoya)
 │   ├── ZOYA_TECHNICAL_DOC.md    # this document (source of truth)
 │   ├── DECISIONS.md             # settled decisions — do not relitigate
 │   ├── CREDENTIALS.md           # what to obtain and where to put it
+│   ├── SESSION_PLAN.md          # which Claude session builds what, and when to merge/test
 │   └── phases/phase-N-*.md      # one brief per build phase
 ├── zoya/
 │   ├── main.py                  # menu-bar app, startup warm-up, wiring
 │   ├── config.py                # model IDs, limits, constants (from env)
 │   ├── voice.py                 # wake word, audio router, BidiAgent session
 │   ├── audio.py                 # earcon engine, speech channel, ducking
+│   ├── speech.py                # narrate(): Polly now, voice layer later
+│   ├── events.py                # shared event contract (narrate, earcon, task, confirmation)
 │   ├── router.py                # intent router: rules → Nova Micro
 │   ├── orchestrator.py          # Strands orchestrator agent
 │   ├── tasks.py                 # Task Manager (§9.13)

@@ -6,7 +6,6 @@
 
 **Files this phase owns** (other agents must not edit them during this phase):
 - `pyproject.toml`
-- `zoya/config.py`
 - `scripts/check_models.py`
 - `scripts/check_regions.py`
 - `.env (local only, never committed)`

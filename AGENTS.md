@@ -6,8 +6,9 @@ Several agents build Zoya in parallel. These rules exist so that nobody invents 
 
 1. **Your phase brief** in `docs/phases/phase-N-*.md` — the scope of your work.
 2. **`docs/DECISIONS.md`** — settled choices. Do not change them without the human owner's approval.
-3. **`docs/ZOYA_TECHNICAL_DOC.md`** — product, flows, architecture. Phase briefs cite it as `§x.y`.
-4. **Official library/vendor documentation** — for any API signature, model ID, parameter or limit.
+3. **`docs/SESSION_PLAN.md`** — your session's scope, branch, merge order and hotspot-file rules.
+4. **`docs/ZOYA_TECHNICAL_DOC.md`** — product, flows, architecture. Phase briefs cite it as `§x.y`.
+5. **Official library/vendor documentation** — for any API signature, model ID, parameter or limit.
 
 If these disagree, stop and ask. If they are silent, ask — do not guess.
 

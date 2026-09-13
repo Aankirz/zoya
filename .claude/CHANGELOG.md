@@ -31,3 +31,6 @@
 - Moved technical doc to docs/, split phase briefs into docs/phases with file ownership and dependencies.
 - Added README, AGENTS.md, CLAUDE.md, DECISIONS.md, CREDENTIALS.md, .env.example, .gitignore, pyproject.toml, empty package skeleton.
 - Documented Supermemory free-plan pricing in 9.8.
+
+## 2026-09-14 — Session plan
+- Added docs/SESSION_PLAN.md (3 parallel Claude sessions, waves, merge order, test checkpoints T0-T7), docs/PROGRESS.md; Phase 1 owns contracts (config/events/speech); Phase 2 split into 2a audio / 2b voice.
