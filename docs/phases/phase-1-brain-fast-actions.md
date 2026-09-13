@@ -10,7 +10,7 @@
 - `zoya/prompts.py`
 - `zoya/tools/fast.py`
 - `zoya/tools/notes.py`
-- `zoya/speech.py` (`narrate()` via ElevenLabs streaming with macOS-voice fallback; Phase 2 adds barge-in)
+- `zoya/speech.py` (`narrate()` via Amazon Polly Kajal (D33), ElevenLabs then macOS-voice fallback; Phase 2 adds barge-in)
 - `zoya/events.py` (shared event names and payloads — the contract other phases build against)
 - `zoya/config.py` (shared settings loaded from env; other phases add keys append-only)
 - `tests/evals/router_eval.py`
@@ -23,7 +23,7 @@
 - Strands orchestrator `Agent` (§9.3) on `BRAIN_MODEL` from `zoya/models.py`, streaming; one Agent instance per task (AUDIT B6).
 - **Intent router** (§13.5.3): rule matcher first, then `ROUTER_MODEL` with a JSON schema.
 - T0 tools (§9.4): `open_app`, `open_url`, `run_applescript` (allow-listed apps), `notes_create/search/append`, volume, time.
-- `narrate(text)` via **ElevenLabs** streaming (chosen voice), macOS voice fallback.
+- `narrate(text)` via **Amazon Polly Kajal** (neural, en-IN), ElevenLabs then macOS voice fallback.
 - Simple text REPL: type a command, see route + tool + timing.
 - **Router eval** (§17.1b) re-run against the chosen `ROUTER_MODEL`.
 - Per-stage timing logs (§13.5.1), exported via Strands OpenTelemetry to **CloudWatch/X-Ray** (STACK §8).

@@ -76,3 +76,6 @@
 
 ## 2026-09-14 — AWS services + document agent + voice test
 - STACK §8 AWS services (access verified), §9 documents (HeyClicky/Glide research); D30-D32; phase briefs 0-7 updated; pyproject docx/openpyxl/reportlab; ElevenLabs/Polly test evidence in D31.
+
+## 2026-09-14 — Voice locked: Polly Kajal neural
+- D33; STACK, phase 0-2 briefs, README updated.

@@ -15,7 +15,7 @@
 | **Screen understanding** | Vision-capable model from the same benchmark | Claude Haiku 4.5 | |
 | **Router** | Rules first (0 ms) → cheapest fast model from the benchmark | Nova Micro | |
 | **Listening (speech → text)** | **Local Whisper on the Mac** (`mlx-whisper`, `large-v3-turbo`, multilingual) | Nova 2 Sonic | |
-| **Speaking (text → speech)** | **ElevenLabs streaming TTS**, Indian female voice picked by ear | Nova 2 Sonic `kiara` | |
+| **Speaking (text → speech)** | **Amazon Polly `Kajal` (neural, en-IN, ap-south-1)** — chosen by ear (D33); ElevenLabs fallback | Nova 2 Sonic `kiara` | |
 | **Wake word + stop** | Local Whisper `base.en` + Silero VAD (tested 21/24, 0 false triggers) | — | ✅ D19 |
 | **Memory** | Supermemory (`dreaming="instant"`, `search_mode="hybrid"`) | — | ✅ D22 |
 | **Mac control, safety gate, earcons, overlay, Task Manager** | — | — | ✅ unchanged |
@@ -38,14 +38,14 @@
        Strands Agent (brain provider from config), streamed text
             │  first complete sentence → speak immediately, then the rest
             ▼
-       ElevenLabs streaming TTS (Indian female voice) ─► speaker
-            │ fallback if ElevenLabs fails / out of credits
+       Amazon Polly Kajal neural (streamed audio) ─► speaker
+            │ fallback: ElevenLabs, then
             ▼
        macOS built-in voice (never silent)
 ```
 
 **Rules**
-- **Privacy:** microphone audio never leaves the Mac; only transcribed text goes to the brain, only reply text goes to ElevenLabs.
+- **Privacy:** microphone audio never leaves the Mac; only transcribed text goes to the brain, only reply text goes to Polly (or ElevenLabs as fallback).
 - **Turn-taking:** VAD end-of-speech (~0.5 s silence) ends a turn; push-to-talk (Control + Option) always available.
 - **Barge-in:** "Zoya stop" (local) stops playback and the current task instantly. While Zoya speaks, the mic ignores everything except the stop phrase (echo protection); headset for the demo.
 - **Confirmations:** "confirm" / "cancel" recognised locally; the safety gate (§9.9) is unchanged.
@@ -76,7 +76,7 @@ Run before any product code, with real calls, saving raw results to `tests/evals
 | Computer-use loop | 3 short scripted click tasks on local test pages | ≥ 2/3 complete |
 | Brain latency | Time to first token and first sentence | Record; prefer ≤ 1 s to first sentence |
 | Whisper `large-v3-turbo` | 20 recorded commands (English + Hinglish) on this Mac | ≥ 90% word-correct on names/amounts; ≤ 0.5 s per command |
-| ElevenLabs | 5 Zoya sentences (greeting, "412 rupees", Hinglish line, confirmation, long read-back); 3–5 Indian female voices | Time to first audio recorded; owner picks voice by ear |
+| Voice | ✅ Decided: Polly Kajal neural (D33). Phase 0 only measures time-to-first-audio on 5 Zoya sentences incl. Hinglish | Record latency |
 | Cost per call | Tokens × price for each candidate | Record in DECISIONS |
 
 ## 5. If AWS / Bedrock Claude becomes available
@@ -108,7 +108,7 @@ The hackathon asks for **AWS + Strands**. Strands remains central. **AWS usage i
 
 | AWS service | Job in Zoya | Phase |
 |---|---|---|
-| **Amazon Polly** (Kajal, Indian English female; neural in Mumbai, generative in us-east-1) | Zoya's voice candidate. Phase 0 A/B vs ElevenLabs: **if Polly is close in quality, Polly is primary and ElevenLabs is the fallback; otherwise the reverse.** Always one of the two, then macOS voice | 0, 2 |
+| **Amazon Polly** (Kajal, neural, en-IN, Mumbai) | **Zoya's voice** (D33); ElevenLabs fallback, then macOS voice | 2 |
 | **Amazon Transcribe** (streaming, en-IN / hi-IN) | Benchmarked vs local Whisper for Hinglish; used as the Hindi/Hinglish recogniser or fallback if it wins | 0, 2 |
 | **Amazon Translate** | Normalises Hindi commands to English before the router ("Spotify khol do" → "open Spotify") | 1 |
 | **AWS Secrets Manager** | Holds OpenAI / Fireworks / ElevenLabs / Supermemory keys; `.env` only names the secret | 1 |

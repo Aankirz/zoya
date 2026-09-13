@@ -53,7 +53,7 @@ Built for the **Vision OS** hackathon with the **Strands Agents SDK** and **AWS*
    Safety layer: spoken-confirmation tokens + click guard (Strands hook)
                  │ streamed reply
                  ▼
-   Polly Kajal / ElevenLabs voice (Indian female) ─► speaker   · earcons (UI SFX zen)
+   Amazon Polly Kajal voice (Indian female) ─► speaker   · earcons (UI SFX zen)
    AWS: Polly voice · Transcribe · Translate · Rekognition/Textract (read screen & documents)
         DynamoDB (history, audit) · SNS alerts · S3 sharing · EventBridge+Lambda reminders
         Secrets Manager · CloudWatch/X-Ray traces · Location Service   (Bedrock models: pending)
