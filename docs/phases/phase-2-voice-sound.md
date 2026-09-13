@@ -21,6 +21,8 @@
 - Mic gating while Zoya speaks + local "Zoya, stop" spotter (§9.1).
 - Stream audio from wake/key-down, not after speech ends (§13.5.2).
 
+- **Optional, ≤ 30 min:** A/B listen of Nova 2 Sonic `kiara` vs **Sarvam Bulbul v3** feminine Indian voice on the same 5 sentences (incl. Hinglish and ₹ amounts). If Bulbul is clearly better, use it for the **fallback path only** (replacing Polly `Kajal`); Nova 2 Sonic stays the live voice. Record the verdict in `docs/DECISIONS.md` D16.
+
 **Not in this phase:** confirmation, browser, memory, multiple tasks.
 
 **Doc sections:** §7, §9.1, §9.2, §9.10, §13.1, §13.5.2.

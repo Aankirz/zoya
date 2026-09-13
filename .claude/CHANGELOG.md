@@ -43,3 +43,6 @@
 
 ## 2026-09-14 — Voice: Kiara + conversational answers
 - Zoya voice set to Nova 2 Sonic kiara (feminine en-IN/Hindi), Polly Kajal fallback; §9.2 conversational question handling; Phase 2 tests 7-10; D15; audition.sh no longer uses robotic say.
+
+## 2026-09-14 — Sarvam decision
+- D16: Sarvam optional fallback voice via Phase 2 A/B only; SARVAM_API_KEY optional; roadmap Indian languages.

@@ -30,6 +30,7 @@ Prepare these before Phase 0. **Put secret values only in your local `.env` file
 |---|---|---|
 | CloudWatch/OTel endpoint for Strands traces | `OTEL_EXPORTER_OTLP_ENDPOINT`, `ZOYA_TELEMETRY=on` | Phase 7, if showing a trace dashboard to judges |
 | Bluetooth clicker mapped to push-to-talk | — | Demo backup (§18) |
+| Sarvam API key (https://dashboard.sarvam.ai) — only if Bulbul wins the Phase 2 voice A/B | `SARVAM_API_KEY` | Phase 2 (optional) |
 
 ## IAM permissions (minimum)
 
