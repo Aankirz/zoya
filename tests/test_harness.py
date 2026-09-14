@@ -242,6 +242,16 @@ def test_free_results_are_cached_until_the_ttl(monkeypatch):
     assert cache.get("get_weather", {"city": "Delhi"}) is None
 
 
+@pytest.mark.parametrize(
+    "action", ["spotify_play_song", "amazon_add_to_cart", "youtube_subscribe", "not_registered"]
+)
+def test_only_free_actions_are_learned(monkeypatch, tmp_path, action):
+    monkeypatch.setattr(harness, "LEARNED_PICKS_FILE", tmp_path / "picks.json")
+    harness.learn_pick("do the thing", harness.SkillMatch("any", action))
+
+    assert harness.learned_pick("do the thing") is None
+
+
 def test_publishing_picks_are_never_learned(monkeypatch, tmp_path):
     monkeypatch.setattr(harness, "LEARNED_PICKS_FILE", tmp_path / "picks.json")
     harness.learn_pick("subscribe please", harness.SkillMatch("youtube", "youtube_subscribe"))

@@ -39,7 +39,6 @@ from zoya.tools import ToolError, collect_tools
 
 # Always available to a skill-scoped brain, next to the skill's own tools.
 GENERIC_TOOLS = ("narrate", "memory_search", "memory_add", "handoff_to_user", "browser_screenshot")
-NEVER_LEARN = re.compile(r"order|pay|buy|cart|checkout|subscribe|like|comment|post|send|delete")
 ERROR_PREFIX = re.compile(r"^Error: (?:\w+ - )?")
 
 
@@ -235,8 +234,9 @@ def learned_pick(command: str) -> SkillMatch | None:
 
 
 def learn_pick(command: str, pick: SkillMatch) -> None:
-    """Only actions that never publish or pay, and never a confirm-class tool."""
-    if NEVER_LEARN.search(pick.action) or safety.risk_of(pick.action) == "confirm":
+    """Only free actions, by the safety registry (coordinator review, gap E): a guarded tool
+    (play a song, share a file) is never replayed from a remembered phrase."""
+    if safety.risk_of(pick.action) != "free":
         return
     with _learned_lock:
         learned = _load_learned()
