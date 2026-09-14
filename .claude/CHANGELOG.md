@@ -217,3 +217,6 @@
 
 ## 2026-09-14 — Phase 7: stage overlay, action ring, CloudWatch dashboard spec
 - zoya/overlay.py + overlay_app.py (child-process NSPanel: presence states, masked captions, ring); screen.display_filter excludes the overlay in every display capture; aws.traced span per AWS call; infra/cloudwatch/zoya-stage-dashboard.json; zoya-app policy +xray:PutSpans/PutSpansForIndexing; tests/test_overlay.py, tests/evals/overlay_check.py; D69, §9.11 as built.
+
+## 2026-09-14 — Barge-in enabled
+- AEC_ENABLED=True after the owner stop-clip replay (6->8/10) and wake-over-music replay (13->16/21); D62 updated; live run pending
