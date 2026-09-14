@@ -104,6 +104,9 @@ WAKE_MODEL = "mlx-community/whisper-base.en-mlx"  # D51: ~30 ms/call on GPU vs ~
 SPOTTER_ENGINE = "mlx"  # "faster-whisper" = D19's CPU spotter, if mlx misbehaves on stage
 STT_MODEL_REPO = "mlx-community/whisper-large-v3-turbo"
 PTT_POLL_S = 0.03
+# Hold to talk; press while Zoya talks to interrupt. Owner's other app uses Control + Option.
+# Names: fn, shift, control, option, command.
+PUSH_TO_TALK_KEYS = ("fn", "shift")
 TASK_JOIN_TIMEOUT_S = 90.0
 WEATHER_TIMEOUT_S = 3.0  # per Open-Meteo call (D50)
 

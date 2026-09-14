@@ -1,7 +1,7 @@
 """Hands-free Zoya (Phase 2): wake word, push-to-talk, earcons, streamed speech.
 
 Usage:
-  python -m zoya.main                         # "Hey Zoya" + push-to-talk (Control + Option)
+  python -m zoya.main                         # "Hey Zoya" + push-to-talk (hold fn + Shift)
   python -m zoya.main --no-wake               # push-to-talk only (Done-when #5)
   python -m zoya.main --test-wake             # print wake/stop detections + timings, run nothing
   python -m zoya.main --test-wake --record-clips  # also save each utterance to logs/wake_clips/
@@ -62,8 +62,11 @@ def main(argv: list[str] | None = None) -> int:
     from zoya import audio, speech
 
     loop = _start(args)
-    wake = "off — hold Control + Option to talk" if args.no_wake else 'say "Hey Zoya"'
-    print(f"Listening ({wake}; push-to-talk always works). Ctrl+C quits.")
+    from zoya.voice import push_to_talk_label
+
+    keys = push_to_talk_label()
+    wake = f"off — hold {keys} to talk" if args.no_wake else f'say "Hey Zoya", or hold {keys}'
+    print(f"Listening ({wake}). Ctrl+C quits.")
     audio.earcon("listening")
     stop_event = threading.Event()
     try:

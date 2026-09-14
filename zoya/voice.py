@@ -3,7 +3,7 @@
 Mic → Silero VAD (always on) → Whisper base.en checks each finished utterance for "Hey Zoya"
 and, while Zoya talks or works, the last 2 s every 150 ms for "Zoya, stop" (D51: base.en runs
 on the Apple GPU via mlx, ~30 ms a call) → after wake, record until ~0.5 s silence →
-mlx-whisper large-v3-turbo → router → task. Push-to-talk (Control + Option) records from
+mlx-whisper large-v3-turbo → router → task. Push-to-talk (fn + Shift by default) records from
 key-down. While Zoya talks, only the stop spotter listens (echo protection).
 
 APIs (verified against the installed packages, 2026-09-14):
@@ -42,6 +42,7 @@ from zoya.config import (
     PARTIAL_EVERY_S,
     PARTIAL_MIN_S,
     PRE_ROLL_S,
+    PUSH_TO_TALK_KEYS,
     SPOTTER_ENGINE,
     STT_MODEL_REPO,
     TIMING_LOG,
@@ -204,11 +205,24 @@ def load_cpu_spotter() -> Callable[[np.ndarray], str]:
     return transcribe
 
 
+def push_to_talk_label() -> str:
+    return " + ".join(key.capitalize() if key != "fn" else "fn" for key in PUSH_TO_TALK_KEYS)
+
+
 def push_to_talk_held() -> bool:
     import Quartz
 
+    masks = {
+        "fn": Quartz.kCGEventFlagMaskSecondaryFn,
+        "shift": Quartz.kCGEventFlagMaskShift,
+        "control": Quartz.kCGEventFlagMaskControl,
+        "option": Quartz.kCGEventFlagMaskAlternate,
+        "command": Quartz.kCGEventFlagMaskCommand,
+    }
+    wanted = 0
+    for key in PUSH_TO_TALK_KEYS:
+        wanted |= masks[key]
     flags = Quartz.CGEventSourceFlagsState(Quartz.kCGEventSourceStateHIDSystemState)
-    wanted = Quartz.kCGEventFlagMaskControl | Quartz.kCGEventFlagMaskAlternate
     return flags & wanted == wanted
 
 
