@@ -44,16 +44,28 @@ Everything that controls the Mac runs **locally**.
 
 ## Getting started
 
+**Needs:** an Apple Silicon Mac (M1 or later), Google Chrome, and an OpenAI API key.
+
 ```bash
-python3.12 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-playwright install chrome
-cp .env.example .env        # fill in your own keys
-python -m zoya.setup_models # one-time model download
-.venv/bin/python -m zoya.main --overlay
+git clone <this repo> zoya && cd zoya
+./start.sh          # or: make start
 ```
 
-macOS permissions required: **Microphone, Accessibility, Screen Recording** (and Automation per app) for the terminal/Python running Zoya.
+`start.sh` does everything: installs dependencies (via `uv`), asks **only for keys that are missing** (typed input is hidden and saved to a local `.env`), checks the OpenAI key, downloads the on-device speech models once, and starts Zoya.
+
+| Key | Needed? | What it adds |
+|---|---|---|
+| OpenAI | **required** | Zoya's brain |
+| TinyFish | optional (free) | web search |
+| ElevenLabs | optional | backup voice |
+| Supermemory | optional | remembers your preferences |
+| AWS profile | optional | Amazon Polly voice, Translate, DynamoDB, S3, SNS… (without it Zoya uses the Mac's voice) |
+
+The first time, macOS asks to allow your terminal app **Microphone, Accessibility and Screen Recording**. Allow them, reopen the terminal, and run `./start.sh` again.
+
+**Using Zoya:** say **"Hey Zoya"** (or hold **fn + Shift**) and ask, for example: *"play the latest Lex Fridman podcast on YouTube"*, *"buy The 48 Laws of Power on Amazon"*, *"what's the weather in Bangalore?"*. To quit, press **Control + Shift + Esc** or say *"Zoya, quit"*.
+
+Sites that need your account (Amazon, X, Booking.com) use Zoya's own browser profile. Sign in once with `uv run python -m zoya.skills.x_web`.
 
 ## Sound credits
 
