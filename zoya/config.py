@@ -259,8 +259,9 @@ OFFICE_MAX_ROWS = 500
 OFFICE_TEXT_MAX_CHARS = 4000  # one read-back handed to the model
 OPEN_APP_TIMEOUT_S = 10.0  # `open -b` bound
 # Sharing ("send it to my sister"): private S3 object + pre-signed GET link, emailed by SNS.
-SHARE_BUCKET = "zoya-benchmarks-567487920371-ap-south-1"  # pending coordinator: prefix or bucket
-SHARE_PREFIX = "zoya-shared/"
+# Private, public access blocked, objects expire after 1 day (owner-created at the end visit).
+SHARE_BUCKET = "zoya-shared-567487920371-ap-south-1"
+SHARE_PREFIX = ""
 SHARE_LINK_TTL_S = 3600
 SHARE_TOPIC_ARN = "arn:aws:sns:ap-south-1:567487920371:zoya-shares"  # one filtered sub per contact
 SHARE_CONTACTS: tuple[str, ...] = ()  # names with a confirmed SNS subscription, e.g. ("sister",)
@@ -268,6 +269,6 @@ SHARE_TEST_ENV = "ZOYA_SHARE_TEST_TO_OWNER"  # =1: links go to the owner's zoya-
 S3_UPLOAD_TIMEOUT_S = 20.0
 # Reminders (STACK §8): a local timer speaks; EventBridge Scheduler emails via SNS.
 REMINDER_SCHEDULE_GROUP = "zoya-reminders"
-REMINDER_ROLE_ARN = "arn:aws:iam::567487920371:role/zoya-scheduler-sns"  # pending coordinator
+REMINDER_ROLE_ARN = "arn:aws:iam::567487920371:role/zoya-scheduler-sns"  # D67, owner-created
 REMINDER_TIMEZONE = "Asia/Kolkata"
 REMINDER_MAX_DAYS = 30

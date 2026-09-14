@@ -74,10 +74,17 @@ def _speak(text: str) -> None:
     tasks.announce(text, tasks.Task(f"reminder-{uuid.uuid4().hex[:6]}", "reminder", text))
 
 
-def _schedule_email(when: datetime, text: str) -> bool:
+EMAIL_SET = "and email you"
+EMAIL_OFF = "but email reminders are off because AWS is off"
+EMAIL_NOT_SET_UP = "but email reminders aren't set up yet, so only I will say it"
+EMAIL_FAILED = "but I couldn't set the email copy"
+
+
+def _schedule_email(when: datetime, text: str) -> str:
+    """Create the one-time email schedule; returns the spoken clause for how that went."""
     scheduler = aws.client("scheduler")
     if scheduler is None:
-        return False
+        return EMAIL_OFF
     try:
         scheduler.create_schedule(
             Name=f"zoya-reminder-{uuid.uuid4().hex[:16]}",
@@ -92,10 +99,17 @@ def _schedule_email(when: datetime, text: str) -> bool:
                 "Input": f"Reminder from Zoya: {text}",
             },
         )
-        return True
+        return EMAIL_SET
     except Exception as error:  # noqa: BLE001 — the spoken reminder is still set
         log.warning("reminder email schedule failed (%s)", aws._reason(error))
-        return False
+        code = getattr(error, "response", {}).get("Error", {}).get("Code", "")
+        # No schedule group / role yet (created by the owner, D67), or no permission for them.
+        missing = code in {
+            "ResourceNotFoundException",
+            "AccessDeniedException",
+            "ValidationException",
+        }
+        return EMAIL_NOT_SET_UP if missing else EMAIL_FAILED
 
 
 @tool
@@ -115,10 +129,8 @@ def set_reminder(text: str, in_minutes: float = 0, at_time: str = "") -> str:
     timer = threading.Timer((when - now).total_seconds(), _speak, args=(clean,))
     timer.daemon = True
     timer.start()
-    emailed = _schedule_email(when, clean)
-    spoken_time = when.strftime("%-I:%M %p")
-    email = "and email you" if emailed else "but I couldn't set the email copy"
-    return f"Okay, I'll remind you to {clean} at {spoken_time}, {email}."
+    email = _schedule_email(when, clean)
+    return f"Okay, I'll remind you to {clean} at {when.strftime('%-I:%M %p')}, {email}."
 
 
 TOOLS = [set_reminder]
