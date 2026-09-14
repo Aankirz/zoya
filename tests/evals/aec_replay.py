@@ -10,7 +10,7 @@
    (synthetic voices over Zoya's recorded speech, checked like the stop spotter).
 
 Needs the GPU models, macOS `say` + ffmpeg and the speakers, so it is an eval, not a pytest.
-Usage: .venv/bin/python -u tests/evals/aec_replay.py record [volume] | replay | barge-in
+Usage: .venv/bin/python -u tests/evals/aec_replay.py record [vol] | replay | barge-in [parts]
 """
 
 from __future__ import annotations
@@ -243,8 +243,14 @@ def background(mic: np.ndarray, ref: np.ndarray, span: tuple, offset_s: float, s
     return mic[window], ref[window]
 
 
+MLX_CACHE_LIMIT_BYTES = 512 * 1024 * 1024  # uncapped, mlx's buffer cache got the eval OOM-killed
+
+
 class Judge:
     def __init__(self) -> None:
+        import mlx.core as mx
+
+        mx.set_cache_limit(MLX_CACHE_LIMIT_BYTES)
         self.spot = voice.load_whisper(WAKE_MODEL, language="en", initial_prompt="Zoya")
         self.stt = voice.load_whisper(STT_MODEL_REPO, allowed_languages=voice.STT_LANGUAGES)
 
@@ -380,17 +386,28 @@ def barge_in_mic(user, echo, ref, gain: float, delay_s: float) -> tuple[np.ndarr
     return mic, quiet_from
 
 
-def barge_in_replay() -> int:
+def barge_in_replay(parts: list[str]) -> int:
+    """parts: any of stop, wake, onsets (default all); results merge into one JSON file."""
     mic, _ = sf.read(OUT / "mic.wav", dtype="float32")
     ref, _ = sf.read(OUT / "reference.wav", dtype="float32")
     spans = json.loads((OUT / "record.json").read_text())["spans_s"]
-    judge = Judge()
-    results = {
-        "stop_over_tts": barge_in_stops(judge, mic, ref, spans["tts"]),
-        "wake_over_music": barge_in_wakes(judge, mic, ref, spans["music"]),
-        "onsets_per_min_echo_alone": onsets_alone(mic, ref, spans),
-    }
     path = RESULTS.with_name("aec_barge_in_replay.json")
+    results = json.loads(path.read_text()) if path.exists() else {}
+    parts = parts or ["stop", "wake", "onsets"]
+    judge = Judge() if {"stop", "wake"} & set(parts) else None
+    if "stop" in parts:
+        results["stop_over_tts"] = barge_in_stops(judge, mic, ref, spans["tts"])
+    if "wake" in parts:
+        levels = [float(p) for p in parts if p[0].isdigit()] or BARGE_IN_LEVELS
+        done = results.setdefault("wake_over_music", {})
+
+        def save(new: dict) -> None:
+            done.update(new)
+            path.write_text(json.dumps(results, indent=1))
+
+        barge_in_wakes(judge, mic, ref, spans["music"], levels, save)
+    if "onsets" in parts:
+        results["onsets_per_min_echo_alone"] = onsets_alone(mic, ref, spans)
     path.write_text(json.dumps(results, indent=1))
     print(json.dumps(results, indent=1))
     return 0
@@ -398,15 +415,15 @@ def barge_in_replay() -> int:
 
 def barge_in_stops(judge: Judge, mic, ref, span) -> dict:
     """ "Zoya, stop" over Zoya's recorded speech: off vs barge-in; latency after the phrase."""
-    with tempfile.TemporaryDirectory() as folder:
-        phrases = [say(p, v, Path(folder)) for v in STOP_VOICES for p in STOP_PHRASES]
+    phrases = stop_phrases()
     target_rms = float(np.median([rms(c) for c in load_clips(WAKES).values()]))
-    out = {}
+    out = {"voices": "owner" if sorted(STOP_CLIPS.glob("*.wav")) else "synthetic"}
     for loudness in TTS_LOUDNESS:
         for barge_in in (False, True):
             hits, latencies = 0, []
             for i, phrase in enumerate(phrases):
-                phrase = phrase * target_rms / rms(phrase)
+                if out["voices"] == "synthetic":
+                    phrase = phrase * target_rms / rms(phrase)
                 end = int(PRE_ROLL_S * RATE) + len(phrase)
                 seconds = PRE_ROLL_S + len(phrase) / RATE + max(STOP_CHECKS_S) + 0.1
                 echo, reference = background(mic, ref, span, i * 1.1, seconds)
@@ -427,11 +444,11 @@ def barge_in_stops(judge: Judge, mic, ref, span) -> dict:
     return out
 
 
-def barge_in_wakes(judge: Judge, mic, ref, span) -> dict:
+def barge_in_wakes(judge: Judge, mic, ref, span, levels, save) -> dict:  # noqa: ANN001
     """The owner's "Hey Zoya" over music: off vs onset → system duck (+ osascript delay)."""
     wakes, negatives = load_clips(WAKES), load_clips(NEGATIVES)
     out = {}
-    for level in BARGE_IN_LEVELS:
+    for level in levels:
         for barge_in in (False, True):
             gain = DUCK_FRACTION if barge_in else 1.0
             hits = sum(
@@ -446,6 +463,7 @@ def barge_in_wakes(judge: Judge, mic, ref, span) -> dict:
             key = f"music {level:.2f} barge_in={'on' if barge_in else 'off'}"
             out[key] = {"wakes": f"{hits}/{len(wakes)}", "false": false}
             print(f"wake {key}: {out[key]}", flush=True)
+            save(out)
     return out
 
 
@@ -479,9 +497,43 @@ def onsets_alone(mic, ref, spans) -> dict:
     return out
 
 
+STOP_CLIPS = LOG_DIR / "stop_clips"  # the owner's own "Zoya, stop" (local only, git-ignored)
+STOP_CLIP_S = 2.0
+STOP_TAKES = 10
+
+
+def stop_phrases() -> list[np.ndarray]:
+    """The owner's recorded "Zoya, stop" takes; synthetic macOS voices only as a fallback.
+
+    Synthetic voices cap the replay at 6/10 even with no echo ("Zoya, stop" → "Stop."), so they
+    can't show what barge-in does.
+    """
+    clips = sorted(STOP_CLIPS.glob("*.wav"))
+    if clips:
+        return [sf.read(clip, dtype="float32")[0] for clip in clips]
+    with tempfile.TemporaryDirectory() as folder:
+        return [say(p, v, Path(folder)) for v in STOP_VOICES for p in STOP_PHRASES]
+
+
+def record_stops() -> int:
+    """Owner: say "Zoya, stop" at your normal distance after each beep (headset off, no music)."""
+    import sounddevice as sd
+
+    STOP_CLIPS.mkdir(parents=True, exist_ok=True)
+    for take in range(1, STOP_TAKES + 1):
+        input(f"Take {take}/{STOP_TAKES}: press Enter, then say 'Zoya, stop'")
+        clip = sd.rec(int(STOP_CLIP_S * RATE), samplerate=RATE, channels=1, dtype="float32")
+        sd.wait()
+        sf.write(STOP_CLIPS / f"{take:03d}.wav", clip[:, 0], RATE)
+    print(f"saved {STOP_TAKES} clips to {STOP_CLIPS}")
+    return 0
+
+
 if __name__ == "__main__":
+    if sys.argv[1:2] == ["record-stops"]:
+        sys.exit(record_stops())
     sys.exit(
         record(int(sys.argv[2]) if len(sys.argv) > 2 else VOLUME)
         if sys.argv[1:2] == ["record"]
-        else barge_in_replay() if sys.argv[1:2] == ["barge-in"] else replay()
+        else barge_in_replay(sys.argv[2:]) if sys.argv[1:2] == ["barge-in"] else replay()
     )
