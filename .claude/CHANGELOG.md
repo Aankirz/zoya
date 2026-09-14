@@ -111,3 +111,9 @@
 
 ## 2026-09-14 — Push directly to main (D47)
 - AGENTS.md §7 + DECISIONS D47: no phase branches; builders push to main, coordinator session reviews.
+
+## 2026-09-14 — Phase 1: brain + fast actions
+- zoya/{config,events,aws,speech,router,prompts,orchestrator,__main__}.py, zoya/tools/{__init__,fast,notes}.py, tests/test_router_rules.py, tests/test_task_limits.py, tests/evals/router_eval.py rewritten; docs §9.4/§13.5 facts; .env.example OTEL var. Pushed d234433..5c3b610.
+
+## 2026-09-14 — Phase 1 review fixes
+- Removed free-form run_applescript (¬ line-continuation bypass) in favour of fixed media_control; multi-step commands skip the router model; AWS failures warn once per session; otel-collector.yaml for CloudWatch/X-Ray; .gitignore .claude/worktrees/.
