@@ -50,6 +50,7 @@ STOPPED_MESSAGE = "Okay, stopped."
 GENERIC_FAILURE = "Sorry, something went wrong. Please try again."
 LIMIT_MESSAGE = "I've stopped this task because it was taking too many steps."
 IDLE_MESSAGE = "Nothing is running."
+OPEN_APP_FALLBACK = "open_app_fallback"
 MAX_CONVERSATION_TURNS = 6  # follow-ups keep context; older turns drop to bound token cost
 SENTENCE_END = re.compile(r"(?<=[.!?।])\s+")
 
@@ -210,10 +211,16 @@ def _remember_interrupted(command: str, spoken: list[str]) -> None:
     to playback); a half-heard last sentence is kept whole.
     """
     heard = " ".join(spoken) or "(nothing yet)"
+    remember_turn(command, f"{heard} [interrupted by the user]")
+
+
+def remember_turn(command: str, reply: str) -> None:
+    """Fast-path turns join the conversation too: "find it on the browser" must know what "it" is
+    (owner's run searched the previous song instead of MrBeast)."""
     _conversation.append(
         [
             {"role": "user", "content": [{"text": command}]},
-            {"role": "assistant", "content": [{"text": f"{heard} [interrupted by the user]"}]},
+            {"role": "assistant", "content": [{"text": reply}]},
         ]
     )
     del _conversation[:-MAX_CONVERSATION_TURNS]
@@ -234,7 +241,14 @@ def _execute(decision: RouteDecision, timings: dict[str, int]) -> tuple[str, boo
         if decision.route == "stop":
             return STOPPED_MESSAGE, True
         if decision.route == "fast":
-            return run_fast_tool(decision), True
+            try:
+                return run_fast_tool(decision), True
+            except ToolError:
+                if decision.tool != "open_app":
+                    raise
+                # "open YouTube MrBeast" is no installed app: let the brain try the web instead.
+                timings[OPEN_APP_FALLBACK] = 1
+                return run_orchestrator(decision.text, timings), True
         return run_orchestrator(decision.text, timings), True
     except ToolError as error:
         return str(error), False
@@ -269,8 +283,11 @@ def handle_command(text: str, pre_timings: dict[str, int] | None = None) -> Comm
         span.set_attributes({"zoya.route": decision.route, "zoya.tool": decision.tool or ""})
     outcome = "stop" if decision.route == "stop" or spoken == STOPPED_MESSAGE else "success"
     events.emit(events.EarconEvent(outcome if ok or outcome == "stop" else "error"))
-    if decision.route != "orchestrator" or not ok:  # the orchestrator already spoke as it streamed
+    streamed = decision.route == "orchestrator" or OPEN_APP_FALLBACK in timings
+    if not streamed or not ok:  # the orchestrator already spoke as it streamed
         speech.narrate(spoken)
+    if decision.route == "fast" and not streamed:
+        remember_turn(text, spoken)
     result = CommandResult(task_id, decision, spoken, ok, timings)
     _log_timing(text, result)
     events.emit(events.TaskEvent(task_id, "done" if ok else "failed", text, decision.route, spoken))

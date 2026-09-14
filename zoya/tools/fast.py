@@ -17,6 +17,7 @@ from zoya.config import APP_LOOKUP_TIMEOUT_S, OSASCRIPT_TIMEOUT_S
 from zoya.tools import ToolError
 
 VOLUME_STEP = 15
+MIN_FUZZY_APP_CHARS = 3
 MAX_VOLUME = 100
 UNSAFE_LOOKUP_CHARS = re.compile(r"['\"\\*]")
 
@@ -47,9 +48,9 @@ def osascript(script: str, *args: str) -> str:
 
 def _find_app(name: str) -> str | None:
     """Spotlight lookup for an installed app containing `name` ("Chrome" → "Google Chrome")."""
-    safe = UNSAFE_LOOKUP_CHARS.sub("", name).strip()
-    if not safe:
-        return None
+    safe = UNSAFE_LOOKUP_CHARS.sub("", name).strip(" .")
+    if len(safe) < MIN_FUZZY_APP_CHARS:
+        return None  # "open Mr." fuzzy-matched a random app in the owner's run
     query = (
         "kMDItemContentType == 'com.apple.application-bundle'"
         f" && kMDItemDisplayName == '*{safe}*'cd"

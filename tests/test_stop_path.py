@@ -85,3 +85,20 @@ def test_sentence_stream_speaks_first_sentence_before_the_rest_arrives():
     assert stream.feed(".2 million people") == []  # "14.2" is not a sentence end
     assert stream.flush() == "It has about 14.2 million people"
     assert stream.flush() == ""
+
+
+def test_unknown_app_falls_back_to_the_brain_instead_of_failing(monkeypatch):
+    from zoya.tools import ToolError
+
+    def missing_app(_decision):
+        raise ToolError("I can't find YouTube MrBeast on this Mac.")
+
+    monkeypatch.setattr(orchestrator, "run_fast_tool", missing_app)
+    monkeypatch.setattr(orchestrator, "run_orchestrator", lambda text, timings: f"brain: {text}")
+    decision = orchestrator.RouteDecision(
+        "fast", "open_app", {"app_name": "YouTube MrBeast"}, text="open YouTube MrBeast"
+    )
+    timings = {}
+
+    assert orchestrator._execute(decision, timings) == ("brain: open YouTube MrBeast", True)
+    assert orchestrator.OPEN_APP_FALLBACK in timings
