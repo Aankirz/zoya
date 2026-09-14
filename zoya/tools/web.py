@@ -13,6 +13,7 @@ APIs (verified live 2026-09-14 with the owner's key):
 
 from __future__ import annotations
 
+import concurrent.futures
 import json
 import os
 import urllib.error
@@ -51,8 +52,19 @@ def _key() -> str:
     return key
 
 
+_pool = concurrent.futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="zoya-web")
+
+
 def _call(request: urllib.request.Request, timeout: float) -> dict[str, Any]:
+    """Hard total deadline: urlopen's timeout bounds each socket read, not a slow drip."""
     request.add_header("X-API-Key", _key())
+    try:
+        return _pool.submit(_fetch_json, request, timeout).result(timeout=timeout)
+    except concurrent.futures.TimeoutError as error:
+        raise ToolError("Web search took too long. Try again in a moment.") from error
+
+
+def _fetch_json(request: urllib.request.Request, timeout: float) -> dict[str, Any]:
     try:
         with urllib.request.urlopen(
             request, timeout=timeout
