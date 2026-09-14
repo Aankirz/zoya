@@ -46,6 +46,11 @@ EARCON_FILES = {
     "attention": "mention",
     "warning": "warning",  # ×2 before a confirmation summary (§9.9)
     "cancel": "cancel",
+    "progress-step": "progress-step",  # Phase 4 (§7.3): shopping ticks
+    "add-to-cart": "add-to-cart",
+    "purchase": "purchase",
+    "checkpoint": "checkpoint",  # memory saved
+    "blocked": "blocked",  # login / CAPTCHA handoff
 }
 LOOP_FILE = "processing"
 ENDS_LOOP = {"success", "error", "stop", "warning", "cancel"}  # quiet while asking

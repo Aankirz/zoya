@@ -7,6 +7,8 @@ Usage:
   python -m zoya.main --test-wake --record-clips  # also save each utterance to logs/wake_clips/
   python -m zoya.main --disable-tts polly     # Polly off → ElevenLabs → macOS voice (#7)
   python -m zoya.main --page http://127.0.0.1:8765/place_order.html  # open a page in Zoya's browser
+  python -m zoya.main --login                 # sign in once: Amazon.in, YouTube, Spotify, Gmail
+  python -m zoya.main --order-limit 300       # Done-when #5 test run: never offer a bigger order
 Every stage's timing is printed and appended to logs/timing.log. Ctrl+C quits.
 """
 
@@ -41,6 +43,8 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     )
     parser.add_argument("--disable-tts", default="", help="comma list: polly,elevenlabs")
     parser.add_argument("--page", default="", help="open this page in Zoya's browser (Phase 3)")
+    parser.add_argument("--login", action="store_true", help="open the Zoya profile to sign in")
+    parser.add_argument("--order-limit", default="", help="rupees; bigger orders are never offered")
     return parser.parse_args(argv)
 
 
@@ -70,9 +74,35 @@ def _start(args: argparse.Namespace):  # noqa: ANN202 — returns VoiceLoop, imp
     return loop
 
 
+def open_login_sites() -> int:
+    """Onboarding (D60): normal Chrome on the Zoya profile, so Google allows the sign-in and the
+    cookies land in the real keychain that Zoya's Playwright launch reads (coordinator)."""
+    import subprocess
+
+    from zoya.config import BROWSER_PROFILE_DIR, LOGIN_SITES
+
+    command = [
+        "open",
+        "-na",
+        "Google Chrome",
+        "--args",
+        f"--user-data-dir={BROWSER_PROFILE_DIR}",
+        *LOGIN_SITES,
+    ]
+    result = subprocess.run(command, stdin=subprocess.DEVNULL, timeout=10, check=False)
+    print("Sign in to each tab, then quit that Chrome window (Cmd+Q) before starting Zoya.")
+    return result.returncode
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
+    if args.login:
+        return open_login_sites()
     load_env()
+    if args.order_limit:
+        from zoya.config import ORDER_LIMIT_ENV
+
+        os.environ[ORDER_LIMIT_ENV] = args.order_limit
     if args.disable_tts:
         os.environ[DISABLE_TTS_ENV] = args.disable_tts
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
