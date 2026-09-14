@@ -26,6 +26,14 @@ log = logging.getLogger(__name__)
 
 HANDOFF_TTL_S = 15 * 60  # a sign-in left longer than this is forgotten: "done" is then just a word
 REASONS = {"sign_in": "asking you to sign in", "captcha": "asking to check you're human"}
+ALERTS = {
+    "sign_in": "Zoya paused a task: {host} is asking to sign in. Nothing was bought or sent.",
+    "captcha": "Zoya paused a task: {host} is asking to check it's a human. Nothing was bought.",
+    "unexpected_order": (
+        "Zoya opened checkout on {host} and it showed an ORDER CONFIRMATION the user did not "
+        "confirm. Please check the account's orders now."
+    ),
+}
 
 _lock = threading.Lock()
 _pending: dict[str, object] = {}
@@ -45,7 +53,7 @@ def _front_host() -> str:
         return "a website"
 
 
-def _alert(host: str, reason: str) -> None:
+def alert(host: str, reason: str) -> None:
     try:
         sns = aws.client("sns")
         if sns is None:
@@ -53,7 +61,7 @@ def _alert(host: str, reason: str) -> None:
         sns.publish(
             TopicArn=ALERTS_TOPIC_ARN,
             Subject="Zoya needs help",
-            Message=f"Zoya paused a task: {host} is {REASONS[reason]}. Nothing was bought or sent.",
+            Message=ALERTS[reason].format(host=host),
         )
     except Exception as error:  # noqa: BLE001 — the user already heard it; the email is extra
         log.warning("SNS alert failed (%s)", aws._reason(error))
@@ -100,7 +108,7 @@ def handoff_to_user(reason: str = "sign_in") -> str:
         f"{host} is {REASONS[reason]}. I don't type passwords or codes. The browser is in front; "
         "say done when you've finished."
     )
-    threading.Thread(target=_alert, args=(host, reason), daemon=True).start()
+    threading.Thread(target=alert, args=(host, reason), daemon=True).start()
     return (
         "Already said out loud and the trusted contact emailed. Stop now: your final answer is "
         "only the word Waiting."

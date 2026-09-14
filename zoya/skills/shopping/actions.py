@@ -17,15 +17,17 @@ from __future__ import annotations
 
 import contextlib
 import re
+import threading
+from dataclasses import dataclass
 from datetime import date
 from typing import Any
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, urlparse
 
 from strands import tool
 
-from zoya import events, safety
+from zoya import events, safety, speech
 from zoya.tools import ToolError, browser
-from zoya.tools.handoff import handoff_to_user
+from zoya.tools.handoff import alert, handoff_to_user
 from zoya.tools.memory import remember
 
 BASE = "https://www.amazon.in"
@@ -51,7 +53,9 @@ SELECTORS = {
         "#submitOrderButtonId input, #placeYourOrder input, input[name='placeYourOrder1']"
     ),
 }
-ORDER_PLACED = re.compile(r"order placed|thank you, your order", re.I)
+ORDER_PLACED = re.compile(r"order placed|thank you, your order|order (?:is )?confirmed", re.I)
+THANK_YOU_PATH = re.compile(r"thankyou|thank-you|order-confirmation", re.I)
+CHECKOUT_PATH = re.compile(r"^/(?:tez/browse/cart|gp/buy/|checkout/)", re.I)
 PLACE_ORDER_NAME = re.compile(r"place (?:your )?order|^pay\b", re.I)
 ADD_MONEY = re.compile(r"add money", re.I)
 SUMMARY_START = re.compile(r"bill summary|order summary|review your items", re.I)
@@ -60,6 +64,15 @@ SUMMARY_MAX_CHARS = 1500
 SUMMARY_BILL = re.compile(r"bill summary|order summary|order total", re.I)
 MAX_SPOKEN_ITEMS = 5
 CONFIRMATION_PAGE_WAIT_MS = 3000
+
+
+@dataclass(frozen=True)
+class CheckoutState:
+    host: str
+    path: str
+    text: str
+    has_order_control: bool  # a "Place your order" / "Add Money to Place Order" / "Pay" button
+
 
 _last_results: list[dict[str, str]] = []  # the most recent search, so "add the second one" works
 _last_query: list[str] = [""]
@@ -191,6 +204,50 @@ def checkout_summary(text: str) -> str:
     return "\n".join(parts) if parts else flat[-SUMMARY_MAX_CHARS:]
 
 
+def _checkout_state(page: Any) -> CheckoutState:
+    page.wait_for_load_state("domcontentloaded")
+    landed = re.compile(f"{SUMMARY_BILL.pattern}|{ORDER_PLACED.pattern}", re.I)
+    with contextlib.suppress(Exception):  # judged below from whatever loaded
+        page.get_by_text(landed).first.wait_for(timeout=WAIT_MS)
+    controls = page.get_by_role("button", name=PLACE_ORDER_NAME).count()
+    controls += page.locator(SELECTORS["place_order"]).count()
+    url = urlparse(page.url)
+    return CheckoutState(url.netloc, url.path, page.inner_text("body"), controls > 0)
+
+
+def checkout_verdict(state: CheckoutState) -> str:
+    """Parser (tests/test_harness.py): "ok", "order_placed" or "unexpected" after Proceed.
+
+    An order confirmation / thank-you page means Amazon finalised without Zoya's confirmation.
+    Anything that isn't a checkout path with a Place-order (or Add-money) control is unexpected.
+    """
+    if ORDER_PLACED.search(state.text) or THANK_YOU_PATH.search(state.path):
+        return "order_placed"
+    if CHECKOUT_PATH.search(state.path) and state.has_order_control:
+        return "ok"
+    return "unexpected"
+
+
+def _verify_no_order(state: CheckoutState) -> None:
+    verdict = checkout_verdict(state)
+    if verdict == "ok":
+        return
+    if verdict == "unexpected":
+        raise ToolError("The checkout page didn't open the way I expected, so I stopped.")
+    said = (
+        "Warning: Amazon is showing an order confirmation that you did not confirm. Please check "
+        "your Amazon orders now. I've alerted your trusted contact."
+    )
+    events.emit(events.EarconEvent("error"))
+    speech.narrate(said)
+    safety.audit_event(
+        safety.Action("purchase", "Proceed to checkout", target=state.host),
+        "unexpected order placed",
+    )
+    threading.Thread(target=alert, args=(state.host, "unexpected_order"), daemon=True).start()
+    raise safety.ConfirmationDeclined(said)
+
+
 def _read_checkout(page: Any) -> str:
     """The checkout is a client-rendered page: wait for its bill before reading."""
     page.get_by_text(SUMMARY_BILL).first.wait_for(timeout=WAIT_MS)
@@ -207,21 +264,18 @@ def amazon_checkout(groceries: bool = True) -> str:
     """
     browser.goto(CART_URL)
 
-    def proceed(page: Any) -> str:
+    def find(page: Any) -> Any:
         form = page.locator(SELECTORS["proceed_grocery" if groceries else "proceed"])
-        form = form.filter(visible=True)
-        if not form.count():
+        if not form.filter(visible=True).count():
             raise ToolError("That cart is empty, so there's nothing to check out.")
-        # "Proceed to Buy" only opens the checkout page (GET-like navigation, nothing is bought),
-        # so the recipe follows it by its fixed name, not by model text.
-        form.first.click()
-        page.wait_for_load_state("domcontentloaded")
-        return page.url
+        return form.filter(visible=True).first
 
-    browser.on_page(proceed)
+    # Guard 2 like any click: only the exact KNOWN_SAFE_CLICKS proceed forms pass without asking.
+    browser.click_checked(browser.probe_with(find), "Proceed to checkout")
     if browser.on_page(browser.sign_in_wall):
         handoff_to_user("sign_in")
         return "Amazon needs you to sign in before checkout."
+    _verify_no_order(browser.on_page(_checkout_state))
     events.emit(events.EarconEvent("progress-step"))
     summary = browser.on_page(_read_checkout)
     return "Checkout page:\n" + safety.wrap_untrusted(summary)

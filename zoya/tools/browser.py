@@ -233,6 +233,7 @@ def _probe_locator(page: Any, locator: Any) -> Target:
             surroundings.first.inner_text()[:NEARBY_MAX_CHARS] if surroundings.count() else ""
         ),
         host=url.netloc,
+        control_name=(clickable.first.get_attribute("name") or "") if clickable.count() else "",
     )
     return Target(locator.element_handle(), facts, page.title(), url.netloc)
 

@@ -289,3 +289,78 @@ def test_done_resumes_only_a_pending_handoff(monkeypatch):
 @pytest.mark.parametrize("reply", ["done", "I'm done", "signed in", "ho gaya"])
 def test_done_is_never_a_confirmation(reply):
     assert safety.classify_reply(reply) != "confirm"
+
+
+# --- Gap A: checkout proceed click, no-order verification, guarded tools really guard ----------
+
+PROCEED = safety.ClickFacts(
+    ["", "Proceed to Buy Now Items", "Proceed to checkout"],
+    is_submit=True,
+    path="/gp/cart/view.html",
+    nearby_text="Subtotal ₹243",
+    host="www.amazon.in",
+    control_name="proceedToALMCheckout-qqfsWw9RkO",
+)
+
+
+def test_amazon_proceed_form_is_the_only_exact_safe_checkout_click():
+    assert safety.click_risk(PROCEED) is None
+    for change in (
+        {"control_name": "placeYourOrder1"},
+        {"control_name": ""},
+        {"host": "www.amazon.in.evil.test"},
+        {"labels": ["Proceed to checkout", "Place your order"]},
+        {"labels": ["Buy now"]},
+        {"labels": ["Proceed to Buy Buy Amazon items"]},  # the retail name on the grocery form
+        {"control_name": "proceedToRetailCheckout", "labels": ["Proceed to Buy Now Items"]},
+    ):
+        assert safety.click_risk(safety.ClickFacts(**{**PROCEED.__dict__, **change})), change
+
+
+@pytest.mark.parametrize(
+    ("path", "text", "control", "verdict"),
+    [
+        ("/tez/browse/cart", "Bill Summary You pay ₹243", True, "ok"),
+        ("/gp/buy/spc/handlers/display.html", "Order Summary Order total", True, "ok"),
+        ("/gp/buy/thankyou/handlers/display.html", "Order placed, thanks!", False, "order_placed"),
+        ("/tez/browse/cart", "Thank you, your order has been placed", True, "order_placed"),
+        ("/tez/browse/cart", "Bill Summary", False, "unexpected"),
+        ("/ap/signin", "Sign in", False, "unexpected"),
+    ],
+)
+def test_checkout_verdict_after_proceed(path, text, control, verdict):
+    state = shopping.CheckoutState("www.amazon.in", path, text, control)
+
+    assert shopping.checkout_verdict(state) == verdict
+
+
+def test_unexpected_order_page_is_spoken_audited_alerted_and_ends_the_task(monkeypatch):
+    said, audits, alerts = [], [], []
+    monkeypatch.setattr(shopping.speech, "narrate", said.append)
+    monkeypatch.setattr(shopping.safety, "audit_event", lambda action, d: audits.append(d))
+    monkeypatch.setattr(shopping, "alert", lambda host, reason: alerts.append(reason))
+    state = shopping.CheckoutState("www.amazon.in", "/gp/buy/thankyou", "Order placed", False)
+
+    with pytest.raises(safety.ConfirmationDeclined):
+        shopping._verify_no_order(state)
+    __import__("time").sleep(0.1)  # the alert runs on a thread
+
+    assert audits == ["unexpected order placed"] and alerts == ["unexpected_order"]
+    assert "did not confirm" in said[0]
+
+
+GUARD_CALLS = re.compile(
+    r"\b(?:click_checked|confirm_then_click|require_confirmation|fill_checked)\("
+)
+# These run their own Strands Agent with ConfirmationGate on every inner tool call.
+SUB_AGENT_GUARDED = {"computer_task", "document_agent"}
+
+
+def test_every_guarded_tool_actually_calls_a_guard():
+    import inspect
+
+    for name, tool in harness.all_tools().items():
+        if safety.risk_of(name) != "guarded" or name in SUB_AGENT_GUARDED:
+            continue
+        source = inspect.getsource(tool._tool_func)
+        assert GUARD_CALLS.search(source), f"{name} is registered guarded but never guards"

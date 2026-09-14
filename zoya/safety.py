@@ -288,6 +288,7 @@ class ClickFacts:
     path: str = ""  # URL path (no query: a search for "buy shoes" is not a checkout)
     nearby_text: str = ""  # text around the target (its form or a few ancestors)
     host: str = ""  # page host, for KNOWN_SAFE_CLICKS only
+    control_name: str = ""  # the clickable's name attribute, for KNOWN_SAFE_CLICKS only
 
 
 def spoken_name(labels: list[str]) -> str:
@@ -305,15 +306,33 @@ def accessible_name(snapshot: str) -> str:
     return (match.group(1) or "") if match else snapshot
 
 
-# Reversible buttons on shops Zoya automates, which the context rules would otherwise ask about on
-# every item (Flow 6 "ticks per item"). Exact host and exact name, and only after risky_label found
-# nothing: "Add to Cart" never pays, and a cart is left intact on cancel (Done-when #4).
-KNOWN_SAFE_CLICKS = {("www.amazon.in", "add to cart")}
+# Buttons on shops Zoya automates that never pay, which the context rules would otherwise ask about
+# every time (Flow 6 "ticks per item"). (host, allowed names, name-attribute prefix): exact host,
+# every label normalises to one of those exact names, and the element's name attribute starts with
+# the prefix. "Add to Cart" is reversible (Done-when #4). Amazon's proceed forms only open checkout
+# and amazon_checkout verifies no order page came back (coordinator review, gap A). Names as read
+# from the owner's cart page, 2026-09-14 (value + accessible name).
+KNOWN_SAFE_CLICKS = (
+    ("www.amazon.in", frozenset({"add to cart"}), ""),
+    (
+        "www.amazon.in",
+        frozenset({"proceed to checkout", "proceed to buy now items"}),
+        "proceedToALMCheckout",
+    ),
+    (
+        "www.amazon.in",
+        frozenset({"proceed to checkout", "proceed to buy buy amazon items"}),
+        "proceedToRetailCheckout",
+    ),
+)
 
 
 def known_safe_click(facts: ClickFacts) -> bool:
     names = {name for label in facts.labels if (name := normalise(label))}
-    return len(names) == 1 and (facts.host.casefold(), names.pop()) in KNOWN_SAFE_CLICKS
+    return bool(names) and any(
+        facts.host.casefold() == host and names <= allowed and facts.control_name.startswith(prefix)
+        for host, allowed, prefix in KNOWN_SAFE_CLICKS
+    )
 
 
 def click_risk(facts: ClickFacts) -> RiskyLabel | None:
@@ -326,10 +345,12 @@ def click_risk(facts: ClickFacts) -> RiskyLabel | None:
     ponytail: a JS-handled <div> with a harmless name ("Continue") on a page with no amount and a
     neutral URL still passes. Phase 4 skills must list their known final buttons as risky.
     """
+    if known_safe_click(
+        facts
+    ):  # exact entries only; "Proceed to buy" would otherwise read as risky
+        return None
     if hit := risky_label(facts.labels):
         return hit
-    if known_safe_click(facts):
-        return None
     name = spoken_name(facts.labels)
     if not name:
         return RiskyLabel("unknown", "click a button with no name")
@@ -1072,6 +1093,11 @@ def _audit(action: Action, decision: str) -> None:
     except OSError as error:
         log.warning("local confirmation log failed (%s)", type(error).__name__)
     threading.Thread(target=_put_audit, args=(item,), daemon=True).start()
+
+
+def audit_event(action: Action, decision: str) -> None:
+    """An audit row outside a confirmation dialogue (e.g. "unexpected order placed")."""
+    _audit(action, decision)
 
 
 def _put_audit(item: dict[str, str]) -> None:
