@@ -36,6 +36,17 @@ log = logging.getLogger(__name__)
 DEVANAGARI = re.compile(r"[ऀ-ॿ]")
 
 
+_warned: set[str] = set()
+
+
+def _warn_once(what: str, error: Exception) -> None:
+    """One warning per service + reason per session: an expired login must not spam every task."""
+    key = f"{what}:{_reason(error)}"
+    if key not in _warned:
+        _warned.add(key)
+        log.warning("%s failed (%s) — continuing without it", what, _reason(error))
+
+
 def _reason(error: Exception) -> str:
     """AWS error code when there is one ("ExpiredToken" → run `aws login`), else the class name."""
     code = getattr(error, "response", {}).get("Error", {}).get("Code")
@@ -97,7 +108,7 @@ def translate_to_english(text: str) -> str | None:
         )
         return response["TranslatedText"]
     except Exception as error:  # noqa: BLE001 — route the original text instead
-        log.warning("Amazon Translate failed (%s) — routing untranslated", _reason(error))
+        _warn_once("Amazon Translate (routing untranslated)", error)
         return None
 
 
@@ -116,4 +127,4 @@ def _put_task(item: dict[str, str]) -> None:
             Item={key: {"S": value} for key, value in item.items()},
         )
     except Exception as error:  # noqa: BLE001 — history is nice-to-have
-        log.warning("DynamoDB task history write failed (%s)", _reason(error))
+        _warn_once("DynamoDB task history write", error)
