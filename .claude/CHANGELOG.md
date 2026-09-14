@@ -129,3 +129,6 @@
 - zoya/voice.py + zoya/main.py: VAD → mlx base.en wake/stop spotter (D51) → large-v3-turbo → router/brain; push-to-talk Control+Option; --test-wake/--no-wake/--disable-tts; voice timings in logs/timing.log.
 - zoya/orchestrator.py: streamed sentence-by-sentence speech, native Strands cancel_signal stop, 6-turn follow-up context, start_task/stop_task/task_status; router sends questions straight to the brain.
 - zoya/tools/weather.py (Open-Meteo, D50); tests for spotter parsers and stop path.
+
+## 2026-09-14 — Phase 2 fixes from owner live run
+- One-breath wake via turbo re-check, junk transcripts keep the wake window, volume ducking with guaranteed restore, Control+Option barge-in, echo gate for self-wake, cached_tokens logging, wake sweep eval; D50–D52.
