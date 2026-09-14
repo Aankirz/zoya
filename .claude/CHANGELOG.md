@@ -191,3 +191,6 @@
 
 ## 2026-09-14 — Learning doc: Phase 3
 - learning/learning.md: Phase 3 safety gate section.
+
+## 2026-09-14 — Phase 5 computer use
+- zoya/tools/computer.py, ax.py, documents.py, agents/computer_agent.py, screen_describer.py, screen.py display capture; safety registry + native/permission guards; tests/test_coords.py, test_computer_safety.py; screen benchmark --zoya; D63.
