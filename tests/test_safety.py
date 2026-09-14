@@ -693,6 +693,32 @@ def test_orchestrator_registers_the_gate_last_and_runs_tools_one_at_a_time(monke
     assert isinstance(callbacks[-1].__self__, safety.ConfirmationGate)
 
 
+@pytest.mark.parametrize("wrapped", [True, False])
+def test_a_declined_confirmation_ends_the_task_quietly(monkeypatch, wrapped):
+    """Strands wraps hook exceptions: the user must not hear "something went wrong" after cancel."""
+    from strands.types.exceptions import EventLoopException
+
+    declined = safety.ConfirmationDeclined(safety.CANCELLED_SAY)
+
+    class DecliningAgent:
+        messages = []
+        event_loop_metrics = type("M", (), {"accumulated_usage": {}})()
+
+        def __call__(self, command, cancel_signal):
+            raise EventLoopException(declined) if wrapped else declined
+
+    monkeypatch.setattr(orchestrator, "build_orchestrator", lambda **_: DecliningAgent())
+    timings = {}
+
+    spoken, ok = orchestrator._execute(
+        orchestrator.RouteDecision("orchestrator", text="buy"), timings
+    )
+
+    assert (spoken, ok) == (safety.CANCELLED_SAY, False)
+    assert orchestrator.DECLINED in timings
+    orchestrator._conversation.clear()
+
+
 def test_every_agent_with_tools_has_the_gate():
     """A later phase's sub-agent without the gate would be a bypass."""
     missing = []

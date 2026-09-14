@@ -28,6 +28,7 @@ from opentelemetry import trace
 from strands import Agent, tool
 from strands.hooks import AfterToolCallEvent, BeforeModelCallEvent, HookProvider, HookRegistry
 from strands.tools.executors import SequentialToolExecutor
+from strands.types.exceptions import EventLoopException
 
 from zoya import aws, events, safety, speech
 from zoya.config import (
@@ -193,7 +194,7 @@ def run_orchestrator(command: str, timings: dict[str, int] | None = None) -> str
     try:
         # Native cancellation (strands 1.55.1 Agent.__call__ cancel_signal): stops mid-stream,
         # before tool execution and between steps, returning stop_reason="cancelled" (§11.3).
-        result = agent(command, cancel_signal=_cancel)
+        result = _invoke(agent, command)
     except TaskLimitExceeded as limit:
         _record_usage(agent, timings if timings is not None else {})
         log.warning("task stopped: %s", limit)
@@ -201,7 +202,9 @@ def run_orchestrator(command: str, timings: dict[str, int] | None = None) -> str
         return LIMIT_MESSAGE
     except safety.ConfirmationDeclined as declined:
         _record_usage(agent, timings if timings is not None else {})
-        remember_turn(command, f"{declined} [the user did not confirm]")  # "why didn't you…" works
+        # What the user heard, not the model-facing "do not try again": a later, fresh request
+        # for the same thing must be asked again, not refused (Phase 3 replay).
+        remember_turn(command, f"{safety.CANCELLED_SAY} [the user did not confirm]")
         raise
     _record_usage(agent, timings if timings is not None else {})
     if result.stop_reason == "cancelled" or _cancel.is_set():
@@ -211,6 +214,19 @@ def run_orchestrator(command: str, timings: dict[str, int] | None = None) -> str
     _conversation.append(agent.messages[len(history) :])
     del _conversation[:-MAX_CONVERSATION_TURNS]
     return str(result).strip() or "Done."
+
+
+def _invoke(agent: Agent, command: str) -> Any:
+    """Strands wraps exceptions raised in hooks into EventLoopException (strands 1.55.1
+    event_loop/event_loop.py event_loop_cycle); unwrap ours so a cap or a declined confirmation
+    ends the task as itself, not as "something went wrong" (found in the Phase 3 replay)."""
+    try:
+        return agent(command, cancel_signal=_cancel)
+    except EventLoopException as wrapped:
+        cause = wrapped.original_exception
+        if isinstance(cause, TaskLimitExceeded | safety.ConfirmationDeclined):
+            raise cause from wrapped
+        raise
 
 
 def _remember_interrupted(command: str, spoken: list[str]) -> None:
@@ -268,7 +284,8 @@ def _execute(decision: RouteDecision, timings: dict[str, int]) -> tuple[str, boo
         if str(declined) == safety.STOPPED_TO_MODEL:
             return STOPPED_MESSAGE, False
         timings[DECLINED] = 1  # the gate played cancel and said what happened
-        return str(declined), False
+        said = str(declined)
+        return (safety.CANCELLED_SAY if said == safety.ALREADY_DECLINED else said), False
     except (KeyboardInterrupt, TaskCancelled):
         return STOPPED_MESSAGE, False
     except Exception:  # noqa: BLE001 — never crash on a command; say so politely
