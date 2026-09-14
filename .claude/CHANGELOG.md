@@ -182,3 +182,6 @@
 - zoya/safety.py, zoya/screen.py, zoya/tools/browser.py, tests/test_safety.py, fixtures, tests/evals/safety_replay.py: voice-minted confirmation tokens, fail-closed click guard, risk registry, OCR amount check, audit log (D61).
 - orchestrator/voice/speech/audio/events/router/main: gate wiring, PTT answers a confirmation, warning/cancel earcons, EventLoopException unwrap, page actions skip the router, --page flag.
 - Docs: D61, §9.9 as-built facts, removed the duplicate line in the Phase 3 brief.
+
+## 2026-09-14 — AEC plumbing (flag off)
+- zoya/aec.py, tests/evals/aec_replay.py, livekit + pyobjc CoreAudio pins, mixer reference feed; AEC_ENABLED=False (D62 in progress)
