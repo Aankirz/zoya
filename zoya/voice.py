@@ -224,10 +224,11 @@ STOP_FILLER = {
 }
 
 
-def stop_name(text: str) -> str:
+def stop_name(text: str, known_only: bool = True) -> str:
     """ "Zoya, stop the presentation" → "presentation"; "stop everything" → "everything"; a bare
-    stop → "". Only names of running tasks (or everything) count, so "stop the music" stays a
-    media command."""
+    stop → "". `known_only`: only names of running tasks count, so "stop the music" stays a media
+    command. The stop spotter passes False while tasks run: a name that matches nothing ("the
+    presentation", already stopped) must never become a bare stop of another task."""
     spoken = words(text)
     first = next((i for i, w in enumerate(spoken) if w in STOP_WORDS | {"end"}), None)
     if first is None:
@@ -235,7 +236,7 @@ def stop_name(text: str) -> str:
     rest = " ".join(w for w in spoken[first + 1 :] if w not in STOP_FILLER)
     if rest in tasks.ALL_WORDS:
         return "everything"
-    return rest if rest and tasks.find(rest) else ""
+    return rest if rest and (tasks.find(rest) or not known_only) else ""
 
 
 def is_stop_command(text: str) -> bool:
@@ -706,7 +707,7 @@ class VoiceLoop:
         _log_voice({"event": "wake", "phrase_end_to_earcon_ms": after_end, "heard": text})
 
     def _stop(self, voice_end_at: float, text: str, partial: bool) -> None:
-        name = stop_name(text)
+        name = stop_name(text, known_only=not self._task_running())
         if name:
             self._stop_named(name)
             return

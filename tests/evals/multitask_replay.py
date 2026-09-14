@@ -35,7 +35,7 @@ GROCERY_STEPS = ["searching for milk", "adding milk to the cart", "adding bread 
 STEP_S = 4.0
 WORDS_PER_S = 3.0  # simulated playback speed of recorded speech
 TIMEOUT_S = 180.0
-QUIET_S = 1.2
+QUIET_S = 6.0  # D53: the 10 s loudness median must fall back to room noise between utterances
 ORDER = safety.Action("purchase", "Place order", "3 grocery items", "412 rupees")
 
 said: list[dict] = []
@@ -95,8 +95,25 @@ def quiet(timeout: float = 60.0) -> None:
     time.sleep(QUIET_S)
 
 
+heard: list[str] = []
+HEARD_WAIT_S = 10.0
+COMMAND_ATTEMPTS = 3
+
+
+def command(mic: Mic, text: str) -> None:
+    """Say a command like a user would: if it landed on Zoya's own speech (echo protection ignores
+    it) and nothing was heard, wait for quiet and say it again."""
+    for _ in range(COMMAND_ATTEMPTS):
+        before = len(heard)
+        quiet()
+        mic.say(text)
+        if wait_until(lambda count=before: len(heard) > count, HEARD_WAIT_S):
+            return
+    print(f"never heard: {text!r}")
+
+
 def spoken_since(start: float) -> list[str]:
-    return [s["text"] for s in said if s["at"] >= start]
+    return [f'{s["at"] - start:6.1f}s {s["text"]}' for s in said if s["at"] >= start]
 
 
 def together(mic: Mic) -> dict:
@@ -104,13 +121,13 @@ def together(mic: Mic) -> dict:
     user to stop talking and names the task; "confirm" places only the order."""
     start = time.monotonic()
     grocery_outcome.clear()
-    mic.say("Hey Zoya, make a 6-slide presentation on renewable energy for my class.")
+    command(mic, "Hey Zoya, make a 6-slide presentation on renewable energy for my class.")
     quiet()
-    mic.say("Hey Zoya, order my usual groceries.")
+    command(mic, "Hey Zoya, order my usual groceries.")
     quiet()
-    mic.say("Hey Zoya, what's running?")
+    command(mic, "Hey Zoya, what's running?")
     quiet()
-    status = next((t for t in spoken_since(start) if "things" in t.lower()), None)
+    status = next((s["text"] for s in said if s["at"] >= start and "things" in s["text"]), None)
     # Talk right when the order is about to ask: the prompt must wait until we're done.
     wait_until(
         lambda: tasks.find("grocery order")
@@ -135,6 +152,7 @@ def together(mic: Mic) -> dict:
             round(prompt["at"] - user_talk_ended, 2) if prompt else None
         ),
         "user_talked_s": round(user_talk_ended - user_talk_started, 2),
+        "user_talk_ended_at_s": round(user_talk_ended - start, 1),
         "grocery": grocery_outcome.get("result"),
         "spoken": spoken_since(start),
         "files": sorted(p.name for p in (Path.home() / "Documents" / "Zoya").glob("*.pptx")),
@@ -158,12 +176,12 @@ def stop_one(mic: Mic) -> dict:
     events.subscribe(
         events.TASK, lambda e: cancelled.append(e.task_id) if e.status == "cancelled" else None
     )
-    mic.say("Hey Zoya, make a 6-slide presentation about the history of cricket.")
+    command(mic, "Hey Zoya, make a 6-slide presentation about the history of cricket.")
     quiet()
-    mic.say("Hey Zoya, order my usual groceries.")
+    command(mic, "Hey Zoya, order my usual groceries.")
     quiet()
     names = {t.id: t.name for t in tasks.running()}
-    mic.say("Zoya, stop the presentation.")
+    mic.say("Zoya, stop the presentation.")  # the stop spotter, not a dispatched command
     quiet()
     still = [t.name for t in tasks.running()]
     wait_until(safety.awaiting_reply, TIMEOUT_S)
@@ -193,11 +211,10 @@ def fourth(mic: Mic) -> dict:
         "Hey Zoya, order my usual groceries.",
         "Hey Zoya, make a Word doc with a packing list for a trip to Goa.",
     ]
-    for command in commands:
-        mic.say(command)
-        quiet()
-    offered = any(tasks.FULL_MESSAGE in t for t in spoken_since(start))
-    mic.say("Queue it.")
+    for text in commands:
+        command(mic, text)
+    offered = any(tasks.FULL_MESSAGE in t for t in spoken_since(start))  # "…s <text>"
+    command(mic, "Hey Zoya, queue it.")
     quiet()
     queued = any(tasks.QUEUED_MESSAGE in t for t in spoken_since(start))
     wait_until(safety.awaiting_reply, TIMEOUT_S)
@@ -227,6 +244,8 @@ def main() -> int:
     record_speech()
     patch_grocery()
     loop = voice.VoiceLoop()
+    real_dispatch = loop._dispatch
+    loop._dispatch = lambda text, *rest: (heard.append(text), real_dispatch(text, *rest))
     mic = Mic(loop)
     time.sleep(4)  # background loudness history
     outcomes = []

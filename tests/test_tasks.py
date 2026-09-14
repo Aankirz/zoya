@@ -410,6 +410,22 @@ def test_spoken_stop_with_a_task_name_is_a_named_stop():
     assert voice.stop_name("stop the music") == ""  # not a task: stays a media command
 
 
+def test_a_stop_naming_no_running_task_never_becomes_a_bare_stop(loop, monkeypatch):
+    grocery = _task("grocery order")
+    from zoya import audio
+
+    monkeypatch.setattr(
+        orchestrator, "stop_task", lambda name="": tasks.stop(name) if name else tasks.stop_last()
+    )
+    monkeypatch.setattr(audio, "engine", lambda: SimpleNamespace(silence_all=lambda: None))
+    monkeypatch.setattr(audio, "restore", lambda: None)
+    loop._end_barge_in = lambda: None
+
+    loop._stop(time.monotonic(), "Zoya, stop the presentation", partial=False)
+
+    assert not grocery.cancel.is_set()  # the presentation had already stopped
+
+
 def test_push_to_talk_with_tasks_running_cuts_speech_but_stops_no_task(loop, monkeypatch):
     import numpy as np
 
