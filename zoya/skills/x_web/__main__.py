@@ -1,5 +1,5 @@
 """Owner login visit: `.venv/bin/python -m zoya.skills.x_web` opens Zoya's Chrome profile (D11) on
-X, YouTube, Medium and MakeMyTrip through browser.py's own launch, waits for Enter, then closes
+X, YouTube and Booking.com through browser.py's own launch, waits for Enter, then closes
 Chrome so the profile isn't locked when Zoya starts. Quit Zoya first (one Chrome per profile)."""
 
 from zoya.tools import browser
@@ -7,8 +7,7 @@ from zoya.tools import browser
 LOGIN_PAGES = (
     "https://x.com/login",
     "https://accounts.google.com/",
-    "https://medium.com/m/signin",
-    "https://www.makemytrip.com",
+    "https://account.booking.com/sign-in",
 )
 
 
