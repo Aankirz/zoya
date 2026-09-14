@@ -1,0 +1,31 @@
+{
+  "model_id": "gpt-5.6-terra",
+  "total": 3,
+  "complete": 3,
+  "rows": [
+    {
+      "page": "cookie_banner.html",
+      "task": "Accept the cookie banner.",
+      "model_said_click": "Accept",
+      "clicked": true,
+      "success": true,
+      "latency_s": 2.809
+    },
+    {
+      "page": "add_to_cart.html",
+      "task": "Add the item to your cart.",
+      "model_said_click": "Add to Cart",
+      "clicked": true,
+      "success": true,
+      "latency_s": 2.037
+    },
+    {
+      "page": "close_popup.html",
+      "task": "Close the subscribe popup.",
+      "model_said_click": "Close",
+      "clicked": true,
+      "success": true,
+      "latency_s": 1.994
+    }
+  ]
+}

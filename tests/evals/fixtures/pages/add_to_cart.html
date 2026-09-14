@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Test Store</title></head>
+<body style="font-family: sans-serif; padding: 40px;">
+  <h1>Running Shoes — ₹2,499</h1>
+  <p>Comfortable everyday running shoes.</p>
+  <button id="wishlist">Save for later</button>
+  <button id="add-to-cart">Add to Cart</button>
+  <p>Cart items: <span id="cart-count">0</span></p>
+  <div id="success" hidden>done</div>
+  <script>
+    document.getElementById('add-to-cart').onclick = () => {
+      document.getElementById('cart-count').textContent = '1';
+      document.getElementById('success').hidden = false;
+    };
+    document.getElementById('wishlist').onclick = () => {};
+  </script>
+</body>
+</html>

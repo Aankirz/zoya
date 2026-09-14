@@ -1,0 +1,483 @@
+{
+  "model_id": "gpt-5.6-terra",
+  "total": 40,
+  "correct": 40,
+  "accuracy": 1.0,
+  "avg_latency_s": 1.924,
+  "rows": [
+    {
+      "utterance": "Hey Zoya, open Spotify",
+      "expected": "open_app",
+      "actual": {
+        "tool": "open_app",
+        "args": {
+          "app_name": "Spotify"
+        },
+        "latency_s": 1.625
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Spotify khol do",
+      "expected": "open_app",
+      "actual": {
+        "tool": "open_app",
+        "args": {
+          "app_name": "Spotify"
+        },
+        "latency_s": 2.204
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Open WhatsApp please",
+      "expected": "open_app",
+      "actual": {
+        "tool": "open_app",
+        "args": {
+          "app_name": "WhatsApp"
+        },
+        "latency_s": 1.173
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Can you launch Safari",
+      "expected": "open_app",
+      "actual": {
+        "tool": "open_app",
+        "args": {
+          "app_name": "Safari"
+        },
+        "latency_s": 1.98
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Mail khol do zara",
+      "expected": "open_app",
+      "actual": {
+        "tool": "open_app",
+        "args": {
+          "app_name": "Mail"
+        },
+        "latency_s": 1.411
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Open the Notes app",
+      "expected": "open_app",
+      "actual": {
+        "tool": "open_app",
+        "args": {
+          "app_name": "Notes"
+        },
+        "latency_s": 2.133
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Start Keynote for me",
+      "expected": "open_app",
+      "actual": {
+        "tool": "open_app",
+        "args": {
+          "app_name": "Keynote"
+        },
+        "latency_s": 2.48
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Chrome open kardo",
+      "expected": "open_app",
+      "actual": {
+        "tool": "open_app",
+        "args": {
+          "app_name": "Chrome"
+        },
+        "latency_s": 1.754
+      },
+      "correct": true
+    },
+    {
+      "utterance": "What's the weather today",
+      "expected": "get_weather",
+      "actual": {
+        "tool": "get_weather",
+        "args": {
+          "location": "current location"
+        },
+        "latency_s": 1.063
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Bangalore mein aaj mausam kaisa hai",
+      "expected": "get_weather",
+      "actual": {
+        "tool": "get_weather",
+        "args": {
+          "location": "Bangalore"
+        },
+        "latency_s": 1.185
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Is it going to rain in Mumbai tomorrow",
+      "expected": "get_weather",
+      "actual": {
+        "tool": "get_weather",
+        "args": {
+          "location": "Mumbai"
+        },
+        "latency_s": 1.166
+      },
+      "correct": true
+    },
+    {
+      "utterance": "What's the temperature outside right now",
+      "expected": "get_weather",
+      "actual": {
+        "tool": "get_weather",
+        "args": {
+          "location": "current location"
+        },
+        "latency_s": 2.247
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Weather in Delhi batao",
+      "expected": "get_weather",
+      "actual": {
+        "tool": "get_weather",
+        "args": {
+          "location": "Delhi"
+        },
+        "latency_s": 2.253
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Remind me to call Priya at 6pm",
+      "expected": "set_reminder",
+      "actual": {
+        "tool": "set_reminder",
+        "args": {
+          "text": "Call Priya",
+          "time": "6pm"
+        },
+        "latency_s": 2.341
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Set a reminder to take medicine at 9 pm",
+      "expected": "set_reminder",
+      "actual": {
+        "tool": "set_reminder",
+        "args": {
+          "text": "take medicine",
+          "time": "9 pm"
+        },
+        "latency_s": 1.265
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Mujhe kal subah 8 baje yaad dilana doctor appointment ke liye",
+      "expected": "set_reminder",
+      "actual": {
+        "tool": "set_reminder",
+        "args": {
+          "text": "Doctor appointment",
+          "time": "tomorrow 8:00 AM"
+        },
+        "latency_s": 2.33
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Remind me to pay the electricity bill tomorrow",
+      "expected": "set_reminder",
+      "actual": {
+        "tool": "set_reminder",
+        "args": {
+          "text": "Pay the electricity bill",
+          "time": "tomorrow"
+        },
+        "latency_s": 2.152
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Set a reminder for the team meeting at 3pm",
+      "expected": "set_reminder",
+      "actual": {
+        "tool": "set_reminder",
+        "args": {
+          "text": "Team meeting",
+          "time": "3pm"
+        },
+        "latency_s": 2.211
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Message Rohan and tell him I'm running late",
+      "expected": "send_message",
+      "actual": {
+        "tool": "send_message",
+        "args": {
+          "contact": "Rohan",
+          "text": "I'm running late"
+        },
+        "latency_s": 1.497
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Mummy ko message bhejo ki main ghar aa raha hoon",
+      "expected": "send_message",
+      "actual": {
+        "tool": "send_message",
+        "args": {
+          "contact": "Mummy",
+          "text": "Main ghar aa raha hoon."
+        },
+        "latency_s": 1.501
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Send a WhatsApp to Ananya saying happy birthday",
+      "expected": "send_message",
+      "actual": {
+        "tool": "send_message",
+        "args": {
+          "contact": "Ananya",
+          "text": "happy birthday"
+        },
+        "latency_s": 2.095
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Text Karthik that the meeting is postponed",
+      "expected": "send_message",
+      "actual": {
+        "tool": "send_message",
+        "args": {
+          "contact": "Karthik",
+          "text": "The meeting is postponed."
+        },
+        "latency_s": 2.037
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Send Sneha a message asking if she's free tonight",
+      "expected": "send_message",
+      "actual": {
+        "tool": "send_message",
+        "args": {
+          "contact": "Sneha",
+          "text": "Are you free tonight?"
+        },
+        "latency_s": 2.197
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Search the web for the best biryani near me",
+      "expected": "search_web",
+      "actual": {
+        "tool": "search_web",
+        "args": {
+          "query": "best biryani near me"
+        },
+        "latency_s": 1.72
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Google what time the Bangalore airport opens",
+      "expected": "search_web",
+      "actual": {
+        "tool": "search_web",
+        "args": {
+          "query": "Bangalore airport opening hours"
+        },
+        "latency_s": 2.664
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Look up the population of India",
+      "expected": "search_web",
+      "actual": {
+        "tool": "search_web",
+        "args": {
+          "query": "current population of India 2026"
+        },
+        "latency_s": 2.346
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Paas mein sabse achha coffee shop dhundo",
+      "expected": "search_web",
+      "actual": {
+        "tool": "search_web",
+        "args": {
+          "query": "best coffee shops near me"
+        },
+        "latency_s": 2.14
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Find me a recipe for butter chicken",
+      "expected": "search_web",
+      "actual": {
+        "tool": "search_web",
+        "args": {
+          "query": "butter chicken recipe"
+        },
+        "latency_s": 2.145
+      },
+      "correct": true
+    },
+    {
+      "utterance": "What's on my screen right now",
+      "expected": "read_screen",
+      "actual": {
+        "tool": "read_screen",
+        "args": {},
+        "latency_s": 1.108
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Can you describe what's showing on the display",
+      "expected": "read_screen",
+      "actual": {
+        "tool": "read_screen",
+        "args": {},
+        "latency_s": 1.172
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Screen par kya hai bata do",
+      "expected": "read_screen",
+      "actual": {
+        "tool": "read_screen",
+        "args": {},
+        "latency_s": 2.203
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Read out what's on this page",
+      "expected": "read_screen",
+      "actual": {
+        "tool": "read_screen",
+        "args": {},
+        "latency_s": 1.704
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Zoya stop",
+      "expected": "stop",
+      "actual": {
+        "tool": "stop",
+        "args": {},
+        "latency_s": 2.039
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Stop, cancel that",
+      "expected": "stop",
+      "actual": {
+        "tool": "stop",
+        "args": {},
+        "latency_s": 2.151
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Ruk jao Zoya",
+      "expected": "stop",
+      "actual": {
+        "tool": "stop",
+        "args": {},
+        "latency_s": 2.316
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Cancel what you're doing right now",
+      "expected": "stop",
+      "actual": {
+        "tool": "stop",
+        "args": {},
+        "latency_s": 2.019
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Rukiye, mat kijiye",
+      "expected": "stop",
+      "actual": {
+        "tool": "stop",
+        "args": {},
+        "latency_s": 2.241
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Open Amazon and search for running shoes",
+      "expected": "open_app",
+      "actual": {
+        "tool": "open_app",
+        "args": {
+          "app_name": "Amazon"
+        },
+        "latency_s": 2.295
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Set a reminder to water the plants every morning",
+      "expected": "set_reminder",
+      "actual": {
+        "tool": "set_reminder",
+        "args": {
+          "text": "Water the plants",
+          "time": "every morning"
+        },
+        "latency_s": 2.208
+      },
+      "correct": true
+    },
+    {
+      "utterance": "Message my sister that I'll be home by 8",
+      "expected": "send_message",
+      "actual": {
+        "tool": "send_message",
+        "args": {
+          "contact": "sister",
+          "text": "I'll be home by 8."
+        },
+        "latency_s": 2.172
+      },
+      "correct": true
+    }
+  ]
+}

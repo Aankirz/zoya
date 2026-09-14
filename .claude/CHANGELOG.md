@@ -88,3 +88,14 @@
 
 ## 2026-09-14 — Earcons: zen
 - D9 confirmed zen; Phase 0 brief updated.
+
+## 2026-09-14 — Minimal tests policy (D37)
+- AGENTS.md §5 and docs/DECISIONS.md D37: tests only for privacy, safety gate, cost/money paths and parsers, to save build tokens.
+
+## 2026-09-14 — Phase 0 foundations built and benchmarked
+- Pinned pyproject.toml deps against PyPI; verified Strands OpenAIModel/openai_responses store=false mechanics against installed source and Fireworks' OpenAI-compatible base URL against its docs.
+- Added zoya/config.py, zoya/models.py (provider adapter, D36 store=false enforced), tests/test_models_privacy.py, scripts/check_providers.py.
+- Added tests/evals/router_eval.py, screen_benchmark.py (+ computer-use loop), voice_benchmark.py with fixtures; ran all against live OpenAI/Fireworks/ElevenLabs/AWS Polly.
+- D40-D43: BRAIN_MODEL/VISION_MODEL=gpt-5.6-terra, ROUTER_MODEL=gpt-5.6-luna, ElevenLabs fallback voice Tara; documented gpt-5.6.* needs max_completion_tokens + reasoning_effort="none" for tool calls; Whisper returns Devanagari for Hindi input, not romanized Hinglish.
+- .env filled with benchmark-chosen model IDs and voice ID (no secrets changed).
+- Not done: S3 bucket for results (blocked by permission classifier, needs owner sign-off), real 20-command Whisper/Transcribe benchmark and mic/Accessibility permission grants (need the owner on this Mac).

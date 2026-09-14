@@ -4,36 +4,36 @@ version = "0.0.1"
 description = "Voice-first AI agent that operates a Mac for blind and low-vision people."
 readme = "README.md"
 requires-python = ">=3.12"
-# Versions are pinned in Phase 0 after verifying against official docs (see AGENTS.md).
+# Versions pinned in Phase 0 against PyPI (checked 2026-09-14, see AGENTS.md).
 dependencies = [
-  "strands-agents[openai,otel]",
-  "openai",
-  "elevenlabs",
-  "mlx-whisper",
-  "strands-agents-tools",
-  "boto3",  # AWS services (docs/STACK.md §8)
-  "python-dotenv",
-  "faster-whisper",
-  "sounddevice",
-  "soundfile",
-  "numpy",
-  "pyautogui",
-  "pyobjc-framework-Quartz",
-  "pyobjc-framework-ApplicationServices",
-  "pyobjc-framework-ScreenCaptureKit",
-  "playwright",
-  "python-pptx",
-  "python-docx",
-  "openpyxl",
-  "reportlab",
-  "supermemory",
-  "rumps",
+  "strands-agents[openai,otel]==1.55.1",
+  "openai==2.54.0",  # strands-agents 1.55.1 requires openai<3.0.0
+  "elevenlabs==2.68.0",
+  "mlx-whisper==0.4.3",
+  "strands-agents-tools==0.8.8",
+  "boto3==1.43.93",  # AWS services (docs/STACK.md §8)
+  "python-dotenv==1.2.3",
+  "faster-whisper==1.2.1",
+  "sounddevice==0.5.6",
+  "soundfile==0.14.0",
+  "numpy==2.5.3",
+  "pyautogui==0.9.54",
+  "pyobjc-framework-Quartz==12.2.2",
+  "pyobjc-framework-ApplicationServices==12.2.2",
+  "pyobjc-framework-ScreenCaptureKit==12.2.2",
+  "playwright==1.62.0",
+  "python-pptx==1.0.2",
+  "python-docx==1.2.0",
+  "openpyxl==3.1.5",
+  "reportlab==5.0.1",
+  "supermemory==3.61.0",
+  "rumps==0.4.0",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "ruff", "black", "isort"]
+dev = ["pytest==9.1.1", "ruff==0.16.7", "black==26.5.1", "isort==9.0.1", "pillow==12.3.0"]
 # Only if AWS Bedrock is unblocked (docs/STACK.md §5)
-bedrock = ["boto3"]
+bedrock = ["boto3==1.43.93"]
 
 [build-system]
 requires = ["setuptools>=68"]
