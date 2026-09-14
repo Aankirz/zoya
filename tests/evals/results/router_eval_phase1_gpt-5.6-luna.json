@@ -4,9 +4,9 @@
     "total": 40,
     "correct": 40,
     "accuracy": 1.0,
-    "answered_by_rules": 22,
+    "answered_by_rules": 26,
     "median_latency_ms": 0.0,
-    "p90_latency_ms": 4233,
+    "p90_latency_ms": 2163,
     "rows": [
       {
         "utterance": "open Spotify",
@@ -56,7 +56,7 @@
           },
           "source": "model"
         },
-        "latency_ms": 5072,
+        "latency_ms": 2784,
         "correct": true
       },
       {
@@ -139,9 +139,9 @@
           "args": {
             "app_name": "Spotify"
           },
-          "source": "model"
+          "source": "rules"
         },
-        "latency_ms": 1790,
+        "latency_ms": 183,
         "correct": true
       },
       {
@@ -158,7 +158,7 @@
           },
           "source": "model"
         },
-        "latency_ms": 2259,
+        "latency_ms": 2123,
         "correct": true
       },
       {
@@ -192,7 +192,7 @@
           },
           "source": "model"
         },
-        "latency_ms": 2545,
+        "latency_ms": 1783,
         "correct": true
       },
       {
@@ -290,11 +290,11 @@
           "route": "fast",
           "tool": "notes_create",
           "args": {
-            "body": "Need to buy milk"
+            "body": "milk has to be bought"
           },
-          "source": "model"
+          "source": "rules"
         },
-        "latency_ms": 4367,
+        "latency_ms": 35,
         "correct": true
       },
       {
@@ -311,7 +311,7 @@
           },
           "source": "model"
         },
-        "latency_ms": 4286,
+        "latency_ms": 2287,
         "correct": true
       },
       {
@@ -363,7 +363,7 @@
           },
           "source": "model"
         },
-        "latency_ms": 4273,
+        "latency_ms": 2042,
         "correct": true
       },
       {
@@ -408,7 +408,7 @@
           "args": {},
           "source": "model"
         },
-        "latency_ms": 4065,
+        "latency_ms": 1918,
         "correct": true
       },
       {
@@ -513,9 +513,9 @@
           "route": "orchestrator",
           "tool": null,
           "args": {},
-          "source": "model"
+          "source": "rules"
         },
-        "latency_ms": 4233,
+        "latency_ms": 0,
         "correct": true
       },
       {
@@ -528,9 +528,9 @@
           "route": "orchestrator",
           "tool": null,
           "args": {},
-          "source": "model"
+          "source": "rules"
         },
-        "latency_ms": 1748,
+        "latency_ms": 0,
         "correct": true
       },
       {
@@ -545,7 +545,7 @@
           "args": {},
           "source": "model"
         },
-        "latency_ms": 2352,
+        "latency_ms": 1360,
         "correct": true
       },
       {
@@ -560,7 +560,7 @@
           "args": {},
           "source": "model"
         },
-        "latency_ms": 2215,
+        "latency_ms": 2250,
         "correct": true
       },
       {
@@ -575,7 +575,7 @@
           "args": {},
           "source": "model"
         },
-        "latency_ms": 2303,
+        "latency_ms": 2030,
         "correct": true
       },
       {
@@ -590,7 +590,7 @@
           "args": {},
           "source": "model"
         },
-        "latency_ms": 1921,
+        "latency_ms": 2007,
         "correct": true
       },
       {
@@ -605,7 +605,7 @@
           "args": {},
           "source": "model"
         },
-        "latency_ms": 2014,
+        "latency_ms": 2425,
         "correct": true
       },
       {
@@ -620,7 +620,7 @@
           "args": {},
           "source": "model"
         },
-        "latency_ms": 2290,
+        "latency_ms": 1694,
         "correct": true
       },
       {
@@ -635,7 +635,7 @@
           "args": {},
           "source": "model"
         },
-        "latency_ms": 1655,
+        "latency_ms": 1937,
         "correct": true
       },
       {
@@ -650,7 +650,7 @@
           "args": {},
           "source": "model"
         },
-        "latency_ms": 2462,
+        "latency_ms": 2163,
         "correct": true
       }
     ]
@@ -660,8 +660,8 @@
     "correct": 37,
     "accuracy": 0.9737,
     "answered_by_rules": 0,
-    "median_latency_ms": 2095.0,
-    "p90_latency_ms": 2510,
+    "median_latency_ms": 2217.5,
+    "p90_latency_ms": 2495,
     "rows": [
       {
         "utterance": "open Spotify",
@@ -677,7 +677,7 @@
           },
           "source": "model"
         },
-        "latency_ms": 1983,
+        "latency_ms": 2258,
         "correct": true
       },
       {
@@ -694,7 +694,7 @@
           },
           "source": "model"
         },
-        "latency_ms": 2009,
+        "latency_ms": 2036,
         "correct": true
       },
       {
@@ -711,7 +711,7 @@
           },
           "source": "model"
         },
-        "latency_ms": 2799,
+        "latency_ms": 2124,
         "correct": true
       },
       {
@@ -728,7 +728,7 @@
           },
           "source": "model"
         },
-        "latency_ms": 2036,
+        "latency_ms": 2018,
         "correct": true
       },
       {
@@ -745,7 +745,7 @@
           },
           "source": "model"
         },
-        "latency_ms": 1986,
+        "latency_ms": 2017,
         "correct": true
       },
       {
@@ -762,7 +762,7 @@
           },
           "source": "model"
         },
-        "latency_ms": 2020,
+        "latency_ms": 2467,
         "correct": true
       },
       {
@@ -775,11 +775,11 @@
           "route": "fast",
           "tool": "open_app",
           "args": {
-            "app_name": "Google Chrome"
+            "app_name": "Chrome"
           },
           "source": "model"
         },
-        "latency_ms": 1982,
+        "latency_ms": 2149,
         "correct": true
       },
       {
@@ -796,7 +796,7 @@
           },
           "source": "model"
         },
-        "latency_ms": 2510,
+        "latency_ms": 1938,
         "correct": true
       },
       {
@@ -813,7 +813,7 @@
           },
           "source": "model"
         },
-        "latency_ms": 2105,
+        "latency_ms": 2226,
         "correct": true
       },
       {
@@ -830,7 +830,7 @@
           },
           "source": "model"
         },
-        "latency_ms": 2147,
+        "latency_ms": 2407,
         "correct": true
       },
       {
@@ -847,7 +847,7 @@
           },
           "source": "model"
         },
-        "latency_ms": 2084,
+        "latency_ms": 2189,
         "correct": true
       },
       {
@@ -864,7 +864,7 @@
           },
           "source": "model"
         },
-        "latency_ms": 2109,
+        "latency_ms": 2436,
         "correct": true
       },
       {
@@ -877,11 +877,11 @@
           "route": "fast",
           "tool": "notes_create",
           "args": {
-            "body": "Buy milk"
+            "body": "buy milk"
           },
           "source": "model"
         },
-        "latency_ms": 2511,
+        "latency_ms": 2209,
         "correct": true
       },
       {
@@ -898,7 +898,7 @@
           },
           "source": "model"
         },
-        "latency_ms": 3092,
+        "latency_ms": 1838,
         "correct": true
       },
       {
@@ -913,7 +913,7 @@
           "args": {},
           "source": "model"
         },
-        "latency_ms": 2341,
+        "latency_ms": 1957,
         "correct": false
       },
       {
@@ -930,7 +930,7 @@
           },
           "source": "model"
         },
-        "latency_ms": 2042,
+        "latency_ms": 2295,
         "correct": true
       },
       {
@@ -943,11 +943,11 @@
           "route": "fast",
           "tool": "notes_create",
           "args": {
-            "body": "Need to buy milk"
+            "body": "Milk has to be bought"
           },
           "source": "model"
         },
-        "latency_ms": 2260,
+        "latency_ms": 2332,
         "correct": true
       },
       {
@@ -964,7 +964,7 @@
           },
           "source": "model"
         },
-        "latency_ms": 2521,
+        "latency_ms": 1735,
         "correct": true
       },
       {
@@ -982,7 +982,7 @@
           },
           "source": "model"
         },
-        "latency_ms": 2014,
+        "latency_ms": 4259,
         "correct": true
       },
       {
@@ -999,7 +999,7 @@
           },
           "source": "model"
         },
-        "latency_ms": 2401,
+        "latency_ms": 1853,
         "correct": true
       },
       {
@@ -1016,7 +1016,7 @@
           },
           "source": "model"
         },
-        "latency_ms": 2449,
+        "latency_ms": 2272,
         "correct": true
       },
       {
@@ -1031,7 +1031,7 @@
           "args": {},
           "source": "model"
         },
-        "latency_ms": 1574,
+        "latency_ms": 2053,
         "correct": true
       },
       {
@@ -1046,7 +1046,7 @@
           "args": {},
           "source": "model"
         },
-        "latency_ms": 2200,
+        "latency_ms": 2066,
         "correct": true
       },
       {
@@ -1061,7 +1061,7 @@
           "args": {},
           "source": "model"
         },
-        "latency_ms": 2288,
+        "latency_ms": 1830,
         "correct": true
       },
       {
@@ -1078,7 +1078,7 @@
           },
           "source": "model"
         },
-        "latency_ms": 2085,
+        "latency_ms": 2204,
         "correct": true
       },
       {
@@ -1093,7 +1093,7 @@
           "args": {},
           "source": "model"
         },
-        "latency_ms": 1925,
+        "latency_ms": 1876,
         "correct": true
       },
       {
@@ -1108,7 +1108,7 @@
           "args": {},
           "source": "model"
         },
-        "latency_ms": 2264,
+        "latency_ms": 2274,
         "correct": true
       },
       {
@@ -1123,7 +1123,7 @@
           "args": {},
           "source": "model"
         },
-        "latency_ms": 2090,
+        "latency_ms": 2246,
         "correct": true
       },
       {
@@ -1138,7 +1138,7 @@
           "args": {},
           "source": "model"
         },
-        "latency_ms": 2337,
+        "latency_ms": 2290,
         "correct": true
       },
       {
@@ -1153,7 +1153,7 @@
           "args": {},
           "source": "model"
         },
-        "latency_ms": 1975,
+        "latency_ms": 5604,
         "correct": true
       },
       {
@@ -1168,7 +1168,7 @@
           "args": {},
           "source": "model"
         },
-        "latency_ms": 2468,
+        "latency_ms": 3762,
         "correct": true
       },
       {
@@ -1183,7 +1183,7 @@
           "args": {},
           "source": "model"
         },
-        "latency_ms": 1897,
+        "latency_ms": 2261,
         "correct": true
       },
       {
@@ -1198,7 +1198,7 @@
           "args": {},
           "source": "model"
         },
-        "latency_ms": 2072,
+        "latency_ms": 2495,
         "correct": true
       },
       {
@@ -1213,7 +1213,7 @@
           "args": {},
           "source": "model"
         },
-        "latency_ms": 2102,
+        "latency_ms": 2727,
         "correct": true
       },
       {
@@ -1228,7 +1228,7 @@
           "args": {},
           "source": "model"
         },
-        "latency_ms": 2081,
+        "latency_ms": 2265,
         "correct": true
       },
       {
@@ -1243,7 +1243,7 @@
           "args": {},
           "source": "model"
         },
-        "latency_ms": 2099,
+        "latency_ms": 2166,
         "correct": true
       },
       {
@@ -1258,7 +1258,7 @@
           "args": {},
           "source": "model"
         },
-        "latency_ms": 2091,
+        "latency_ms": 2268,
         "correct": true
       },
       {
@@ -1273,7 +1273,7 @@
           "args": {},
           "source": "model"
         },
-        "latency_ms": 1979,
+        "latency_ms": 1522,
         "correct": true
       }
     ]
