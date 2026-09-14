@@ -130,3 +130,18 @@ def test_share_recipients_are_names_never_guessed_addresses(monkeypatch):
     assert attributes["recipient"]["StringValue"] == "sister"
     with pytest.raises(ToolError):
         share.recipient_route("rahul@example.com")
+
+
+def test_a_sheet_with_a_total_refuses_blank_amounts():
+    with pytest.raises(ToolError):
+        office._checked_table(
+            "Expenses", ["Item", "Amount"], [["Rent", 15000], ["Food", ""]], ["Amount"]
+        )
+    with pytest.raises(ToolError):
+        office._checked_table(
+            "Expenses", ["Item", "Amount"], [["Rent", 0], ["Food", 0]], ["Amount"]
+        )
+    table = office._checked_table(
+        "Expenses", ["Item", "Amount"], [["Rent", 1], ["", ""]], ["Amount"]
+    )
+    assert table.rows == [["Rent", 1]]

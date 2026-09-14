@@ -496,6 +496,12 @@ def _checked_table(
     if unknown or columns[0] in total_columns:
         raise ToolError("Totals must name columns other than the first one.")
     width = len(columns)
+    rows = [list(r)[:width] for r in rows if any(str(cell).strip() for cell in r)]
+    for name in total_columns:
+        index = columns.index(name)
+        amounts = [to_number(r[index]) if index < len(r) else None for r in rows]
+        if None in amounts or not any(amounts):  # blanks, or all zero: an empty template
+            raise ToolError(f"Every row needs a number in {name}; fill realistic example amounts.")
     return Table(
         title.strip(), [str(c) for c in columns], [list(r)[:width] for r in rows], total_columns
     )
