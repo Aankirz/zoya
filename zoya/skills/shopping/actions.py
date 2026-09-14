@@ -43,12 +43,21 @@ SELECTORS = {
     "cart_item": "div.sc-list-item[data-asin]",
     "cart_item_title": ".sc-product-title, .a-truncate-full",
     "cart_subtotal": "#sc-subtotal-amount-activecart",
+    # Groceries sit in the Amazon Now cart ("proceedToALMCheckout-<id>", page /tez/browse/cart);
+    # the retail cart holds everything else. Checked on the owner's account 2026-09-14.
+    "proceed_grocery": "input[name^='proceedToALMCheckout']",
     "proceed": "input[name='proceedToRetailCheckout']",
     "place_order": (
         "#submitOrderButtonId input, #placeYourOrder input, input[name='placeYourOrder1']"
     ),
 }
 ORDER_PLACED = re.compile(r"order placed|thank you, your order", re.I)
+PLACE_ORDER_NAME = re.compile(r"place (?:your )?order|^pay\b", re.I)
+ADD_MONEY = re.compile(r"add money", re.I)
+SUMMARY_START = re.compile(r"bill summary|order summary|review your items", re.I)
+SUMMARY_END = re.compile(r"you might have missed|add more items|customers also bought", re.I)
+SUMMARY_MAX_CHARS = 1500
+SUMMARY_BILL = re.compile(r"bill summary|order summary|order total", re.I)
 MAX_SPOKEN_ITEMS = 5
 CONFIRMATION_PAGE_WAIT_MS = 3000
 
@@ -171,16 +180,38 @@ def amazon_cart() -> str:
     return safety.wrap_untrusted(f"Cart ({len(items)} items), subtotal {subtotal}:\n{listing}")
 
 
+def checkout_summary(text: str) -> str:
+    """Parser (tests/test_harness.py): the items and bill parts of a checkout page's text, without
+    the address block and the recommendations after them. Falls back to the page's end."""
+    flat = " ".join(text.split())
+    parts = []
+    for start in SUMMARY_START.finditer(flat):
+        end = SUMMARY_END.search(flat, start.end())
+        parts.append(flat[start.start() : end.start() if end else None][:SUMMARY_MAX_CHARS])
+    return "\n".join(parts) if parts else flat[-SUMMARY_MAX_CHARS:]
+
+
+def _read_checkout(page: Any) -> str:
+    """The checkout is a client-rendered page: wait for its bill before reading."""
+    page.get_by_text(SUMMARY_BILL).first.wait_for(timeout=WAIT_MS)
+    return checkout_summary(page.inner_text("body"))
+
+
 @tool
-def amazon_checkout() -> str:
-    """Open Amazon.in checkout from the cart and read the order summary (items, delivery, order
-    total). Nothing is ordered: that needs amazon_place_order and the user's spoken confirm."""
+def amazon_checkout(groceries: bool = True) -> str:
+    """Open Amazon.in checkout from the cart and read the order summary (items, bill, total).
+    Nothing is ordered: that needs amazon_place_order and the user's spoken confirm.
+
+    Args:
+        groceries: True for the grocery (Amazon Now/Fresh) cart, False for the regular cart.
+    """
     browser.goto(CART_URL)
 
     def proceed(page: Any) -> str:
-        form = page.locator(SELECTORS["proceed"]).filter(visible=True)
+        form = page.locator(SELECTORS["proceed_grocery" if groceries else "proceed"])
+        form = form.filter(visible=True)
         if not form.count():
-            raise ToolError("The cart is empty, so there's nothing to check out.")
+            raise ToolError("That cart is empty, so there's nothing to check out.")
         # "Proceed to Buy" only opens the checkout page (GET-like navigation, nothing is bought),
         # so the recipe follows it by its fixed name, not by model text.
         form.first.click()
@@ -192,7 +223,8 @@ def amazon_checkout() -> str:
         handoff_to_user("sign_in")
         return "Amazon needs you to sign in before checkout."
     events.emit(events.EarconEvent("progress-step"))
-    return browser.browser_read()
+    summary = browser.on_page(_read_checkout)
+    return "Checkout page:\n" + safety.wrap_untrusted(summary)
 
 
 def _order_confirmed(page: Any) -> bool:
@@ -211,11 +243,17 @@ def amazon_place_order(order_total: str, items: str) -> str:
     """
 
     def find(page: Any) -> Any:
+        page.get_by_text(SUMMARY_BILL).first.wait_for(timeout=WAIT_MS)
         button = page.locator(SELECTORS["place_order"]).filter(visible=True)
         if not button.count():
-            button = page.get_by_role("button", name=re.compile("place your order", re.I))
+            button = page.get_by_role("button", name=PLACE_ORDER_NAME).filter(visible=True)
         if not button.count():
             raise ToolError("I can't find the Place your order button. Open checkout first.")
+        if ADD_MONEY.search(button.first.inner_text() or ""):
+            raise ToolError(
+                "Amazon wants money added before this order, so I stopped. Please set up a "
+                "payment method on Amazon first. Nothing was ordered."
+            )
         return button.first
 
     said, _ = browser.click_checked(

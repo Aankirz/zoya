@@ -90,6 +90,19 @@ def test_product_url_only_takes_a_real_asin():
         shopping.product_url("../gp/buy")
 
 
+def test_checkout_summary_keeps_items_and_bill_not_address_or_ads():
+    page = (
+        "16 mins Asha, Flat 1, Main Rd, 560001 Review your items 3 items Brown Bread 1 ₹ 69 "
+        "Eggs 12 Pcs 1 ₹ 97 Add more items You might have missed Paneer ₹128 Bill Summary Items "
+        "total ₹291 Handling fee ₹10 To pay ₹253 Place Order"
+    )
+
+    summary = shopping.checkout_summary(page)
+
+    assert "Brown Bread" in summary and "To pay ₹253" in summary
+    assert "560001" not in summary and "Paneer" not in summary
+
+
 LABELS = [
     "Play Love Me Not (feat. Rex Orange County) by Ravyn Lenae, Rex Orange County",
     "Play her by JVKE",
