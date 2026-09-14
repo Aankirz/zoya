@@ -46,7 +46,7 @@ from zoya.config import (
     UNKNOWN_MODEL_PRICE_USD_PER_1M,
 )
 from zoya.prompts import ORCHESTRATOR_PROMPT
-from zoya.router import RouteDecision, route
+from zoya.router import RouteDecision, clean_command, route
 from zoya.tools import ToolError, collect_tools
 from zoya.tools.memory import recent_corrections
 
@@ -64,6 +64,10 @@ DECLINED = "confirmation_declined"  # the safety gate already played cancel and 
 STREAMED = "brain"  # the brain ran and spoke as it streamed
 SKILL_FALLBACK = "skill_fallback"  # a skill action failed; the brain retried with that skill
 MAX_CONVERSATION_TURNS = 6  # follow-ups keep context; older turns drop to bound token cost
+OLD_RESULT_MAX_CHARS = 300  # a finished turn's tool results, as follow-ups see them
+ACK = "On it."
+SITE_NAME = re.compile(r"\b(amazon|flipkart|youtube|spotify|google|gmail|whatsapp)\b", re.I)
+QUICK_QUESTION = re.compile(r"^(?:what|who|when|where|why|how|which|is|are|was|does|do)\b", re.I)
 SENTENCE_END = re.compile(r"(?<=[.!?।])\s+")
 
 
@@ -241,11 +245,35 @@ def _record_usage(agent: Agent, timings: dict[str, int]) -> None:
 
 
 def with_corrections(command: str) -> str:
-    """§13.5.6: recent corrections ride with the request (dynamic part), never in the prefix."""
-    corrections = recent_corrections()
-    if not corrections:
-        return command
-    return f"{command}\n[Recent corrections from the user: {'; '.join(corrections)}]"
+    """§13.5.6: recent corrections and today's date ride with the request (the dynamic part, last),
+    never in the cached prefix. The date lets "the 17th of October" become its next occurrence."""
+    context = f"[Today is {datetime.now():%A %d %B %Y}]"
+    if corrections := recent_corrections():
+        context += f"\n[Recent corrections from the user: {'; '.join(corrections)}]"
+    return f"{command}\n{context}"
+
+
+def compact_turn(messages: list[Any]) -> list[Any]:
+    """A finished turn as later follow-ups see it: tool results cut to OLD_RESULT_MAX_CHARS and
+    screenshots dropped. The final answer already says what mattered, and the brain re-reads a live
+    page when it needs one (browser-use drops old page state every step the same way). Returns new
+    messages; the pairing of tool calls and results is kept."""
+    return [
+        {**message, "content": [_compact_block(b) for b in message["content"]]}
+        for message in messages
+    ]
+
+
+def _compact_block(block: dict[str, Any]) -> dict[str, Any]:
+    result = block.get("toolResult")
+    if result is None:
+        return block
+    texts = " ".join(part.get("text", "") for part in result.get("content", [])).strip()
+    if len(texts) > OLD_RESULT_MAX_CHARS:
+        texts = texts[:OLD_RESULT_MAX_CHARS] + " …[older tool result trimmed]"
+        if texts.count("<untrusted_content>") > texts.count("</untrusted_content>"):
+            texts += "</untrusted_content>"
+    return {"toolResult": {**result, "content": [{"text": texts or "(an image, not kept)"}]}}
 
 
 def run_orchestrator(command: str, timings: dict[str, int] | None = None, skill: str = "") -> str:
@@ -277,7 +305,7 @@ def run_orchestrator(command: str, timings: dict[str, int] | None = None, skill:
         _remember_interrupted(command, spoken)
         raise TaskCancelled
     tasks.say(sentences.flush())
-    _conversation.append(agent.messages[len(history) :])
+    _conversation.append(compact_turn(agent.messages[len(history) :]))
     del _conversation[:-MAX_CONVERSATION_TURNS]
     return str(result).strip() or "Done."
 
@@ -350,8 +378,26 @@ def run_fast_tool(decision: RouteDecision) -> str:
     return tools[decision.tool](**decision.args)
 
 
+def acknowledge(decision: RouteDecision) -> str:
+    """What Zoya says the moment a slow task starts ("" for none): the brain's first sentence is
+    1.5 s+ away and a web task's 10 s+, and users notice silence, not latency
+    (https://getstream.io/blog/speculative-tool-calling-voice/). Quick questions and fast tools
+    answer before an acknowledgement would finish."""
+    command = clean_command(decision.text)
+    site = SITE_NAME.search(command)
+    brain = decision.route == "orchestrator" or (decision.route == "skill" and not decision.tool)
+    if not (brain or decision.skill == "shopping"):  # shopping actions load several pages
+        return ""
+    if QUICK_QUESTION.match(command) and not site:
+        return ""
+    return f"{ACK} Checking {site.group(1).capitalize()}." if site else ACK
+
+
 def _execute(decision: RouteDecision, timings: dict[str, int]) -> tuple[str, bool]:
     started = time.monotonic()
+    if ack := acknowledge(decision):
+        tasks.say(ack)
+        timings["ack_ms"] = round((time.monotonic() - started) * MS_PER_S)
     stage = "orchestrator_ms" if decision.route == "orchestrator" else "tool_ms"
     try:
         if decision.route == "stop":
