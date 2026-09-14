@@ -83,6 +83,30 @@ TOOL_RISK: dict[str, RiskClass] = {
     "notes_append": "free",
     "get_weather": "free",
     "narrate": "free",
+    # Phase 4. Reading, searching, remembering and navigating (GET) are free. Every recipe that
+    # clicks is guarded: it clicks only through browser.click_checked (Guard 2) or
+    # confirm_then_click (always asks). Skill metadata never changes these.
+    "web_search": "free",
+    "web_fetch": "free",
+    "memory_add": "free",  # the secret filter runs inside; nothing leaves on the user's behalf
+    "memory_search": "free",
+    "nearby_places": "free",
+    "handoff_to_user": "free",  # speaks, emails the trusted contact a fixed message, waits
+    "skills": "free",  # Strands AgentSkills: returns a SKILL.md body as text
+    "browser_screenshot": "free",
+    "youtube_search": "free",
+    "youtube_open_channel": "free",
+    "youtube_play_video": "free",  # search, then navigate to the watch page (GET)
+    "youtube_subscribe": "guarded",
+    "youtube_like": "guarded",
+    "youtube_comment": "guarded",
+    "spotify_search": "free",
+    "spotify_play_song": "guarded",
+    "amazon_search": "free",
+    "amazon_add_to_cart": "guarded",
+    "amazon_cart": "free",
+    "amazon_checkout": "guarded",  # presses the fixed "Proceed to Buy" form; nothing is ordered
+    "amazon_place_order": "guarded",
     # Browser: reading and navigating are free; clicks and typing check their real target.
     "browser_open": "free",
     "browser_read": "free",
@@ -165,6 +189,8 @@ RISKY_PHRASES: tuple[tuple[str, str, str], ...] = (
         "Delete",
     ),
     ("submit", r"submit|confirm|सबमिट\S*|जमा करें", "Submit"),
+    # Phase 4: YouTube's known final buttons publish as the user (Phase 3 residual: list them).
+    ("post", r"subscribe|subscribed|unsubscribe|like|comment|reply|सब्सक्राइब\S*", "Post"),
 )
 _RISKY = [
     (kind, re.compile(rf"(?:^| )(?:{pattern})(?: |$)"), say) for kind, pattern, say in RISKY_PHRASES
@@ -242,6 +268,7 @@ class ClickFacts:
     is_submit: bool = False  # button type=submit / default inside a <form>, input submit/image
     path: str = ""  # URL path (no query: a search for "buy shoes" is not a checkout)
     nearby_text: str = ""  # text around the target (its form or a few ancestors)
+    host: str = ""  # page host, for KNOWN_SAFE_CLICKS only
 
 
 def spoken_name(labels: list[str]) -> str:
@@ -259,6 +286,17 @@ def accessible_name(snapshot: str) -> str:
     return (match.group(1) or "") if match else snapshot
 
 
+# Reversible buttons on shops Zoya automates, which the context rules would otherwise ask about on
+# every item (Flow 6 "ticks per item"). Exact host and exact name, and only after risky_label found
+# nothing: "Add to Cart" never pays, and a cart is left intact on cancel (Done-when #4).
+KNOWN_SAFE_CLICKS = {("www.amazon.in", "add to cart")}
+
+
+def known_safe_click(facts: ClickFacts) -> bool:
+    names = {name for label in facts.labels if (name := normalise(label))}
+    return len(names) == 1 and (facts.host.casefold(), names.pop()) in KNOWN_SAFE_CLICKS
+
+
 def click_risk(facts: ClickFacts) -> RiskyLabel | None:
     """Guard 2, failing closed: ask unless the click is clearly harmless.
 
@@ -271,6 +309,8 @@ def click_risk(facts: ClickFacts) -> RiskyLabel | None:
     """
     if hit := risky_label(facts.labels):
         return hit
+    if known_safe_click(facts):
+        return None
     name = spoken_name(facts.labels)
     if not name:
         return RiskyLabel("unknown", "click a button with no name")
@@ -557,7 +597,7 @@ class Action:
         return " ".join(parts) + "."
 
 
-SUMMARY_CONNECTOR = {"purchase": "for", "send": "to", "delete": "", "tool": ""}
+SUMMARY_CONNECTOR = {"purchase": "for", "send": "to", "delete": "", "tool": "", "post": ""}
 
 
 def summary_hash(summary: str) -> str:

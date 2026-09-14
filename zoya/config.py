@@ -48,6 +48,7 @@ PROVIDER_SECRET_KEYS = (
     "FIREWORKS_API_KEY",
     "ELEVENLABS_API_KEY",
     "SUPERMEMORY_API_KEY",
+    "TINYFISH_API_KEY",
 )
 
 # Amazon DynamoDB task history (STACK §8). Partition key: task_id (S).
@@ -153,6 +154,40 @@ BROWSER_PROFILE_DIR = Path.home() / ".zoya" / "chrome-profile"  # D11 dedicated 
 BROWSER_ACTION_TIMEOUT_S = 15.0  # every Playwright call (navigation, click, read)
 BROWSER_TEXT_MAX_CHARS = 6000  # page text handed to the brain
 
+# --- Phase 4: browser, shopping, memory, harness (§9.7, §9.8, §9.12) ----------------------------
+
+SKILLS_DIR = REPO_ROOT / "zoya" / "skills"
+# Brain prompt-prefix cache (OpenAI prompt caching; verified live 2026-09-14: the second call with
+# the same key read 1,836 of 1,839 prompt tokens from cache). One key per skill prompt.
+PROMPT_CACHE_KEY_PREFIX = "zoya-v1"
+PROMPT_CACHE_TTL = "30m"
+LEARNED_PICKS_FILE = LOG_DIR / "learned_picks.json"  # command → skill action the router model chose
+LEARNED_PICK_TTL_S = 7 * 24 * 3600
+RESULT_CACHE_MAX_ITEMS = 256
+TINYFISH_SEARCH_URL = "https://api.search.tinyfish.ai"
+TINYFISH_FETCH_URL = "https://api.fetch.tinyfish.ai"
+WEB_SEARCH_TIMEOUT_S = 10.0
+WEB_FETCH_TIMEOUT_S = 25.0  # the API's own per-URL budget is set 5 s lower
+WEB_RESULTS_MAX = 6
+WEB_FETCH_MAX_CHARS = 5000  # per page handed to the brain
+WEB_CACHE_TTL_S = 10 * 60
+MEMORY_USER_TAG = "user_owner"  # §9.8: one Supermemory container per user
+MEMORY_TABLE = "zoya-memory"  # DynamoDB pk (S) + sk (S): "memory#<user>" / "order#<user>"
+MEMORY_LOCAL_FILE = Path.home() / ".zoya" / "memory.json"  # fallback copy, never secrets
+MEMORY_TIMEOUT_S = 6.0
+MEMORY_SEARCH_LIMIT = 5
+ALERTS_TOPIC_ARN = "arn:aws:sns:ap-south-1:567487920371:zoya-alerts"  # trusted contact (Flow 10)
+PLACES_MAX_RESULTS = 3
+LOGIN_SITES = (
+    "https://www.amazon.in/",
+    "https://www.youtube.com/",
+    "https://open.spotify.com/",
+    "https://mail.google.com/",
+)
+# Done-when #5 test run only (coordinator): `python -m zoya.main --order-limit 300` sets this env
+# var; above that payable total Zoya never asks to confirm. Unset = no limit.
+ORDER_LIMIT_ENV = "ZOYA_ORDER_LIMIT_RUPEES"
+
 # --- Echo cancellation for laptop speakers ------------------------------------------------------
 
 # D62, zoya/aec.py: WebRTC AEC3 with Zoya's playback + a tap of other apps as
@@ -172,6 +207,16 @@ OTHER_AUDIO_MIN_RMS = 0.003  # tap reference above this = another app is playing
 BARGE_IN_SPEECH_GAIN = 10 ** (-20 / 20)  # Zoya keeps talking, 20 dB quieter
 BARGE_IN_HOLD_S = 2.5  # restore this long after the user's last voiced block, if no stop/wake
 
+
+def load_env() -> None:
+    """Load .env from the repo root without overriding real environment variables."""
+    load_dotenv(REPO_ROOT / ".env", override=False)
+
+
+def aws_region() -> str:
+    return os.environ.get("AWS_REGION") or DEFAULT_AWS_REGION
+
+
 # --- Phase 5: computer use (§9.4, §9.6, D23) ---------------------------------------------------
 
 SCREENSHOT_MAX_WIDTH = 1280  # ~1280×800 ≈ 1.3k image tokens; captured at point size or smaller
@@ -184,6 +229,7 @@ MAX_FAILED_ATTEMPTS = 3  # consecutive failed actions → give up honestly (Done
 CURSOR_MOVED_BY_USER_PT = 8.0  # the pointer moved this far since Zoya's last action → user wins
 AX_MESSAGING_TIMEOUT_S = 1.0  # per AX call into an app (AXUIElementSetMessagingTimeout)
 AX_READ_MAX_ITEMS = 120  # elements listed by ax_read
+AX_MAX_ANCESTORS = 12  # Guard 2 walks this far up for the pressable control; cut short → asks
 AX_WALK_DEADLINE_S = 2.0  # whole-tree walk bound
 AX_NEARBY_MAX_CHARS = 2000  # sibling text used to spot a price next to a button
 TYPE_CHUNK_CHARS = 16  # UTF-16 units per unicode keyboard event
@@ -194,12 +240,3 @@ DOCUMENT_RENDER_DPI = 150  # Textract needs ≥ 15 px text height; 8 pt at 150 D
 DOCUMENT_TEXT_MAX_CHARS = 6000
 COMPUTER_FLOWS_FILE = LOG_DIR / "computer_flows.json"  # intent + app → steps that worked (harness)
 COMPUTER_FLOW_TTL_S = 7 * 24 * 3600  # same lifetime as Phase 4's learned picks
-
-
-def load_env() -> None:
-    """Load .env from the repo root without overriding real environment variables."""
-    load_dotenv(REPO_ROOT / ".env", override=False)
-
-
-def aws_region() -> str:
-    return os.environ.get("AWS_REGION") or DEFAULT_AWS_REGION

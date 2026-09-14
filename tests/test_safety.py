@@ -781,7 +781,7 @@ def test_orchestrator_registers_the_gate_last_and_runs_tools_one_at_a_time(monke
     from zoya import models
 
     fake = OpenAIModel(client_args={"api_key": "test"}, model_id="unused")
-    monkeypatch.setattr(models, "get_model", lambda role="brain": fake)
+    monkeypatch.setattr(models, "get_model", lambda role="brain", **_: fake)
 
     agent = orchestrator.build_orchestrator()
 
