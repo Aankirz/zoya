@@ -53,9 +53,14 @@ def _child_ids(block: dict[str, Any]) -> list[str]:
 
 
 def blocks_to_text(blocks: list[dict[str, Any]]) -> str:
-    """LINE blocks in reading order, then each TABLE as rows of "cell | cell"."""
+    """LINE blocks in reading order (except table text), then each TABLE as "cell | cell" rows."""
     by_id = {block.get("Id"): block for block in blocks}
-    lines = [b["Text"] for b in blocks if b.get("BlockType") == "LINE" and b.get("Text")]
+    in_cells = {i for b in blocks if b.get("BlockType") == "CELL" for i in _child_ids(b)}
+    lines = [  # a line made only of table words is read with its table, not twice
+        b["Text"]
+        for b in blocks
+        if b.get("BlockType") == "LINE" and b.get("Text") and not set(_child_ids(b)) <= in_cells
+    ]
     tables = []
     for table in (b for b in blocks if b.get("BlockType") == "TABLE"):
         cells = [by_id[i] for i in _child_ids(table) if by_id.get(i, {}).get("BlockType") == "CELL"]

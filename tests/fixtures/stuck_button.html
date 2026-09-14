@@ -1,0 +1,13 @@
+<!doctype html>
+<!-- Phase 5 Done-when #4: a button that never does anything, so every verify fails. -->
+<title>Zoya stuck button test</title>
+<style>
+  body { font: 28px -apple-system, sans-serif; margin: 120px; background: #fff; }
+  button, button:hover, button:focus, button:active {
+    font: inherit; padding: 24px 48px; border: 2px solid #333; background: #eee;
+    outline: none; box-shadow: none; transition: none; color: #000;
+  }
+</style>
+<h1>Make this page green</h1>
+<p>Click the button below to turn the page green.</p>
+<button type="button" onmousedown="event.preventDefault()">Turn page green</button>

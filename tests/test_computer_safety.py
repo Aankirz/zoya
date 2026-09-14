@@ -338,7 +338,10 @@ def test_only_the_last_two_screenshots_stay_in_context():
 
 def test_textract_blocks_read_lines_then_table_rows():
     blocks = [
-        {"Id": "l1", "BlockType": "LINE", "Text": "BESCOM electricity bill"},
+        {"Id": "l1", "BlockType": "LINE", "Text": "BESCOM electricity bill",
+         "Relationships": [{"Type": "CHILD", "Ids": ["w0"]}]},
+        {"Id": "l2", "BlockType": "LINE", "Text": "Amount ₹1,240 due",
+         "Relationships": [{"Type": "CHILD", "Ids": ["w1", "w2", "w3"]}]},
         {"Id": "t", "BlockType": "TABLE",
          "Relationships": [{"Type": "CHILD", "Ids": ["c1", "c2"]}]},
         {"Id": "c2", "BlockType": "CELL", "RowIndex": 1, "ColumnIndex": 2,
