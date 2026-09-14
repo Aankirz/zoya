@@ -32,6 +32,17 @@ PLAY_PREFIX = "Play "
 NOW_PLAYING_WAIT_S = 6.0
 NOW_PLAYING_POLL_S = 0.3
 HOVER_SETTLE_MS = 300
+MS_PER_S = 1000
+# The list moves 32 px down ~0.35 s after its rows appear (live, 2026-09-15). A hover before that
+# leaves the pointer off the row, the button stays hidden, and the click waits 15 s on "<div>
+# intercepts pointer events" (3 of 3 fresh launches). So hover until the button is on top twice.
+ROW_BUTTON_ON_TOP_JS = """(row, prefix) => {
+  const b = [...row.querySelectorAll('button')].find(e => (e.ariaLabel || '').startsWith(prefix));
+  if (!b) return false;
+  const r = b.getBoundingClientRect();
+  return b.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)); }"""
+SIGNED_IN = "[data-testid=user-widget-link]"
+SIGNED_OUT = "[data-testid=login-button]"
 BY = re.compile(r"^Play (?P<title>.+) by (?P<artists>.+)$")
 
 
@@ -86,6 +97,21 @@ def spotify_search(query: str) -> str:
     return f"Spotify tracks for {query}:\n" + safety.wrap_untrusted(listing)
 
 
+def needs_sign_in(page: Any) -> bool:
+    """Positive signals after the app loads: the header shows the account widget when signed in
+    and a "Log in" button when not (both checked live, 2026-09-15). Not sure (neither within
+    WAIT_MS) → try the song; only a sign-in page or the "Log in" button asks the user."""
+    from playwright.sync_api import TimeoutError as PlaywrightTimeout
+
+    try:
+        page.locator(f"{SIGNED_IN}, {SIGNED_OUT}").first.wait_for(timeout=WAIT_MS)
+    except PlaywrightTimeout:
+        return bool(browser.sign_in_wall(page))
+    if page.locator(SIGNED_IN).count():
+        return False
+    return bool(page.locator(SIGNED_OUT).count() or browser.sign_in_wall(page))
+
+
 def _now_playing(page: Any) -> str:
     widget = page.locator("[data-testid=now-playing-widget]")
     return (widget.first.get_attribute("aria-label") or "") if widget.count() else ""
@@ -102,7 +128,7 @@ def spotify_play_song(song: str, artist: str = "") -> str:
     if not song.strip():
         raise ToolError("Which song should I play?")
     browser.goto(search_url(f"{song} {artist}"))
-    if browser.on_page(browser.sign_in_wall):
+    if browser.on_page(needs_sign_in):
         handoff_to_user("sign_in")
         return "Spotify needs you to sign in first."
     labels = browser.on_page(_play_labels)
@@ -113,9 +139,18 @@ def spotify_play_song(song: str, artist: str = "") -> str:
 
     def find(page: Any) -> Any:
         row = page.locator("[data-testid=tracklist-row]").nth(index)
-        row.hover()
-        page.wait_for_timeout(HOVER_SETTLE_MS)
-        return row.locator(f"button[aria-label^='{PLAY_PREFIX}']").first
+        button = row.locator(f"button[aria-label^='{PLAY_PREFIX}']").first
+        deadline = time.monotonic() + WAIT_MS / MS_PER_S
+        was_on_top = False
+        while time.monotonic() < deadline:
+            page.mouse.move(0, 0)  # a fresh mouseenter each try
+            row.hover()
+            page.wait_for_timeout(HOVER_SETTLE_MS)
+            on_top = row.evaluate(ROW_BUTTON_ON_TOP_JS, PLAY_PREFIX)
+            if on_top and was_on_top:
+                break
+            was_on_top = on_top
+        return button
 
     browser.click_checked(browser.probe_with(find), labels[index])
     deadline = time.monotonic() + NOW_PLAYING_WAIT_S

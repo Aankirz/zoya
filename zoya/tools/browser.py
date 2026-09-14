@@ -74,6 +74,8 @@ IGNORED_DEFAULT_ARGS = ["--use-mock-keychain", "--disable-component-update"]
 EXTRA_ARGS = ["--autoplay-policy=no-user-gesture-required"]
 SCREENSHOT_QUALITY = 60
 SIGN_IN_PATH = re.compile(r"/(?:ap/signin|signin|login|log-in|accounts|servicelogin)\b", re.I)
+CAPTCHA = "iframe[src*=captcha], iframe[title*=challenge i], #captchacharacters"
+QUERY = re.compile(r"\?[^\"'\s>]*")
 SIGN_IN_NOTE = (
     "\n[Zoya note: this page asks the user to sign in or prove they're human. Don't type anything; "
     "call handoff_to_user.]"
@@ -137,14 +139,31 @@ def goto(url: str) -> str:
     return on_page(navigate)
 
 
-def sign_in_wall(page: Any) -> bool:
-    """A login or CAPTCHA page (Flow 10): sign-in URL, a visible password box, or a CAPTCHA
-    frame."""
-    if SIGN_IN_PATH.search(urlparse(page.url).path):
-        return True
-    password = page.locator("input[type=password]").filter(visible=True)
-    captcha = page.locator("iframe[src*=captcha], iframe[title*=challenge i], #captchacharacters")
-    return bool(password.count() or captcha.count())
+def sign_in_wall(page: Any) -> str:
+    """A login or CAPTCHA page (Flow 10): sign-in URL, a visible password box, or a visible
+    CAPTCHA. Returns which one ("" when none).
+
+    Visible only: Spotify ships an invisible reCAPTCHA badge iframe on every page, signed in or
+    not (no bounding box), and counting it made every song ask for a sign-in (owner's run,
+    2026-09-15)."""
+    path = urlparse(page.url).path
+    if SIGN_IN_PATH.search(path):
+        return _wall("path", page, None)
+    for reason, selector in (("password", "input[type=password]"), ("captcha", CAPTCHA)):
+        found = page.locator(selector).filter(visible=True)
+        if found.count():
+            return _wall(reason, page, found.first)
+    return ""
+
+
+def _wall(reason: str, page: Any, element: Any) -> str:
+    """Log why, with the element's opening tag minus query strings (no tokens, AGENTS.md §6)."""
+    tag = element.evaluate("e => e.outerHTML.slice(0, 200)") if element is not None else ""
+    parsed = urlparse(page.url)
+    log.warning(
+        "sign-in wall (%s) on %s%s %s", reason, parsed.netloc, parsed.path, QUERY.sub("?…", tag)
+    )
+    return reason
 
 
 @tool
