@@ -847,7 +847,7 @@ def test_hook_checks_the_tool_that_will_really_run():
 
 
 def test_after_a_decline_the_model_gets_no_more_turns():
-    safety._declined = True
+    safety._declined.add(safety.current_task_id())
 
     with pytest.raises(safety.ConfirmationDeclined):
         safety.ConfirmationGate().before_model(None)

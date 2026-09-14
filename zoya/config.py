@@ -242,3 +242,32 @@ DOCUMENT_RENDER_DPI = 150  # Textract needs ≥ 15 px text height; 8 pt at 150 D
 DOCUMENT_TEXT_MAX_CHARS = 6000
 COMPUTER_FLOWS_FILE = LOG_DIR / "computer_flows.json"  # intent + app → steps that worked (harness)
 COMPUTER_FLOW_TTL_S = 7 * 24 * 3600  # same lifetime as Phase 4's learned picks
+
+# --- Phase 6: multitasking, documents, reminders (§9.13, STACK §8–9) ---------------------------
+
+MAX_TASKS = 3  # D10: a 4th → "queue it or stop one?"
+ANNOUNCE_POLL_S = 0.05  # how often a waiting announcement / confirmation checks for its turn
+SAME_SPEAKER_WINDOW_S = 8.0  # a task speaking again within this skips repeating its name
+GUI_PAUSE_MAX_S = 120.0  # a GUI task paused for a user command resumes after this at the latest
+RESOURCE_WAIT_MAX_S = 300.0  # a second browser task waits this long for the page
+CONFIRM_TURN_WAIT_S = 120.0  # a confirmation waits this long for another task's / the user's turn
+USER_QUIET_S = 0.8  # the user counts as talking until this long after their last voiced block
+DOCUMENTS_DIR = Path.home() / "Documents" / "Zoya"  # document_agent output (STACK §9)
+DOCUMENT_READ_ROOTS = tuple(Path.home() / name for name in ("Documents", "Downloads", "Desktop"))
+OFFICE_MAX_PARTS = 40  # slides or sections per file
+OFFICE_MAX_ROWS = 500
+OFFICE_TEXT_MAX_CHARS = 4000  # one read-back handed to the model
+OPEN_APP_TIMEOUT_S = 10.0  # `open -b` bound
+# Sharing ("send it to my sister"): private S3 object + pre-signed GET link, emailed by SNS.
+SHARE_BUCKET = "zoya-benchmarks-567487920371-ap-south-1"  # pending coordinator: prefix or bucket
+SHARE_PREFIX = "zoya-shared/"
+SHARE_LINK_TTL_S = 3600
+SHARE_TOPIC_ARN = "arn:aws:sns:ap-south-1:567487920371:zoya-shares"  # one filtered sub per contact
+SHARE_CONTACTS: tuple[str, ...] = ()  # names with a confirmed SNS subscription, e.g. ("sister",)
+SHARE_TEST_ENV = "ZOYA_SHARE_TEST_TO_OWNER"  # =1: links go to the owner's zoya-alerts email
+S3_UPLOAD_TIMEOUT_S = 20.0
+# Reminders (STACK §8): a local timer speaks; EventBridge Scheduler emails via SNS.
+REMINDER_SCHEDULE_GROUP = "zoya-reminders"
+REMINDER_ROLE_ARN = "arn:aws:iam::567487920371:role/zoya-scheduler-sns"  # pending coordinator
+REMINDER_TIMEZONE = "Asia/Kolkata"
+REMINDER_MAX_DAYS = 30

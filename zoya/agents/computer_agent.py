@@ -6,7 +6,9 @@ the user's Shortcuts → AX (T1) → pixels (T3). Strands provides the agent loo
 sequential executor and cancellation; Zoya adds the GUI lock, screenshot pruning, the give-up
 rule, recorded flows and the gate.
 
-- One GUI task at a time (`computer.gui_lock`); "Zoya, stop" cancels it (orchestrator._cancel).
+- One GUI task at a time (`computer.gui_lock`); "Zoya, stop" cancels it (its task's cancel signal).
+- Phase 6 (§9.13): a user command started meanwhile pauses it at its next step (`GuiPause`): the
+  lock is handed over, and on resume the planned step is dropped so the agent looks again.
 - The safety gate is registered last, as on the orchestrator (safety.ConfirmationGate); every
   input tool also runs Guard 2 on its real target itself.
 - Only the last KEEP_SCREENSHOTS screenshots stay in context (§9.3).
@@ -31,14 +33,21 @@ import time
 from typing import Any
 
 from strands import Agent, ToolContext, tool
-from strands.hooks import AfterToolCallEvent, BeforeModelCallEvent, HookProvider, HookRegistry
+from strands.hooks import (
+    AfterToolCallEvent,
+    BeforeModelCallEvent,
+    BeforeToolCallEvent,
+    HookProvider,
+    HookRegistry,
+)
 from strands.tools.executors import SequentialToolExecutor
 from strands.types.exceptions import EventLoopException
 
-from zoya import safety, screen
+from zoya import safety, screen, tasks
 from zoya.config import (
     COMPUTER_FLOW_TTL_S,
     COMPUTER_FLOWS_FILE,
+    GUI_PAUSE_MAX_S,
     KEEP_SCREENSHOTS,
     LOG_DIR,
     PER_TASK_COST_CAP_USD,
@@ -47,6 +56,11 @@ from zoya.prompts import COMPUTER_PROMPT
 from zoya.tools import ToolError, ax, computer
 
 BUSY = "I'm already using the screen for another task."
+RESUMED = (
+    "Paused while the user used the Mac; this step was not done. The screen may have changed: "
+    "take a new screenshot before acting."
+)
+LOCK_POLL_S = 0.2
 PRUNED_SCREENSHOT = {"text": "[older screenshot removed]"}
 REPLAYED = "Done, the same way as last time."
 MS_PER_S = 1000
@@ -85,6 +99,43 @@ class GiveUp(HookProvider):
     def check(self, _event: BeforeModelCallEvent) -> None:
         if computer.session.stop_reason:
             raise ComputerStopped(computer.session.stop_reason)
+
+
+class GuiPause(HookProvider):
+    """§9.13 "the user always wins the foreground": before each step, yield the GUI to a user
+    command started meanwhile, then resume with a fresh look (tasks.gui_checkpoint)."""
+
+    def register_hooks(self, registry: HookRegistry, **_: Any) -> None:
+        registry.add_callback(BeforeToolCallEvent, self.before_tool)
+
+    def before_tool(self, event: BeforeToolCallEvent) -> None:
+        try:
+            resumed = tasks.gui_checkpoint(computer.gui_lock)
+        except TimeoutError:
+            computer.session.stop_reason = "the screen stayed busy with another task."
+            event.cancel_tool = "The screen is busy. Stop."
+            return
+        if resumed:
+            computer.begin_session()  # old screenshot and pointer position are stale now
+            computer.session.asked = True  # an interrupted run is never recorded as a flow
+            event.cancel_tool = RESUMED
+
+
+def _acquire_gui(cancel: Any) -> bool:
+    """Wait for the GUI lock while a paused task hands it over (bounded, stoppable)."""
+    deadline = time.monotonic() + GUI_PAUSE_MAX_S
+    while not computer.gui_lock.acquire(timeout=LOCK_POLL_S):
+        if cancel.is_set() or time.monotonic() > deadline or not _gui_handover_expected():
+            return False
+    return True
+
+
+def _gui_handover_expected() -> bool:
+    """Only wait when the lock holder is a task that will pause for us; else busy at once."""
+    me = tasks.current()
+    return me is not None and any(
+        me.id in t.paused_by or t.status == "paused" for t in tasks.running()
+    )
 
 
 # --- Recorded flows (harness Layer 1 for GUI tasks) ----------------------------------------------
@@ -213,6 +264,8 @@ def build_computer_agent(cost_cap_usd: float, recorder: FlowRecorder | None = No
             *([recorder] if recorder else []),
             ScreenshotPruner(),
             GiveUp(),
+            GuiPause(),
+            tasks.StepTracker(),
             safety.ConfirmationGate(),  # last: sees the final tool call
         ],
         tool_executor=SequentialToolExecutor(),
@@ -226,9 +279,10 @@ def run_computer_task(
 ) -> str:
     """Run one GUI goal under the lock: a recorded flow first, else the agent. Raises
     ConfirmationDeclined / TaskLimitExceeded / TaskCancelled like the orchestrator."""
-    from zoya.orchestrator import _cancel
+    from zoya.orchestrator import cancel_signal
 
-    if not computer.gui_lock.acquire(blocking=False):
+    _cancel = cancel_signal()
+    if not _acquire_gui(_cancel):
         raise ToolError(BUSY)
     started = time.monotonic()
     try:
@@ -248,8 +302,9 @@ def run_computer_task(
 
 
 def _run_agent(goal: str, key: str, cost_cap_usd: float, parent: Any, started: float) -> str:
-    from zoya.orchestrator import TaskCancelled, TaskLimitExceeded, _cancel
+    from zoya.orchestrator import TaskCancelled, TaskLimitExceeded, cancel_signal
 
+    _cancel = cancel_signal()
     recorder = FlowRecorder()
     agent = build_computer_agent(cost_cap_usd, recorder)
     outcome = "done"

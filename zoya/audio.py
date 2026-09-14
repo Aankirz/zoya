@@ -51,6 +51,8 @@ EARCON_FILES = {
     "purchase": "purchase",
     "checkpoint": "checkpoint",  # memory saved
     "blocked": "blocked",  # login / CAPTCHA handoff
+    "queued": "queued",  # Phase 6: a 4th command waits for a free slot
+    "complete": "complete",  # Phase 6: one of several tasks finished
 }
 LOOP_FILE = "processing"
 ENDS_LOOP = {"success", "error", "stop", "warning", "cancel"}  # quiet while asking

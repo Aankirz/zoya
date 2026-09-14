@@ -92,6 +92,27 @@
         "geo-places:GetPlace"
       ],
       "Resource": "arn:aws:geo-places:ap-south-1::provider/default"
+    },
+    {
+      "Sid": "ReminderSchedules",
+      "Effect": "Allow",
+      "Action": [
+        "scheduler:CreateSchedule",
+        "scheduler:GetSchedule",
+        "scheduler:DeleteSchedule"
+      ],
+      "Resource": "arn:aws:scheduler:ap-south-1:567487920371:schedule/zoya-reminders/*"
+    },
+    {
+      "Sid": "ReminderSchedulerRole",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::567487920371:role/zoya-scheduler-sns",
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": "scheduler.amazonaws.com"
+        }
+      }
     }
   ]
 }

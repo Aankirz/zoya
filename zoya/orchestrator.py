@@ -26,11 +26,17 @@ from typing import Any
 
 from opentelemetry import trace
 from strands import Agent, tool
-from strands.hooks import AfterToolCallEvent, BeforeModelCallEvent, HookProvider, HookRegistry
+from strands.hooks import (
+    AfterModelCallEvent,
+    AfterToolCallEvent,
+    BeforeModelCallEvent,
+    HookProvider,
+    HookRegistry,
+)
 from strands.tools.executors import SequentialToolExecutor
 from strands.types.exceptions import EventLoopException
 
-from zoya import aws, events, harness, safety, speech
+from zoya import aws, events, harness, safety, speech, tasks
 from zoya.config import (
     LOG_DIR,
     MAX_TOOL_CALLS_PER_TASK,
@@ -85,23 +91,36 @@ def task_cost_usd(model_id: str, input_tokens: int, output_tokens: int) -> float
 
 
 class TaskLimits(HookProvider):
-    """Before every model call: stop if the task passed $PER_TASK_COST_CAP_USD or 40 tool calls."""
+    """Before every model call: stop if the task passed $PER_TASK_COST_CAP_USD or 40 tool calls.
+
+    Inside a Task Manager task every agent (orchestrator, document agent) adds its spend to the
+    task's ledger, so sub-agents share one cap instead of each getting a fresh $0.50.
+    """
 
     def __init__(self, model_id: str, cost_cap_usd: float = PER_TASK_COST_CAP_USD) -> None:
         self.model_id = model_id
         self.cost_cap_usd = cost_cap_usd
         self.tool_calls = 0
+        self.recorded_usd = 0.0  # this agent's spend already added to the task ledger
 
     def register_hooks(self, registry: HookRegistry, **_: Any) -> None:
         registry.add_callback(AfterToolCallEvent, self._count_tool_call)
         registry.add_callback(BeforeModelCallEvent, self._check_limits)
+        registry.add_callback(AfterModelCallEvent, self._record)
 
     def _count_tool_call(self, _event: AfterToolCallEvent) -> None:
         self.tool_calls += 1
 
-    def _check_limits(self, event: BeforeModelCallEvent) -> None:
+    def _record(self, event: Any) -> float:
+        """Add this agent's new spend to its task; returns the task's (or this agent's) total."""
         usage = event.agent.event_loop_metrics.accumulated_usage
-        cost = task_cost_usd(self.model_id, usage["inputTokens"], usage["outputTokens"])
+        tokens_in, tokens_out = usage.get("inputTokens", 0), usage.get("outputTokens", 0)
+        own = task_cost_usd(self.model_id, tokens_in, tokens_out)
+        delta, self.recorded_usd = own - self.recorded_usd, own
+        return tasks.add_spend(delta) if tasks.current() is not None else own
+
+    def _check_limits(self, event: BeforeModelCallEvent) -> None:
+        cost = self._record(event)
         if cost >= self.cost_cap_usd:
             raise TaskLimitExceeded(f"cost cap ${self.cost_cap_usd:.2f} reached (${cost:.4f})")
         if self.tool_calls >= MAX_TOOL_CALLS_PER_TASK:
@@ -130,16 +149,21 @@ class SentenceStream:
 
 # --- Orchestrator -----------------------------------------------------------------
 
-_cancel = threading.Event()  # ponytail: one task at a time; Phase 6 gives each task its own
+_cancel = threading.Event()  # outside a Task Manager task (tests, evals); tasks have their own
 _conversation: list[list[Any]] = []  # recent turns, each the messages one run added
-_running: dict[str, str] = {}  # task_id → command
-_running_lock = threading.Lock()
+
+
+def cancel_signal() -> threading.Event:
+    """The stop flag of the task running on this thread ("stop the presentation" sets only its)."""
+    task = tasks.current()
+    return task.cancel if task is not None else _cancel
 
 
 @tool(name="narrate")
 def narrate_tool(text: str) -> str:
     """Say a short progress update (under 12 words) to the user out loud."""
-    speech.narrate(text)
+    tasks.set_step(text)
+    tasks.say(text)
     return "Said."
 
 
@@ -149,7 +173,13 @@ def brain_inputs(skill: str = "") -> tuple[str, list[Any], list[Any]]:
     A picked skill gets its body in the prompt (no `skills` round trip) and only its tools. No pick:
     every tool plus Strands `AgentSkills`, which lists the catalogue and loads a body on demand.
     """
-    tools = harness.all_tools() | {narrate_tool.tool_name: narrate_tool}
+    from zoya.agents.document_agent import document_agent_tool
+
+    document_tool = document_agent_tool()  # a fresh sub-agent per task: two tasks never share one
+    tools = harness.all_tools() | {
+        narrate_tool.tool_name: narrate_tool,
+        document_tool.tool_name: document_tool,
+    }
     if skill:
         names = harness.skill_tool_names(skill)
         return (
@@ -182,7 +212,7 @@ def build_orchestrator(
         messages=messages,
         # The gate goes last so it sees the final tool call (safety.ConfirmationGate). Tools run one
         # at a time: nothing else speaks or clicks while a confirmation waits for the user.
-        hooks=[limits, safety.ConfirmationGate()],
+        hooks=[limits, tasks.StepTracker(), safety.ConfirmationGate()],
         tool_executor=SequentialToolExecutor(),
         callback_handler=callback_handler,
         trace_attributes={"zoya.component": "orchestrator"},
@@ -191,10 +221,10 @@ def build_orchestrator(
 
 def _speak_stream(sentences: SentenceStream, spoken: list[str] | None = None) -> Any:
     def handler(**kwargs: Any) -> None:
-        if _cancel.is_set():
+        if cancel_signal().is_set():
             return  # stopped: Strands ends the stream at its next checkpoint; say nothing more
         for sentence in sentences.feed(kwargs.get("data", "")):
-            speech.narrate(sentence)
+            tasks.say(sentence)
             if spoken is not None:
                 spoken.append(sentence)
 
@@ -234,7 +264,7 @@ def run_orchestrator(command: str, timings: dict[str, int] | None = None, skill:
     except TaskLimitExceeded as limit:
         _record_usage(agent, timings if timings is not None else {})
         log.warning("task stopped: %s", limit)
-        speech.narrate(LIMIT_MESSAGE)
+        tasks.say(LIMIT_MESSAGE)
         return LIMIT_MESSAGE
     except safety.ConfirmationDeclined:
         _record_usage(agent, timings if timings is not None else {})
@@ -243,10 +273,10 @@ def run_orchestrator(command: str, timings: dict[str, int] | None = None, skill:
         remember_turn(command, f"{safety.CANCELLED_SAY} [the user did not confirm]")
         raise
     _record_usage(agent, timings if timings is not None else {})
-    if result.stop_reason == "cancelled" or _cancel.is_set():
+    if result.stop_reason == "cancelled" or cancel_signal().is_set():
         _remember_interrupted(command, spoken)
         raise TaskCancelled
-    speech.narrate(sentences.flush())
+    tasks.say(sentences.flush())
     _conversation.append(agent.messages[len(history) :])
     del _conversation[:-MAX_CONVERSATION_TURNS]
     return str(result).strip() or "Done."
@@ -257,7 +287,7 @@ def _invoke(agent: Agent, command: str) -> Any:
     event_loop/event_loop.py event_loop_cycle); unwrap ours so a cap or a declined confirmation
     ends the task as itself, not as "something went wrong" (found in the Phase 3 replay)."""
     try:
-        return agent(command, cancel_signal=_cancel)
+        return agent(command, cancel_signal=cancel_signal())
     except EventLoopException as wrapped:
         cause = wrapped.original_exception
         if isinstance(cause, TaskLimitExceeded | safety.ConfirmationDeclined):
@@ -357,32 +387,34 @@ def _execute(decision: RouteDecision, timings: dict[str, int]) -> tuple[str, boo
 
 def handle_command(text: str, pre_timings: dict[str, int] | None = None) -> CommandResult:
     """Run one command. `pre_timings` (voice stages such as stt_ms) go into the timing log."""
-    task_id = uuid.uuid4().hex[:12]
+    task = tasks.current()
+    task_id = task.id if task is not None else uuid.uuid4().hex[:12]
     started = time.monotonic()
-    _cancel.clear()
+    if task is None:
+        _cancel.clear()
     safety.begin_task(task_id)
-    with _running_lock:
-        _running[task_id] = text
     with trace.get_tracer("zoya").start_as_current_span("zoya.command") as span:
         decision = route(text)
         timings = {**(pre_timings or {}), **decision.timings_ms}
         events.emit(events.TaskEvent(task_id, "started", text, decision.route))
-        try:
-            spoken, ok = _execute(decision, timings)
-        finally:
-            with _running_lock:
-                _running.pop(task_id, None)
+        spoken, ok = _execute(decision, timings)
         # Fast path target is router + tool (Done-when #2); speech is queued, not waited on.
         timings["total_ms"] = round((time.monotonic() - started) * MS_PER_S)
         span.set_attributes({f"zoya.{k}": v for k, v in timings.items()})
         span.set_attributes({"zoya.route": decision.route, "zoya.tool": decision.tool or ""})
     outcome = "stop" if decision.route == "stop" or spoken == STOPPED_MESSAGE else "success"
     declined = DECLINED in timings
-    if not declined:
-        events.emit(events.EarconEvent(outcome if ok or outcome == "stop" else "error"))
+    stopped_by_name = task is not None and task.cancel.is_set()  # the stop already spoke for it
+    if not declined and not stopped_by_name:
+        shared_done = ok and task is not None and task.shared and outcome == "success"
+        events.emit(
+            events.EarconEvent(
+                "complete" if shared_done else outcome if ok or outcome == "stop" else "error"
+            )
+        )
     streamed = STREAMED in timings
-    if (not streamed or not ok) and not declined:  # the orchestrator already spoke as it streamed
-        speech.narrate(spoken)
+    if (not streamed or not ok) and not declined and not stopped_by_name:
+        tasks.say(spoken)  # the orchestrator already spoke as it streamed
     if decision.route in ("fast", "skill") and not streamed:
         remember_turn(text, spoken)
     result = CommandResult(task_id, decision, spoken, ok, timings)
@@ -391,44 +423,52 @@ def handle_command(text: str, pre_timings: dict[str, int] | None = None) -> Comm
     return result
 
 
-# --- Voice-loop task functions (§9.2 semantics; one task at a time until Phase 6) ---------
+# --- Voice-loop task functions (§9.2, §9.13: several tasks through zoya/tasks.py) ------------
 
 
 def start_task(
     command: str,
     pre_timings: dict[str, int] | None = None,
     on_done: Callable[[CommandResult], None] | None = None,
-) -> threading.Thread:
-    """Run `command` in the background so the listener keeps hearing "Zoya, stop"."""
+) -> tasks.Task | None:
+    """Run `command` as a Task Manager task so the listener stays free. None = three are running
+    (the caller says tasks.FULL_MESSAGE)."""
 
-    def run() -> None:
+    def run(_task: tasks.Task) -> None:
         result = handle_command(command, pre_timings)
         if on_done:
             on_done(result)
 
-    worker = threading.Thread(target=run, name="zoya-task", daemon=True)
-    worker.start()
-    return worker
+    return tasks.spawn(command, run)
 
 
-def stop_task() -> str:
-    """Stop speech and the running task now (§11.3). Returns what to say."""
-    _cancel.set()
-    safety.cancel_pending()  # a confirmation waiting for "confirm" ends with no token
+tasks.set_runner(lambda command: start_task(command))  # queued commands start when a slot frees
+
+
+def stop_task(name: str = "") -> str:
+    """ "Zoya, stop": the task asking or last speaking, speech cut now (§11.3). With a name ("the
+    presentation", "everything"): only those tasks, and nobody else's speech or confirmation."""
+    if name.strip():
+        return tasks.stop(name)
+    said = tasks.stop_last()
+    if not tasks.running():
+        _cancel.set()
+        safety.cancel_pending()  # outside tasks: whatever confirmation waits ends with no token
     speech.cancel()
-    return STOPPED_MESSAGE
+    return said or STOPPED_MESSAGE
 
 
-def task_status() -> str:
-    with _running_lock:
-        commands = list(_running.values())
-    return f"I'm working on: {commands[0]}." if commands else IDLE_MESSAGE
+def task_status(name: str = "") -> str:
+    return tasks.task_status(name)
 
 
 def current_command() -> str:
-    """The command being worked on (one task at a time until Phase 6), for Flow 10 resume."""
-    with _running_lock:
-        return next(iter(_running.values()), "")
+    """The command of the task on this thread (else the newest), for Flow 10 resume."""
+    task = tasks.current()
+    if task is not None:
+        return task.command
+    running = tasks.running()
+    return running[-1].command if running else ""
 
 
 def model_calls(result: CommandResult) -> int:

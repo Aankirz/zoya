@@ -20,6 +20,11 @@ structure, not the prompt:
   the token is single use, dies after 60 s, and is bound to the sha256 of the spoken summary. The
   action recomputes its summary from the live page before it acts, so a changed page never
   matches.
+- **Tasks (Phase 6, §9.13)**: a confirmation belongs to the task that asked (zoya/tasks.py
+  ContextVar). One is pending at a time; a second task waits its turn (`waiting_confirmation`)
+  instead of speaking over it. The prompt names the task when others run and waits until the user
+  stops talking. A token only works for the task it was minted for; a cancel or stop is per task;
+  with several tasks running, a confirmation from outside any task is refused (fail closed).
 
 Strands docs: https://strandsagents.com/latest/documentation/docs/user-guide/concepts/agents/hooks/
 Source checked: strands/hooks/events.py BeforeToolCallEvent.cancel_tool; tools/_caller.py (direct
@@ -45,12 +50,13 @@ from typing import Any, Literal
 
 from strands.hooks import BeforeModelCallEvent, BeforeToolCallEvent, HookProvider, HookRegistry
 
-from zoya import aws, events
+from zoya import aws, events, tasks
 from zoya.config import (
     CONFIRM_PROMPTS,
     CONFIRM_REPLY_TIMEOUT_S,
     CONFIRM_SPEAK_TIMEOUT_S,
     CONFIRM_TOKEN_TTL_S,
+    CONFIRM_TURN_WAIT_S,
     CONFIRMATION_AUDIT_TABLE,
     CONFIRMATION_LOG,
     ECHO_TAIL_S,
@@ -65,6 +71,7 @@ log = logging.getLogger(__name__)
 RiskClass = Literal["free", "guarded", "confirm", "blocked"]
 Reply = Literal["confirm", "cancel", "unclear"]
 MS_PER_S = 1000
+TURN_POLL_S = 0.05
 
 # --- Risk registry (the harness permission layer) -----------------------------------------------
 
@@ -126,6 +133,18 @@ TOOL_RISK: dict[str, RiskClass] = {
     "ax_press": "guarded",
     "run_shortcut": "guarded",  # a user's shortcut can do anything: it always asks
     "computer_task": "guarded",  # its own agent runs the gate on every step
+    # Phase 6. Documents: files Zoya writes in ~/Documents/Zoya/ and read-backs are free (nothing
+    # leaves the Mac); sharing is a SEND and asks out loud inside the action (share.share_file).
+    "document_agent": "guarded",  # its own agent runs the gate on every step
+    "create_document": "free",
+    "create_table": "free",
+    "read_file_structure": "free",
+    "read_file_part": "free",
+    "edit_file_part": "free",  # only files Zoya made (office.zoya_file)
+    "open_file": "free",
+    "list_files": "free",
+    "share_file": "guarded",  # always require_confirmation inside, rebuilt before sending
+    "set_reminder": "free",  # speaks later; emails only the owner's own zoya-alerts topic
 }
 RISK_ORDER: dict[RiskClass, int] = {"free": 0, "guarded": 1, "confirm": 2, "blocked": 3}
 
@@ -711,11 +730,14 @@ def summary_hash(summary: str) -> str:
 class _Token:
     summary_hash: str
     issued_at: float
+    task_id: str  # the task whose confirmation minted it; useless to any other task
 
 
 @dataclass
 class _Pending:
     summary: str
+    task_id: str = ""
+    task_name: str = ""  # spoken before the summary when other tasks run ("Grocery order: …")
     spoken_hash: str = ""  # hash of the summary as it was actually spoken
     window_opened_at: float | None = None  # replies must start after this
     reply: Reply | None = None
@@ -732,8 +754,8 @@ _lock = threading.Lock()
 _tokens: dict[str, _Token] = {}
 _pending: _Pending | None = None
 _channel: _VoiceChannel | None = None
-_declined = False  # set once per task; the next model call is refused
-_task_id = ""
+_declined: set[str] = set()  # task ids whose confirmation was declined: no more model calls
+_task_id = ""  # the task outside a Task Manager task (tests, direct handle_command calls)
 _now: Callable[[], float] = time.monotonic
 
 
@@ -759,7 +781,7 @@ class _VoiceChannel:
             pending.reply = verdict
             if verdict == "confirm" and pending.spoken_hash == summary_hash(pending.summary):
                 token_id = secrets.token_hex(16)
-                _tokens[token_id] = _Token(pending.spoken_hash, _now())
+                _tokens[token_id] = _Token(pending.spoken_hash, _now(), pending.task_id)
                 pending.token_id = token_id
             pending.answered.set()
         return True
@@ -782,33 +804,55 @@ def awaiting_reply() -> bool:
 
 
 def consume_token(token_id: str | None, summary: str) -> bool:
-    """Single use (removed on first look), ≤ 60 s old, bound to exactly this summary."""
+    """Single use (removed on first look), ≤ 60 s old, bound to exactly this summary and task."""
     with _lock:
         token = _tokens.pop(token_id or "", None)
     if token is None or _now() - token.issued_at > CONFIRM_TOKEN_TTL_S:
         return False
+    if not secrets.compare_digest(token.task_id, current_task_id()):
+        return False
     return secrets.compare_digest(token.summary_hash, summary_hash(summary))
 
 
+def current_task_id() -> str:
+    task = tasks.current()
+    return task.id if task is not None else _task_id
+
+
 def begin_task(task_id: str) -> None:
-    """A new user command: forget the last task's cancel, drop any leftover tokens."""
-    global _declined, _task_id
+    """A new user command: forget this task's cancel, drop its leftover tokens. Other running
+    tasks keep theirs."""
+    global _task_id
     with _lock:
-        _declined, _task_id = False, task_id
-        _tokens.clear()
+        if tasks.current() is None:
+            _task_id = task_id
+        key = current_task_id()
+        _declined.discard(key)
+        for token_id in [i for i, token in _tokens.items() if token.task_id == key]:
+            del _tokens[token_id]
 
 
 def task_declined() -> bool:
-    return _declined
+    return current_task_id() in _declined
 
 
-def cancel_pending() -> None:
-    """ "Zoya, stop": a waiting confirmation ends now with no token."""
+def pending_task_id() -> str | None:
+    """The task whose confirmation holds the floor, or None."""
     with _lock:
-        if _pending is not None and _pending.answered is not None:
-            _pending.stopped = True
-            _pending.token_id = None
-            _pending.answered.set()
+        return _pending.task_id if _pending is not None else None
+
+
+def cancel_pending(task_id: str | None = None) -> None:
+    """A waiting confirmation ends now with no token. `task_id` given ("stop the presentation"):
+    only if that task's confirmation is the one waiting; another task's is never touched."""
+    with _lock:
+        if _pending is None or _pending.answered is None:
+            return
+        if task_id is not None and _pending.task_id != task_id:
+            return
+        _pending.stopped = True
+        _pending.token_id = None
+        _pending.answered.set()
 
 
 def _speaking() -> bool:
@@ -821,6 +865,7 @@ def _speaking() -> bool:
 
 NO_VOICE_MESSAGE = "I can only do that when you confirm by voice."
 BUSY_MESSAGE = "I'm already waiting for your answer on something else."
+NO_TASK_MESSAGE = "I can't tell which task this confirmation is for, so I didn't ask."
 ALREADY_DECLINED = "The user cancelled this action. Do not try again; tell them nothing happened."
 CANCELLED_SAY = "Cancelled. Nothing was done."
 TIMEOUT_SAY = "I didn't hear confirm, so I cancelled. Nothing was done."
@@ -837,10 +882,12 @@ def require_confirmation(action: Action, current: Callable[[], Action] | None = 
     to the token's. Raises ToolError (fixable: no voice, busy) or ConfirmationDeclined (the task
     ends: cancel, silence, stop, page changed). Returning means: act now, exactly once.
     """
-    if _declined:
+    if task_declined():
         raise ConfirmationDeclined(ALREADY_DECLINED)
     if _channel is None:
         raise ToolError(NO_VOICE_MESSAGE)
+    if tasks.current() is None and len(tasks.running()) > 1:
+        raise ToolError(NO_TASK_MESSAGE)  # can't tell which task is asking: never guess
     pending = _open(action.summary())
     started = _now()
     try:
@@ -854,18 +901,47 @@ def require_confirmation(action: Action, current: Callable[[], Action] | None = 
         if live is None or not consume_token(token_id, live.summary()):
             _decline(action, "changed")
         _audit(action, "confirmed")
-        events.emit(events.ConfirmationEvent(_task_id, action.summary(), "confirm"))
+        events.emit(events.ConfirmationEvent(current_task_id(), action.summary(), "confirm"))
     finally:
         _close(pending)
         _log_timing({"event": "confirmation", "wait_ms": round((_now() - started) * MS_PER_S)})
 
 
 def _open(summary: str) -> _Pending:
+    """Claim the one confirmation slot. Inside a task, wait (bounded, stoppable) while another
+    task's confirmation holds it; outside a task, busy is an error as before."""
+    task = tasks.current()
+    deadline = _now() + CONFIRM_TURN_WAIT_S
+    waited = False
+    try:
+        while True:
+            claimed = _try_open(summary, task)
+            if claimed is not None:
+                return claimed
+            if task is None or _now() > deadline:
+                raise ToolError(BUSY_MESSAGE)
+            if task.cancel.is_set():
+                raise ConfirmationDeclined(STOPPED_TO_MODEL)
+            if not waited:
+                tasks.set_status("waiting_confirmation", task)
+                waited = True
+            time.sleep(TURN_POLL_S)
+    finally:
+        if waited:
+            tasks.set_status("running", task)
+
+
+def _try_open(summary: str, task: tasks.Task | None) -> _Pending | None:
     global _pending
     with _lock:
         if _pending is not None:
-            raise ToolError(BUSY_MESSAGE)
-        _pending = _Pending(summary, answered=threading.Event())
+            return None
+        _pending = _Pending(
+            summary,
+            task_id=current_task_id(),
+            task_name=task.spoken_name() if task is not None and task.shared else "",
+            answered=threading.Event(),
+        )
         return _pending
 
 
@@ -880,12 +956,18 @@ def _close(pending: _Pending) -> None:
 
 def _ask(pending: _Pending) -> tuple[str | None, str]:
     """warning ×2 → summary → wait 20 s; unclear or silent → once more → auto-cancel."""
-    events.emit(events.ConfirmationEvent(_task_id, pending.summary, "pending"))
+    events.emit(events.ConfirmationEvent(pending.task_id, pending.summary, "pending"))
+    task = tasks.current()
+    tasks.mark_active(task)
+    name = f"{pending.task_name}: " if pending.task_name else ""
     for attempt in range(CONFIRM_PROMPTS):
-        prompt = ("" if attempt == 0 else REPROMPT_PREFIX) + pending.summary + ASK_SUFFIX
+        prompt = name + ("" if attempt == 0 else REPROMPT_PREFIX) + pending.summary + ASK_SUFFIX
         with _lock:
             pending.window_opened_at, pending.reply = None, None
             pending.answered.clear()
+        # §9.13: never over the user. Silence while they talk isn't consent: it's not asked yet.
+        if not tasks.wait_for_turn(pending.task_id, lambda: pending.stopped, CONFIRM_TURN_WAIT_S):
+            return None, "stop" if pending.stopped else "timeout"
         if not _speak_prompt(prompt) or pending.stopped:
             return None, "stop"
         with _lock:
@@ -914,18 +996,17 @@ def _speak_prompt(prompt: str) -> bool:
 
 def _decline(action: Action, outcome: str) -> None:
     """Every "no" path: cancel earcon, say what happened, audit, end the task."""
-    from zoya import audio, speech
+    from zoya import audio
 
-    global _declined
-    _declined = True
+    _declined.add(current_task_id())
     _audit(action, outcome)
     decision = "timeout" if outcome == "timeout" else "cancel"
-    events.emit(events.ConfirmationEvent(_task_id, action.summary(), decision))
+    events.emit(events.ConfirmationEvent(current_task_id(), action.summary(), decision))
     if outcome == "stop":
         raise ConfirmationDeclined(STOPPED_TO_MODEL)  # the stop path already played its earcon
     audio.earcon("cancel")
     said = {"timeout": TIMEOUT_SAY, "changed": CHANGED_SAY}.get(outcome, CANCELLED_SAY)
-    speech.narrate(said)
+    tasks.say(said)  # alone: spoken now; beside other tasks: named, after the user stops talking
     raise ConfirmationDeclined(said)
 
 
@@ -949,7 +1030,7 @@ class ConfirmationGate(HookProvider):
         if event.selected_tool is not None:
             names.add(event.selected_tool.tool_name)
         risk = max((risk_of(name) for name in names), key=RISK_ORDER.__getitem__)
-        if _declined:
+        if task_declined():
             event.cancel_tool = ALREADY_DECLINED
         elif risk == "blocked":
             event.cancel_tool = BLOCKED_MESSAGE
@@ -961,7 +1042,7 @@ class ConfirmationGate(HookProvider):
                 event.cancel_tool = str(refused)
 
     def before_model(self, _event: BeforeModelCallEvent) -> None:
-        if _declined:
+        if task_declined():
             raise ConfirmationDeclined(ALREADY_DECLINED)
 
 
@@ -977,7 +1058,7 @@ def _audit(action: Action, decision: str) -> None:
     item = {
         "confirmation_id": uuid.uuid4().hex,
         "at": datetime.now(UTC).isoformat(timespec="milliseconds"),
-        "task_id": _task_id,
+        "task_id": current_task_id(),
         "action": redact(action.say),
         "amount": redact(action.amount),
         "recipient_or_item": redact(action.target),
@@ -1026,7 +1107,8 @@ def log_safety_timing(**record: Any) -> None:
 
 
 def _reset_for_tests() -> None:
-    global _pending, _channel, _declined, _task_id, _now
+    global _pending, _channel, _task_id, _now
     with _lock:
         _tokens.clear()
-        _pending, _channel, _declined, _task_id, _now = None, None, False, "", time.monotonic
+        _declined.clear()
+        _pending, _channel, _task_id, _now = None, None, "", time.monotonic

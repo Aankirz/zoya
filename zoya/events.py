@@ -38,8 +38,11 @@ EarconKind = Literal[
     "purchase",
     "checkpoint",
     "blocked",
+    # Phase 6 (§9.13): a command queued behind three tasks; a task finished beside others.
+    "queued",
+    "complete",
 ]
-TaskStatus = Literal["started", "running", "done", "failed", "cancelled"]
+TaskStatus = Literal["started", "running", "done", "failed", "cancelled", "queued"]
 Route = Literal["fast", "orchestrator", "stop", "skill"]
 
 

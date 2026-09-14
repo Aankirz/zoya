@@ -1,0 +1,345 @@
+"""Task Manager × safety gate (D37, D61, §9.13): tasks never share or steal a confirmation.
+
+Each test is a way a silent bug lets one task's "confirm" (or "stop") act on another task: a
+purchase confirmed by a word meant for the presentation, a stop that cancels the grocery order,
+a prompt spoken over the user.
+"""
+
+from __future__ import annotations
+
+import contextvars
+import threading
+import time
+from decimal import Decimal
+from types import SimpleNamespace
+
+import pytest
+
+from zoya import orchestrator, safety, tasks
+from zoya.tools import ToolError
+
+ORDER = safety.Action("purchase", "Place order", "3 grocery items", "412 rupees")
+WAIT_S = 2.0
+
+
+@pytest.fixture(autouse=True)
+def gate(monkeypatch):
+    safety._reset_for_tests()
+    tasks._reset_for_tests()
+    record = {"prompts": [], "said": [], "audit": []}
+    monkeypatch.setattr(safety, "CONFIRM_REPLY_TIMEOUT_S", 0.5)
+    monkeypatch.setattr(safety, "ECHO_TAIL_S", 0.0)
+    monkeypatch.setattr(safety, "TURN_POLL_S", 0.01)
+    monkeypatch.setattr(tasks, "ANNOUNCE_POLL_S", 0.01)
+    monkeypatch.setattr(safety, "_speaking", lambda: False)
+    monkeypatch.setattr(safety, "_speak_prompt", lambda p: record["prompts"].append(p) or True)
+    monkeypatch.setattr(safety, "_audit", lambda action, decision: record["audit"].append(decision))
+    monkeypatch.setattr(safety, "_log_timing", lambda _record: None)
+    from zoya import audio, speech
+
+    monkeypatch.setattr(audio, "earcon", lambda _kind: None)
+    monkeypatch.setattr(speech, "narrate", record["said"].append)
+    yield record
+    safety._reset_for_tests()
+    tasks._reset_for_tests()
+
+
+def _task(name: str, shared: bool = True) -> tasks.Task:
+    task = tasks.Task(f"id-{name.replace(' ', '-')}", name, f"do the {name}", shared=shared)
+    tasks._tasks[task.id] = task
+    return task
+
+
+def _in_task(task: tasks.Task | None, fn, *args):
+    """Run fn in `task`'s context on a thread, as Strands runs tools. Returns thread, outcome."""
+    outcome: dict = {}
+
+    def run():
+        if task is not None:
+            tasks._current.set(task)
+        try:
+            outcome["result"] = fn(*args)
+        except Exception as error:  # noqa: BLE001 — the test inspects it
+            outcome["result"] = error
+
+    thread = threading.Thread(target=contextvars.Context().run, args=(run,), daemon=True)
+    thread.start()
+    return thread, outcome
+
+
+def _confirm(action=ORDER):
+    safety.require_confirmation(action)
+    return "confirmed"
+
+
+def _wait(predicate, timeout=WAIT_S):
+    deadline = time.monotonic() + timeout
+    while not predicate():
+        assert time.monotonic() < deadline, "condition never became true"
+        time.sleep(0.005)
+
+
+def _answer(channel, text):
+    _wait(safety.awaiting_reply)
+    return channel.reply(text, heard_from=time.monotonic())
+
+
+# --- Tokens are bound to their task -------------------------------------------------------------
+
+
+def test_a_token_minted_for_one_task_is_useless_to_another():
+    grocery, presentation = _task("grocery order"), _task("presentation")
+    channel = safety.claim_voice_channel()
+    minted: dict = {}
+
+    def mint():
+        pending = safety._open(ORDER.summary())
+        pending.spoken_hash = safety.summary_hash(ORDER.summary())
+        pending.window_opened_at = time.monotonic()
+        assert channel.reply("confirm", heard_from=time.monotonic())
+        minted["token"] = pending.token_id
+        safety._pending = None  # leave the token alive for the other task to try
+
+    thread, _ = _in_task(grocery, mint)
+    thread.join(WAIT_S)
+    thread, outcome = _in_task(presentation, safety.consume_token, minted["token"], ORDER.summary())
+    thread.join(WAIT_S)
+
+    assert outcome["result"] is False
+
+
+def test_the_same_token_works_for_its_own_task():
+    grocery = _task("grocery order")
+    channel = safety.claim_voice_channel()
+    thread, outcome = _in_task(grocery, _confirm)
+
+    _answer(channel, "confirm")
+    thread.join(WAIT_S)
+
+    assert outcome["result"] == "confirmed"
+
+
+def test_a_decline_in_one_task_does_not_block_another():
+    grocery, presentation = _task("grocery order"), _task("presentation")
+    channel = safety.claim_voice_channel()
+    thread, _ = _in_task(grocery, _confirm)
+    _answer(channel, "cancel")
+    thread.join(WAIT_S)
+
+    thread, outcome = _in_task(presentation, safety.task_declined)
+    thread.join(WAIT_S)
+
+    assert outcome["result"] is False
+
+
+def test_outside_any_task_with_several_running_nothing_is_asked(gate):
+    _task("grocery order"), _task("presentation")
+    safety.claim_voice_channel()
+
+    with pytest.raises(ToolError):
+        safety.require_confirmation(ORDER)
+    assert gate["prompts"] == []
+
+
+# --- One pending confirmation; the second waits its turn ----------------------------------------
+
+
+def test_a_second_confirmation_waits_and_never_takes_the_first_ones_confirm(gate):
+    grocery, presentation = _task("grocery order"), _task("presentation")
+    channel = safety.claim_voice_channel()
+    share = safety.Action("send", "email a link to deck.pptx", target="your sister")
+    first, first_outcome = _in_task(grocery, _confirm)
+    _wait(safety.awaiting_reply)
+    second, second_outcome = _in_task(presentation, _confirm, share)
+    _wait(lambda: presentation.status == "waiting_confirmation")
+
+    _answer(channel, "confirm")  # heard while the grocery order was the one asking
+    first.join(WAIT_S)
+
+    assert first_outcome["result"] == "confirmed"
+    _wait(lambda: len(gate["prompts"]) == 2)
+    assert gate["prompts"][1].startswith("Presentation: ")
+    assert "result" not in second_outcome  # still waiting for its own answer
+    _answer(channel, "cancel")
+    second.join(WAIT_S)
+    assert isinstance(second_outcome["result"], safety.ConfirmationDeclined)
+
+
+def test_the_prompt_names_the_task_and_waits_until_the_user_stops_talking(gate):
+    grocery = _task("grocery order")
+    talking = {"on": True}
+    tasks.user_speaking = lambda: talking["on"]
+    safety.claim_voice_channel()
+    thread, _ = _in_task(grocery, _confirm)
+
+    time.sleep(0.1)
+    assert gate["prompts"] == []  # never over the user
+    talking["on"] = False
+    _wait(lambda: gate["prompts"])
+
+    assert gate["prompts"][0].startswith("Grocery order: I'm about to place order")
+    safety.cancel_pending(grocery.id)
+    thread.join(WAIT_S)
+
+
+# --- Stop is per task ----------------------------------------------------------------------------
+
+
+def test_stopping_the_presentation_leaves_the_grocery_confirmation_waiting(gate):
+    grocery, presentation = _task("grocery order"), _task("presentation")
+    channel = safety.claim_voice_channel()
+    thread, outcome = _in_task(grocery, _confirm)
+    _wait(safety.awaiting_reply)
+
+    said = tasks.stop("the presentation")
+
+    assert said == "Stopped the presentation."
+    assert presentation.cancel.is_set() and not grocery.cancel.is_set()
+    assert safety.awaiting_reply() and "result" not in outcome
+    _answer(channel, "confirm")
+    thread.join(WAIT_S)
+    assert outcome["result"] == "confirmed"
+
+
+def test_stopping_one_task_never_confirms_another(gate):
+    grocery, _presentation = _task("grocery order"), _task("presentation")
+    safety.claim_voice_channel()
+    thread, outcome = _in_task(grocery, _confirm)
+    _wait(safety.awaiting_reply)
+
+    tasks.stop("presentation")
+    safety.cancel_pending(grocery.id)  # then the user stops the grocery order too
+    thread.join(WAIT_S)
+
+    assert isinstance(outcome["result"], safety.ConfirmationDeclined)
+    assert "confirmed" not in gate["audit"]
+
+
+def test_bare_stop_targets_the_task_whose_confirmation_is_waiting():
+    grocery, presentation = _task("grocery order"), _task("presentation")
+    tasks.mark_active(presentation)  # the presentation spoke last…
+    safety.claim_voice_channel()
+    thread, _ = _in_task(grocery, _confirm)
+    _wait(safety.awaiting_reply)
+
+    assert tasks.stop_target() is grocery  # …but "Zoya, stop" hears the one asking
+    safety.cancel_pending(grocery.id)
+    thread.join(WAIT_S)
+
+
+def test_an_ambiguous_stop_asks_which_task():
+    _task("grocery order"), _task("medicine order")
+
+    assert tasks.stop("the order") == "The grocery order or the medicine order?"
+    assert not any(task.cancel.is_set() for task in tasks.running())
+
+
+def test_stop_everything_stops_all_tasks():
+    grocery, presentation = _task("grocery order"), _task("presentation")
+
+    tasks.stop("everything")
+
+    assert grocery.cancel.is_set() and presentation.cancel.is_set()
+
+
+# --- Task-named answers ---------------------------------------------------------------------------
+
+
+def test_a_reply_naming_another_task_is_not_an_answer():
+    grocery, _presentation = _task("grocery order"), _task("presentation")
+
+    assert tasks.answer_for("confirm the presentation", grocery.id) is None
+    assert tasks.answer_for("cancel the presentation", grocery.id) is None
+
+
+def test_a_reply_naming_the_waiting_task_is_its_answer():
+    grocery, _presentation = _task("grocery order"), _task("presentation")
+
+    assert safety.classify_reply(tasks.answer_for("confirm the grocery order", grocery.id)) == (
+        "confirm"
+    )
+    assert tasks.answer_for("confirm", grocery.id) == "confirm"
+
+
+# --- Limits: 3 tasks, one money cap per task ------------------------------------------------------
+
+
+def test_a_fourth_task_is_offered_the_queue_and_starts_when_a_slot_frees():
+    started, release = [], threading.Event()
+    tasks.set_runner(lambda command: tasks.spawn(command, lambda t: started.append(t.name)))
+    for command in ("make a presentation", "order groceries", "make an excel sheet"):
+        assert tasks.spawn(command, lambda _t: release.wait(WAIT_S)) is not None
+
+    assert tasks.spawn("remind me to drink water", lambda _t: None) is None
+    assert tasks.answer_offer() == tasks.QUEUED_MESSAGE
+    release.set()
+    _wait(lambda: "reminder" in started)
+    tasks.set_runner(lambda command: orchestrator.start_task(command))
+
+
+def test_agents_of_one_task_share_one_cost_cap():
+    task = _task("presentation")
+    brain = orchestrator.TaskLimits("gpt-5.6-terra", cost_cap_usd=0.50)
+    document = orchestrator.TaskLimits("gpt-5.6-terra", cost_cap_usd=0.50)
+
+    def usage(tokens):
+        metrics = SimpleNamespace(accumulated_usage={"inputTokens": tokens, "outputTokens": 0})
+        return SimpleNamespace(agent=SimpleNamespace(event_loop_metrics=metrics))
+
+    def run():
+        brain._record(usage(150_000))  # $0.30
+        document._check_limits(usage(150_000))  # its own $0.30 → task total $0.60
+
+    thread, outcome = _in_task(task, run)
+    thread.join(WAIT_S)
+
+    assert isinstance(outcome["result"], orchestrator.TaskLimitExceeded)
+    assert task.spent_usd == pytest.approx(0.60)
+
+
+# --- Announcements --------------------------------------------------------------------------------
+
+
+def test_announcements_wait_for_another_tasks_confirmation_and_carry_the_name(gate):
+    grocery, presentation = _task("grocery order"), _task("presentation")
+    safety.claim_voice_channel()
+    thread, _ = _in_task(grocery, _confirm)
+    _wait(safety.awaiting_reply)
+
+    tasks.say("Ready, 6 slides.", presentation)
+    time.sleep(0.1)
+    assert gate["said"] == []  # the grocery order holds the floor
+    safety.cancel_pending(grocery.id)
+    thread.join(WAIT_S)
+
+    _wait(lambda: "Presentation: Ready, 6 slides." in gate["said"])
+
+
+def test_a_stopped_task_announces_nothing_more(gate):
+    presentation = _task("presentation")
+    presentation.cancel.set()
+
+    tasks.say("Slide 4 done.", presentation)
+    time.sleep(0.1)
+
+    assert gate["said"] == []
+
+
+def test_share_and_documents_are_registered_and_sending_is_never_free():
+    assert safety.risk_of("share_file") == "guarded"
+    assert safety.risk_of("document_agent") == "guarded"
+    assert safety.risk_of("set_reminder") == "free"
+
+
+def test_names_for_spoken_commands():
+    assert tasks.name_for("Make a 6-slide presentation on renewable energy") == "presentation"
+    assert tasks.name_for("order my usual groceries from Amazon") == "grocery order"
+    assert tasks.name_for("make an Excel sheet of my monthly expenses") == "spreadsheet"
+
+
+def test_money_parser_used_for_sheet_totals():
+    from zoya.tools.office import to_number
+
+    assert to_number("₹1,200.50") == Decimal("1200.50")
+    assert to_number("Rs 300") == Decimal("300")
+    assert to_number("rent") is None
