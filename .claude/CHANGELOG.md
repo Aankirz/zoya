@@ -211,3 +211,6 @@
 
 ## 2026-09-14 — Phase 6 review fixes
 - Formula-looking spreadsheet text stored as text (xlsx) / apostrophe-prefixed (csv); outside-task confirmations refused while any task runs; reminder caps (5 per command, 20 active).
+
+## 2026-09-14 — Phase 6 AWS resources + managed IAM policy (D68)
+- Created zoya-reminders schedule group, zoya-scheduler-sns role, zoya-shared bucket, zoya-shares topic; moved zoya-app to a managed policy (inline 2,048-byte limit).
