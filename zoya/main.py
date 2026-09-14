@@ -48,6 +48,19 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def _warm_browser() -> None:
+    """§9.7: launch the Zoya Chrome profile once at startup (first skill 7.1 s cold vs 0.7 s warm),
+    plus the skill catalogue and trigger index."""
+    from zoya import harness
+    from zoya.tools import ToolError, browser
+
+    harness.trigger_index()
+    try:
+        browser.on_page(lambda _page: None)
+    except ToolError as error:
+        print(f"Zoya's browser didn't start: {error}")
+
+
 def _start(args: argparse.Namespace):  # noqa: ANN202 — returns VoiceLoop, imported lazily
     started = time.monotonic()
     from zoya import audio, aws
@@ -59,6 +72,8 @@ def _start(args: argparse.Namespace):  # noqa: ANN202 — returns VoiceLoop, imp
     print(f"tracing: {setup_tracing()}")
     audio.engine()
     _warm_up()
+    if not args.page:  # --page launches it right away below
+        threading.Thread(target=_warm_browser, name="zoya-browser-warm", daemon=True).start()
     loop = VoiceLoop(
         wake_enabled=not args.no_wake, test_wake=args.test_wake, record_clips=args.record_clips
     )
