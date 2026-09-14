@@ -86,6 +86,8 @@ ERROR_KINDS = {"error", "blocked"}
 STOP_KINDS = {"stop", "cancel"}
 
 _child: subprocess.Popen | None = None
+_presence = False
+CONTROLS_ONLY_ARG = "--controls-only"
 _queue: queue.Queue[str] = queue.Queue(QUEUE_MAX)
 
 
@@ -105,13 +107,18 @@ def caption_text(text: str) -> str:
     return clean if len(clean) <= CAPTION_MAX_CHARS else clean[: CAPTION_MAX_CHARS - 1] + "…"
 
 
-def running() -> bool:
+def _alive() -> bool:
     return _child is not None and _child.poll() is None
+
+
+def running() -> bool:
+    """The stage presence is showing (not just the menu-bar controls)."""
+    return _presence and _alive()
 
 
 def pids() -> set[int]:
     """The overlay's pid while it runs: every screen capture leaves its windows out."""
-    return {_child.pid} if running() and _child is not None else set()
+    return {_child.pid} if _alive() and _child is not None else set()
 
 
 def _send(message: dict[str, Any]) -> None:
@@ -201,21 +208,42 @@ def _write_loop(child: subprocess.Popen) -> None:
             return
 
 
-def start() -> str:
-    """Launch the overlay and subscribe it to Zoya's events."""
-    global _child
-    if running():
+def _read_commands(child: subprocess.Popen) -> None:
+    """The overlay's menu-bar item and quit key send {"cmd": "stop" | "quit"} lines back."""
+    from zoya import shutdown
+
+    actions = {"stop": shutdown.stop, "quit": shutdown.quit_zoya}
+    for line in child.stdout:
+        try:
+            action = actions.get(json.loads(line).get("cmd"))
+        except (json.JSONDecodeError, AttributeError):
+            continue
+        if action:
+            threading.Thread(target=action, name="zoya-overlay-command", daemon=True).start()
+
+
+def start(presence: bool = True) -> str:
+    """Launch the overlay child. It always carries the menu-bar Stop / Quit and the quit key;
+    with `presence` it also shows the stage overlay, subscribed to Zoya's events."""
+    global _child, _presence
+    if _alive():
         return "on"
+    _presence = presence
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     stderr = OVERLAY_LOG.open("a", encoding="utf-8")
     _child = subprocess.Popen(
-        [sys.executable, "-m", "zoya.overlay"],
+        [sys.executable, "-m", "zoya.overlay", *([] if presence else [CONTROLS_ONLY_ARG])],
         stdin=subprocess.PIPE,
-        stdout=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
         stderr=stderr,
         text=True,
     )
     threading.Thread(target=_write_loop, args=(_child,), name="zoya-overlay", daemon=True).start()
+    threading.Thread(
+        target=_read_commands, args=(_child,), name="zoya-overlay-commands", daemon=True
+    ).start()
+    if not presence:
+        return f"controls only (pid {_child.pid})"
     for name in (events.NARRATE, events.EARCON, events.TASK, events.CONFIRMATION, events.OVERLAY):
         events.subscribe(name, _on_event)
     return f"on (pid {_child.pid}, log {OVERLAY_LOG})"
@@ -224,4 +252,4 @@ def start() -> str:
 if __name__ == "__main__":
     from zoya.overlay_app import run
 
-    sys.exit(run())
+    sys.exit(run(controls_only=CONTROLS_ONLY_ARG in sys.argv))

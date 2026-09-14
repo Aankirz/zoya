@@ -67,6 +67,97 @@ LABELS = {
 }
 
 
+QUIT_KEY_CODE = 53  # Esc
+QUIT_FLAGS = AppKit.NSEventModifierFlagControl | AppKit.NSEventModifierFlagShift
+CHORD_FLAGS = QUIT_FLAGS | AppKit.NSEventModifierFlagOption | AppKit.NSEventModifierFlagCommand
+HIT_ALPHA = 0.01  # fully clear pixels pass clicks through; this keeps the pet's square clickable
+FOLLOW_POINTER_S = 1.0  # the overlay moves to the display the pointer is on
+STATUS_SYMBOL = "circle.fill"
+
+
+def send_command(command: str) -> None:
+    """Tell Zoya (the parent) to stop or quit: one JSON line on our stdout."""
+    print(json.dumps({"cmd": command}), flush=True)
+
+
+class Controls(AppKit.NSObject):
+    """Menu-bar item (Stop, Quit Zoya) and the Control + Shift + Esc quit key. The status item's
+    menu never activates this app, and the overlay panels stay click-through."""
+
+    def install(self) -> Any:
+        bar = AppKit.NSStatusBar.systemStatusBar()
+        self.item = bar.statusItemWithLength_(AppKit.NSSquareStatusItemLength)
+        image = AppKit.NSImage.imageWithSystemSymbolName_accessibilityDescription_(
+            STATUS_SYMBOL, "Zoya"
+        )
+        image.setTemplate_(True)
+        self.item.button().setImage_(image)
+        self.item.button().setToolTip_("Zoya")
+        menu = AppKit.NSMenu.alloc().init()
+        for title, action in (("Stop", "stop:"), (None, None), ("Quit Zoya", "quitZoya:")):
+            if title is None:
+                menu.addItem_(AppKit.NSMenuItem.separatorItem())
+                continue
+            entry = menu.addItemWithTitle_action_keyEquivalent_(title, action, "")
+            entry.setTarget_(self)
+        quit_entry = menu.itemAtIndex_(2)
+        quit_entry.setKeyEquivalent_("\x1b")
+        quit_entry.setKeyEquivalentModifierMask_(QUIT_FLAGS)  # shown in the menu, handled below
+        self.item.setMenu_(menu)
+        if not ApplicationServices.AXIsProcessTrusted():  # global key monitors need it
+            print("overlay: no Accessibility access, Control + Shift + Esc is off", file=sys.stderr)
+        self.monitor = AppKit.NSEvent.addGlobalMonitorForEventsMatchingMask_handler_(
+            AppKit.NSEventMaskKeyDown, self.keyDown_
+        )
+        return self
+
+    def keyDown_(self, event: Any) -> None:  # noqa: N802 — AppKit naming
+        flags = event.modifierFlags() & CHORD_FLAGS
+        if event.keyCode() == QUIT_KEY_CODE and flags == QUIT_FLAGS:
+            send_command("quit")
+
+    def stop_(self, _sender: Any) -> None:
+        send_command("stop")
+
+    def quitZoya_(self, _sender: Any) -> None:  # noqa: N802
+        send_command("quit")
+
+
+class PetButton(AppKit.NSView):
+    """An invisible, clickable square over the pet: a click (or VoiceOver press) opens the Stop /
+    Quit menu without activating the app. Its panel turns click-through while Zoya acts."""
+
+    def acceptsFirstMouse_(self, _event: Any) -> bool:  # noqa: N802 — AppKit override
+        return True
+
+    def mouseDown_(self, event: Any) -> None:  # noqa: N802
+        self.open_menu(self.convertPoint_fromView_(event.locationInWindow(), None))
+
+    def open_menu(self, point: Any) -> None:
+        self.zoya_menu.popUpMenuPositioningItem_atLocation_inView_(None, point, self)
+
+    def isAccessibilityElement(self) -> bool:  # noqa: N802
+        return True
+
+    def accessibilityRole(self) -> str:  # noqa: N802
+        return AppKit.NSAccessibilityButtonRole
+
+    def accessibilityLabel(self) -> str:  # noqa: N802
+        return "Zoya. Stop or quit"
+
+    def accessibilityPerformPress(self) -> bool:  # noqa: N802
+        self.open_menu((PET_PT / 2, PET_PT / 2))
+        return True
+
+
+def _pointer_screen() -> Any:
+    point = AppKit.NSEvent.mouseLocation()
+    for screen in AppKit.NSScreen.screens():
+        if AppKit.NSPointInRect(point, screen.frame()):
+            return screen
+    return AppKit.NSScreen.mainScreen()
+
+
 class OverlayPanel(AppKit.NSPanel):
     def canBecomeKeyWindow(self) -> bool:  # noqa: N802 — AppKit override
         return False
@@ -149,14 +240,12 @@ def _animate(
 class Presence:
     """The pet, its caption bubble and the action ring. All methods run on the main thread."""
 
-    def __init__(self) -> None:
+    def __init__(self, menu: Any) -> None:
         self.reduce_motion, self.reduce_transparency, self.contrast = _accessibility()
-        visible = AppKit.NSScreen.mainScreen().visibleFrame()
-        origin = (
-            visible.origin.x + visible.size.width - WINDOW_W_PT - SCREEN_INSET_PT,
-            visible.origin.y + SCREEN_INSET_PT,
-        )
-        self.panel = _panel((origin, (WINDOW_W_PT, WINDOW_H_PT)))
+        self.panel = _panel(((0, 0), (WINDOW_W_PT, WINDOW_H_PT)))
+        self.hit = self._pet_button(menu)
+        self.screen_name = ""
+        self.follow_pointer()
         root = AppKit.NSView.alloc().initWithFrame_(((0, 0), (WINDOW_W_PT, WINDOW_H_PT)))
         root.setWantsLayer_(True)
         # Review aid: ZOYA_OVERLAY_SPEED=0.1 replays every animation at 10 % speed.
@@ -182,6 +271,39 @@ class Presence:
         self.bubble.setAlphaValue_(0.0)
         self.show()  # first show: no animation
         self.panel.orderFrontRegardless()  # visible without activating Zoya
+        self.hit.orderFrontRegardless()
+
+    def _pet_button(self, menu: Any) -> Any:
+        panel = _panel(((0, 0), (PET_PT, PET_PT)))
+        panel.setBackgroundColor_(AppKit.NSColor.whiteColor().colorWithAlphaComponent_(HIT_ALPHA))
+        button = PetButton.alloc().initWithFrame_(((0, 0), (PET_PT, PET_PT)))
+        button.zoya_menu = menu
+        panel.setContentView_(button)
+        return panel
+
+    def _update_hit(self) -> None:
+        """Click-through whenever the agent may click: while acting and while a ring is up."""
+        self.hit.setIgnoresMouseEvents_(self.base[0] == "acting" or bool(self.rings))
+
+    def follow_pointer(self) -> None:
+        """Sit in the bottom-right corner of the display the pointer is on (the one in use). It
+        used to stay on the launch-time main screen, out of sight on a second display."""
+        screen = _pointer_screen()
+        visible = screen.visibleFrame()
+        origin = (
+            visible.origin.x + visible.size.width - WINDOW_W_PT - SCREEN_INSET_PT,
+            visible.origin.y + SCREEN_INSET_PT,
+        )
+        current = self.panel.frame().origin
+        if (current.x, current.y) != origin:
+            self.panel.setFrameOrigin_(origin)
+            self.hit.setFrameOrigin_(
+                (origin[0] + WINDOW_W_PT - SHADOW_ROOM_PT - PET_PT, origin[1] + SHADOW_ROOM_PT)
+            )
+        if screen.localizedName() != self.screen_name:
+            self.screen_name = screen.localizedName()
+            print(f"overlay: on {self.screen_name} at {tuple(origin)}", file=sys.stderr, flush=True)
+        AppHelper.callLater(FOLLOW_POINTER_S, self.follow_pointer)
 
     def _secondary(self) -> Any:
         return (
@@ -257,6 +379,7 @@ class Presence:
             label = step  # already a plain verb ("Clicking", "Recalling")
         self.label.setStringValue_(f"{task} · {label}" if task else label)
         self.pet.set_state(state)
+        self._update_hit()
         self._layout_bubble()
         visible = state != "idle"
         if visible:
@@ -333,6 +456,7 @@ class Presence:
         if not self.reduce_motion:
             _animate(layer, "transform.scale", 1.0, RING_ENTER_S, start=RING_ENTER_SCALE)
         self.rings.append(panel)
+        self._update_hit()
         AppHelper.callLater(RING_SHOW_S, self._fade_ring, panel, layer)
 
     def _fade_ring(self, panel: Any, layer: Any) -> None:
@@ -343,16 +467,18 @@ class Presence:
         panel.orderOut_(None)
         if panel in self.rings:
             self.rings.remove(panel)
+        self._update_hit()
 
 
-def _read_stdin(presence: Presence) -> None:
+def _read_stdin(presence: Presence | None) -> None:
     for line in sys.stdin:
         try:
             message = json.loads(line)
         except json.JSONDecodeError:
             continue
-        AppHelper.callAfter(presence.apply, message)
-    latencies = presence.latencies_ms
+        if presence is not None:
+            AppHelper.callAfter(presence.apply, message)
+    latencies = presence.latencies_ms if presence is not None else []
     if latencies:  # printed here: stopping the AppKit loop exits without flushing Python
         print(
             f"overlay: {len(latencies)} updates, event→applied median "
@@ -363,10 +489,11 @@ def _read_stdin(presence: Presence) -> None:
     AppHelper.callAfter(AppHelper.stopEventLoop)  # Zoya quit or crashed: the pipe closed
 
 
-def run() -> int:
+def run(controls_only: bool = False) -> int:
     app = AppKit.NSApplication.sharedApplication()
     app.setActivationPolicy_(AppKit.NSApplicationActivationPolicyAccessory)  # no Dock, no focus
-    presence = Presence()
+    controls = Controls.alloc().init().install()
+    presence = None if controls_only else Presence(controls.item.menu())
     threading.Thread(
         target=_read_stdin, args=(presence,), name="overlay-stdin", daemon=True
     ).start()

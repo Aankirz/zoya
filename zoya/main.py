@@ -10,7 +10,8 @@ Usage:
   python -m zoya.main --login                 # sign in once: Amazon.in, YouTube, Spotify, Gmail
   python -m zoya.main --order-limit 300       # Done-when #5 test run: never offer a bigger order
   python -m zoya.main --overlay               # stage overlay: presence, captions, action ring
-Every stage's timing is printed and appended to logs/timing.log. Ctrl+C quits.
+Every stage's timing is printed and appended to logs/timing.log. Quit: Control + Shift + Esc,
+the Zoya menu-bar item, or Ctrl+C.
 """
 
 from __future__ import annotations
@@ -72,10 +73,9 @@ def _start(args: argparse.Namespace):  # noqa: ANN202 — returns VoiceLoop, imp
 
     print(f"keys: {aws.load_provider_secrets()}")
     print(f"tracing: {setup_tracing()}")
-    if args.overlay:
-        from zoya import overlay
+    from zoya import overlay
 
-        print(f"overlay: {overlay.start()}")
+    print(f"overlay: {overlay.start(presence=args.overlay)}")  # menu-bar Stop / Quit always
     audio.engine()
     _warm_up()
     if not args.page:  # --page launches it right away below
@@ -141,11 +141,12 @@ def main(argv: list[str] | None = None) -> int:
     except ModelsMissing as missing:
         print(f"Zoya can't start: {missing}")
         return 1
+    from zoya.shutdown import QUIT_KEYS_LABEL
     from zoya.voice import push_to_talk_label
 
     keys = push_to_talk_label()
     wake = f"off — hold {keys} to talk" if args.no_wake else f'say "Hey Zoya", or hold {keys}'
-    print(f"Listening ({wake}). Ctrl+C quits.")
+    print(f"Listening ({wake}). Quit: {QUIT_KEYS_LABEL}, the menu bar, or Ctrl+C.")
     audio.earcon("listening")
     stop_event = threading.Event()
     try:
