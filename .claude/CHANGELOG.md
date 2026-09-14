@@ -220,3 +220,6 @@
 
 ## 2026-09-14 — Barge-in enabled
 - AEC_ENABLED=True after the owner stop-clip replay (6->8/10) and wake-over-music replay (13->16/21); D62 updated; live run pending
+
+## 2026-09-14 — Phase 7 AWS + sister share subscription
+- zoya-app managed policy v2 (X-Ray spans), zoya-stage dashboard, Transaction Search (logs resource policy + X-Ray → CloudWatch Logs), sister email subscribed to zoya-shares with recipient filter (pending her confirm).
