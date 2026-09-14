@@ -1,0 +1,1281 @@
+{
+  "router_model": "gpt-5.6-luna",
+  "system": {
+    "total": 40,
+    "correct": 40,
+    "accuracy": 1.0,
+    "answered_by_rules": 22,
+    "median_latency_ms": 0.0,
+    "p90_latency_ms": 4233,
+    "rows": [
+      {
+        "utterance": "open Spotify",
+        "expected": {
+          "route": "fast",
+          "tool": "open_app"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "open_app",
+          "args": {
+            "app_name": "Spotify"
+          },
+          "source": "rules"
+        },
+        "latency_ms": 0,
+        "correct": true
+      },
+      {
+        "utterance": "Hey Zoya, open WhatsApp please",
+        "expected": {
+          "route": "fast",
+          "tool": "open_app"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "open_app",
+          "args": {
+            "app_name": "WhatsApp"
+          },
+          "source": "rules"
+        },
+        "latency_ms": 0,
+        "correct": true
+      },
+      {
+        "utterance": "uh, open the, the Notes app",
+        "expected": {
+          "route": "fast",
+          "tool": "open_app"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "open_app",
+          "args": {
+            "app_name": "Notes"
+          },
+          "source": "model"
+        },
+        "latency_ms": 5072,
+        "correct": true
+      },
+      {
+        "utterance": "Can you launch Safari",
+        "expected": {
+          "route": "fast",
+          "tool": "open_app"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "open_app",
+          "args": {
+            "app_name": "Safari"
+          },
+          "source": "rules"
+        },
+        "latency_ms": 0,
+        "correct": true
+      },
+      {
+        "utterance": "Spotify khol do",
+        "expected": {
+          "route": "fast",
+          "tool": "open_app"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "open_app",
+          "args": {
+            "app_name": "Spotify"
+          },
+          "source": "rules"
+        },
+        "latency_ms": 0,
+        "correct": true
+      },
+      {
+        "utterance": "Mail khol do zara",
+        "expected": {
+          "route": "fast",
+          "tool": "open_app"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "open_app",
+          "args": {
+            "app_name": "Mail"
+          },
+          "source": "rules"
+        },
+        "latency_ms": 0,
+        "correct": true
+      },
+      {
+        "utterance": "Chrome open kardo",
+        "expected": {
+          "route": "fast",
+          "tool": "open_app"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "open_app",
+          "args": {
+            "app_name": "Chrome"
+          },
+          "source": "rules"
+        },
+        "latency_ms": 0,
+        "correct": true
+      },
+      {
+        "utterance": "स्पॉटिफाई खोलो",
+        "expected": {
+          "route": "fast",
+          "tool": "open_app"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "open_app",
+          "args": {
+            "app_name": "Spotify"
+          },
+          "source": "model"
+        },
+        "latency_ms": 1790,
+        "correct": true
+      },
+      {
+        "utterance": "Could you bring up Calculator for me",
+        "expected": {
+          "route": "fast",
+          "tool": "open_app"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "open_app",
+          "args": {
+            "app_name": "Calculator"
+          },
+          "source": "model"
+        },
+        "latency_ms": 2259,
+        "correct": true
+      },
+      {
+        "utterance": "open youtube.com",
+        "expected": {
+          "route": "fast",
+          "tool": "open_url"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "open_url",
+          "args": {
+            "url": "youtube.com"
+          },
+          "source": "rules"
+        },
+        "latency_ms": 0,
+        "correct": true
+      },
+      {
+        "utterance": "go to amazon.in",
+        "expected": {
+          "route": "fast",
+          "tool": "open_url"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "open_url",
+          "args": {
+            "url": "amazon.in"
+          },
+          "source": "model"
+        },
+        "latency_ms": 2545,
+        "correct": true
+      },
+      {
+        "utterance": "wikipedia.org khol do",
+        "expected": {
+          "route": "fast",
+          "tool": "open_url"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "open_url",
+          "args": {
+            "url": "wikipedia.org"
+          },
+          "source": "rules"
+        },
+        "latency_ms": 0,
+        "correct": true
+      },
+      {
+        "utterance": "write a note: buy milk",
+        "expected": {
+          "route": "fast",
+          "tool": "notes_create"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "notes_create",
+          "args": {
+            "body": "buy milk"
+          },
+          "source": "rules"
+        },
+        "latency_ms": 0,
+        "correct": true
+      },
+      {
+        "utterance": "Take a note that the plumber comes Monday morning",
+        "expected": {
+          "route": "fast",
+          "tool": "notes_create"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "notes_create",
+          "args": {
+            "body": "the plumber comes Monday morning"
+          },
+          "source": "rules"
+        },
+        "latency_ms": 0,
+        "correct": true
+      },
+      {
+        "utterance": "note down call mom at 7",
+        "expected": {
+          "route": "fast",
+          "tool": "notes_create"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "notes_create",
+          "args": {
+            "body": "call mom at 7"
+          },
+          "source": "rules"
+        },
+        "latency_ms": 0,
+        "correct": true
+      },
+      {
+        "utterance": "doodh lena hai note kar lo",
+        "expected": {
+          "route": "fast",
+          "tool": "notes_create"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "notes_create",
+          "args": {
+            "body": "doodh lena hai"
+          },
+          "source": "rules"
+        },
+        "latency_ms": 0,
+        "correct": true
+      },
+      {
+        "utterance": "एक नोट लिखो: दूध खरीदना है",
+        "expected": {
+          "route": "fast",
+          "tool": "notes_create"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "notes_create",
+          "args": {
+            "body": "Need to buy milk"
+          },
+          "source": "model"
+        },
+        "latency_ms": 4367,
+        "correct": true
+      },
+      {
+        "utterance": "Jot down that my locker code is at the front desk",
+        "expected": {
+          "route": "fast",
+          "tool": "notes_create"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "notes_create",
+          "args": {
+            "body": "My locker code is at the front desk"
+          },
+          "source": "model"
+        },
+        "latency_ms": 4286,
+        "correct": true
+      },
+      {
+        "utterance": "add fix the tap to my plumber note",
+        "expected": {
+          "route": "fast",
+          "tool": "notes_append"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "notes_append",
+          "args": {
+            "note_name": "plumber",
+            "text": "fix the tap"
+          },
+          "source": "rules"
+        },
+        "latency_ms": 0,
+        "correct": true
+      },
+      {
+        "utterance": "search my notes for plumber",
+        "expected": {
+          "route": "fast",
+          "tool": "notes_search"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "notes_search",
+          "args": {
+            "query": "plumber"
+          },
+          "source": "rules"
+        },
+        "latency_ms": 0,
+        "correct": true
+      },
+      {
+        "utterance": "Do I have any notes about the electricity bill",
+        "expected": {
+          "route": "fast",
+          "tool": "notes_search"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "notes_search",
+          "args": {
+            "query": "electricity bill"
+          },
+          "source": "model"
+        },
+        "latency_ms": 4273,
+        "correct": true
+      },
+      {
+        "utterance": "what time is it",
+        "expected": {
+          "route": "fast",
+          "tool": "get_time"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "get_time",
+          "args": {},
+          "source": "rules"
+        },
+        "latency_ms": 0,
+        "correct": true
+      },
+      {
+        "utterance": "time kya hua",
+        "expected": {
+          "route": "fast",
+          "tool": "get_time"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "get_time",
+          "args": {},
+          "source": "rules"
+        },
+        "latency_ms": 0,
+        "correct": true
+      },
+      {
+        "utterance": "What's today's date",
+        "expected": {
+          "route": "fast",
+          "tool": "get_time"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "get_time",
+          "args": {},
+          "source": "model"
+        },
+        "latency_ms": 4065,
+        "correct": true
+      },
+      {
+        "utterance": "set volume to 40",
+        "expected": {
+          "route": "fast",
+          "tool": "set_volume"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "set_volume",
+          "args": {
+            "level": 40
+          },
+          "source": "rules"
+        },
+        "latency_ms": 0,
+        "correct": true
+      },
+      {
+        "utterance": "turn the volume up",
+        "expected": {
+          "route": "fast",
+          "tool": "volume_up"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "volume_up",
+          "args": {},
+          "source": "rules"
+        },
+        "latency_ms": 0,
+        "correct": true
+      },
+      {
+        "utterance": "awaaz kam karo",
+        "expected": {
+          "route": "fast",
+          "tool": "volume_down"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "volume_down",
+          "args": {},
+          "source": "rules"
+        },
+        "latency_ms": 0,
+        "correct": true
+      },
+      {
+        "utterance": "mute",
+        "expected": {
+          "route": "fast",
+          "tool": "mute"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "mute",
+          "args": {},
+          "source": "rules"
+        },
+        "latency_ms": 0,
+        "correct": true
+      },
+      {
+        "utterance": "Zoya stop",
+        "expected": {
+          "route": "stop",
+          "tool": null
+        },
+        "actual": {
+          "route": "stop",
+          "tool": null,
+          "args": {},
+          "source": "rules"
+        },
+        "latency_ms": 0,
+        "correct": true
+      },
+      {
+        "utterance": "Ruk jao Zoya",
+        "expected": {
+          "route": "stop",
+          "tool": null
+        },
+        "actual": {
+          "route": "stop",
+          "tool": null,
+          "args": {},
+          "source": "rules"
+        },
+        "latency_ms": 0,
+        "correct": true
+      },
+      {
+        "utterance": "Plan a trip and book a hotel",
+        "expected": {
+          "route": "orchestrator",
+          "tool": null
+        },
+        "actual": {
+          "route": "orchestrator",
+          "tool": null,
+          "args": {},
+          "source": "model"
+        },
+        "latency_ms": 4233,
+        "correct": true
+      },
+      {
+        "utterance": "Open Amazon and search for running shoes",
+        "expected": {
+          "route": "orchestrator",
+          "tool": null
+        },
+        "actual": {
+          "route": "orchestrator",
+          "tool": null,
+          "args": {},
+          "source": "model"
+        },
+        "latency_ms": 1748,
+        "correct": true
+      },
+      {
+        "utterance": "What's the weather in Bangalore today",
+        "expected": {
+          "route": "orchestrator",
+          "tool": null
+        },
+        "actual": {
+          "route": "orchestrator",
+          "tool": null,
+          "args": {},
+          "source": "model"
+        },
+        "latency_ms": 2352,
+        "correct": true
+      },
+      {
+        "utterance": "Remind me to call Priya at 6pm",
+        "expected": {
+          "route": "orchestrator",
+          "tool": null
+        },
+        "actual": {
+          "route": "orchestrator",
+          "tool": null,
+          "args": {},
+          "source": "model"
+        },
+        "latency_ms": 2215,
+        "correct": true
+      },
+      {
+        "utterance": "Message Rohan that I'm running late",
+        "expected": {
+          "route": "orchestrator",
+          "tool": null
+        },
+        "actual": {
+          "route": "orchestrator",
+          "tool": null,
+          "args": {},
+          "source": "model"
+        },
+        "latency_ms": 2303,
+        "correct": true
+      },
+      {
+        "utterance": "What's on my screen right now",
+        "expected": {
+          "route": "orchestrator",
+          "tool": null
+        },
+        "actual": {
+          "route": "orchestrator",
+          "tool": null,
+          "args": {},
+          "source": "model"
+        },
+        "latency_ms": 1921,
+        "correct": true
+      },
+      {
+        "utterance": "Amazon pe mera usual grocery order kar do",
+        "expected": {
+          "route": "orchestrator",
+          "tool": null
+        },
+        "actual": {
+          "route": "orchestrator",
+          "tool": null,
+          "args": {},
+          "source": "model"
+        },
+        "latency_ms": 2014,
+        "correct": true
+      },
+      {
+        "utterance": "Make me a presentation about solar energy",
+        "expected": {
+          "route": "orchestrator",
+          "tool": null
+        },
+        "actual": {
+          "route": "orchestrator",
+          "tool": null,
+          "args": {},
+          "source": "model"
+        },
+        "latency_ms": 2290,
+        "correct": true
+      },
+      {
+        "utterance": "Read my latest email from Karthik",
+        "expected": {
+          "route": "orchestrator",
+          "tool": null
+        },
+        "actual": {
+          "route": "orchestrator",
+          "tool": null,
+          "args": {},
+          "source": "model"
+        },
+        "latency_ms": 1655,
+        "correct": true
+      },
+      {
+        "utterance": "Find the cheapest flight to Delhi next Friday",
+        "expected": {
+          "route": "orchestrator",
+          "tool": null
+        },
+        "actual": {
+          "route": "orchestrator",
+          "tool": null,
+          "args": {},
+          "source": "model"
+        },
+        "latency_ms": 2462,
+        "correct": true
+      }
+    ]
+  },
+  "model": {
+    "total": 38,
+    "correct": 37,
+    "accuracy": 0.9737,
+    "answered_by_rules": 0,
+    "median_latency_ms": 2095.0,
+    "p90_latency_ms": 2510,
+    "rows": [
+      {
+        "utterance": "open Spotify",
+        "expected": {
+          "route": "fast",
+          "tool": "open_app"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "open_app",
+          "args": {
+            "app_name": "Spotify"
+          },
+          "source": "model"
+        },
+        "latency_ms": 1983,
+        "correct": true
+      },
+      {
+        "utterance": "Hey Zoya, open WhatsApp please",
+        "expected": {
+          "route": "fast",
+          "tool": "open_app"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "open_app",
+          "args": {
+            "app_name": "WhatsApp"
+          },
+          "source": "model"
+        },
+        "latency_ms": 2009,
+        "correct": true
+      },
+      {
+        "utterance": "uh, open the, the Notes app",
+        "expected": {
+          "route": "fast",
+          "tool": "open_app"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "open_app",
+          "args": {
+            "app_name": "Notes"
+          },
+          "source": "model"
+        },
+        "latency_ms": 2799,
+        "correct": true
+      },
+      {
+        "utterance": "Can you launch Safari",
+        "expected": {
+          "route": "fast",
+          "tool": "open_app"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "open_app",
+          "args": {
+            "app_name": "Safari"
+          },
+          "source": "model"
+        },
+        "latency_ms": 2036,
+        "correct": true
+      },
+      {
+        "utterance": "Spotify khol do",
+        "expected": {
+          "route": "fast",
+          "tool": "open_app"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "open_app",
+          "args": {
+            "app_name": "Spotify"
+          },
+          "source": "model"
+        },
+        "latency_ms": 1986,
+        "correct": true
+      },
+      {
+        "utterance": "Mail khol do zara",
+        "expected": {
+          "route": "fast",
+          "tool": "open_app"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "open_app",
+          "args": {
+            "app_name": "Mail"
+          },
+          "source": "model"
+        },
+        "latency_ms": 2020,
+        "correct": true
+      },
+      {
+        "utterance": "Chrome open kardo",
+        "expected": {
+          "route": "fast",
+          "tool": "open_app"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "open_app",
+          "args": {
+            "app_name": "Google Chrome"
+          },
+          "source": "model"
+        },
+        "latency_ms": 1982,
+        "correct": true
+      },
+      {
+        "utterance": "स्पॉटिफाई खोलो",
+        "expected": {
+          "route": "fast",
+          "tool": "open_app"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "open_app",
+          "args": {
+            "app_name": "Spotify"
+          },
+          "source": "model"
+        },
+        "latency_ms": 2510,
+        "correct": true
+      },
+      {
+        "utterance": "Could you bring up Calculator for me",
+        "expected": {
+          "route": "fast",
+          "tool": "open_app"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "open_app",
+          "args": {
+            "app_name": "Calculator"
+          },
+          "source": "model"
+        },
+        "latency_ms": 2105,
+        "correct": true
+      },
+      {
+        "utterance": "open youtube.com",
+        "expected": {
+          "route": "fast",
+          "tool": "open_url"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "open_url",
+          "args": {
+            "url": "youtube.com"
+          },
+          "source": "model"
+        },
+        "latency_ms": 2147,
+        "correct": true
+      },
+      {
+        "utterance": "go to amazon.in",
+        "expected": {
+          "route": "fast",
+          "tool": "open_url"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "open_url",
+          "args": {
+            "url": "amazon.in"
+          },
+          "source": "model"
+        },
+        "latency_ms": 2084,
+        "correct": true
+      },
+      {
+        "utterance": "wikipedia.org khol do",
+        "expected": {
+          "route": "fast",
+          "tool": "open_url"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "open_url",
+          "args": {
+            "url": "wikipedia.org"
+          },
+          "source": "model"
+        },
+        "latency_ms": 2109,
+        "correct": true
+      },
+      {
+        "utterance": "write a note: buy milk",
+        "expected": {
+          "route": "fast",
+          "tool": "notes_create"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "notes_create",
+          "args": {
+            "body": "Buy milk"
+          },
+          "source": "model"
+        },
+        "latency_ms": 2511,
+        "correct": true
+      },
+      {
+        "utterance": "Take a note that the plumber comes Monday morning",
+        "expected": {
+          "route": "fast",
+          "tool": "notes_create"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "notes_create",
+          "args": {
+            "body": "The plumber comes Monday morning"
+          },
+          "source": "model"
+        },
+        "latency_ms": 3092,
+        "correct": true
+      },
+      {
+        "utterance": "note down call mom at 7",
+        "expected": {
+          "route": "fast",
+          "tool": "notes_create"
+        },
+        "actual": {
+          "route": "orchestrator",
+          "tool": null,
+          "args": {},
+          "source": "model"
+        },
+        "latency_ms": 2341,
+        "correct": false
+      },
+      {
+        "utterance": "doodh lena hai note kar lo",
+        "expected": {
+          "route": "fast",
+          "tool": "notes_create"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "notes_create",
+          "args": {
+            "body": "Buy milk"
+          },
+          "source": "model"
+        },
+        "latency_ms": 2042,
+        "correct": true
+      },
+      {
+        "utterance": "एक नोट लिखो: दूध खरीदना है",
+        "expected": {
+          "route": "fast",
+          "tool": "notes_create"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "notes_create",
+          "args": {
+            "body": "Need to buy milk"
+          },
+          "source": "model"
+        },
+        "latency_ms": 2260,
+        "correct": true
+      },
+      {
+        "utterance": "Jot down that my locker code is at the front desk",
+        "expected": {
+          "route": "fast",
+          "tool": "notes_create"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "notes_create",
+          "args": {
+            "body": "My locker code is at the front desk"
+          },
+          "source": "model"
+        },
+        "latency_ms": 2521,
+        "correct": true
+      },
+      {
+        "utterance": "add fix the tap to my plumber note",
+        "expected": {
+          "route": "fast",
+          "tool": "notes_append"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "notes_append",
+          "args": {
+            "note_name": "plumber",
+            "text": "fix the tap"
+          },
+          "source": "model"
+        },
+        "latency_ms": 2014,
+        "correct": true
+      },
+      {
+        "utterance": "search my notes for plumber",
+        "expected": {
+          "route": "fast",
+          "tool": "notes_search"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "notes_search",
+          "args": {
+            "query": "plumber"
+          },
+          "source": "model"
+        },
+        "latency_ms": 2401,
+        "correct": true
+      },
+      {
+        "utterance": "Do I have any notes about the electricity bill",
+        "expected": {
+          "route": "fast",
+          "tool": "notes_search"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "notes_search",
+          "args": {
+            "query": "electricity bill"
+          },
+          "source": "model"
+        },
+        "latency_ms": 2449,
+        "correct": true
+      },
+      {
+        "utterance": "what time is it",
+        "expected": {
+          "route": "fast",
+          "tool": "get_time"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "get_time",
+          "args": {},
+          "source": "model"
+        },
+        "latency_ms": 1574,
+        "correct": true
+      },
+      {
+        "utterance": "time kya hua",
+        "expected": {
+          "route": "fast",
+          "tool": "get_time"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "get_time",
+          "args": {},
+          "source": "model"
+        },
+        "latency_ms": 2200,
+        "correct": true
+      },
+      {
+        "utterance": "What's today's date",
+        "expected": {
+          "route": "fast",
+          "tool": "get_time"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "get_time",
+          "args": {},
+          "source": "model"
+        },
+        "latency_ms": 2288,
+        "correct": true
+      },
+      {
+        "utterance": "set volume to 40",
+        "expected": {
+          "route": "fast",
+          "tool": "set_volume"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "set_volume",
+          "args": {
+            "level": 40
+          },
+          "source": "model"
+        },
+        "latency_ms": 2085,
+        "correct": true
+      },
+      {
+        "utterance": "turn the volume up",
+        "expected": {
+          "route": "fast",
+          "tool": "volume_up"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "volume_up",
+          "args": {},
+          "source": "model"
+        },
+        "latency_ms": 1925,
+        "correct": true
+      },
+      {
+        "utterance": "awaaz kam karo",
+        "expected": {
+          "route": "fast",
+          "tool": "volume_down"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "volume_down",
+          "args": {},
+          "source": "model"
+        },
+        "latency_ms": 2264,
+        "correct": true
+      },
+      {
+        "utterance": "mute",
+        "expected": {
+          "route": "fast",
+          "tool": "mute"
+        },
+        "actual": {
+          "route": "fast",
+          "tool": "mute",
+          "args": {},
+          "source": "model"
+        },
+        "latency_ms": 2090,
+        "correct": true
+      },
+      {
+        "utterance": "Plan a trip and book a hotel",
+        "expected": {
+          "route": "orchestrator",
+          "tool": null
+        },
+        "actual": {
+          "route": "orchestrator",
+          "tool": null,
+          "args": {},
+          "source": "model"
+        },
+        "latency_ms": 2337,
+        "correct": true
+      },
+      {
+        "utterance": "Open Amazon and search for running shoes",
+        "expected": {
+          "route": "orchestrator",
+          "tool": null
+        },
+        "actual": {
+          "route": "orchestrator",
+          "tool": null,
+          "args": {},
+          "source": "model"
+        },
+        "latency_ms": 1975,
+        "correct": true
+      },
+      {
+        "utterance": "What's the weather in Bangalore today",
+        "expected": {
+          "route": "orchestrator",
+          "tool": null
+        },
+        "actual": {
+          "route": "orchestrator",
+          "tool": null,
+          "args": {},
+          "source": "model"
+        },
+        "latency_ms": 2468,
+        "correct": true
+      },
+      {
+        "utterance": "Remind me to call Priya at 6pm",
+        "expected": {
+          "route": "orchestrator",
+          "tool": null
+        },
+        "actual": {
+          "route": "orchestrator",
+          "tool": null,
+          "args": {},
+          "source": "model"
+        },
+        "latency_ms": 1897,
+        "correct": true
+      },
+      {
+        "utterance": "Message Rohan that I'm running late",
+        "expected": {
+          "route": "orchestrator",
+          "tool": null
+        },
+        "actual": {
+          "route": "orchestrator",
+          "tool": null,
+          "args": {},
+          "source": "model"
+        },
+        "latency_ms": 2072,
+        "correct": true
+      },
+      {
+        "utterance": "What's on my screen right now",
+        "expected": {
+          "route": "orchestrator",
+          "tool": null
+        },
+        "actual": {
+          "route": "orchestrator",
+          "tool": null,
+          "args": {},
+          "source": "model"
+        },
+        "latency_ms": 2102,
+        "correct": true
+      },
+      {
+        "utterance": "Amazon pe mera usual grocery order kar do",
+        "expected": {
+          "route": "orchestrator",
+          "tool": null
+        },
+        "actual": {
+          "route": "orchestrator",
+          "tool": null,
+          "args": {},
+          "source": "model"
+        },
+        "latency_ms": 2081,
+        "correct": true
+      },
+      {
+        "utterance": "Make me a presentation about solar energy",
+        "expected": {
+          "route": "orchestrator",
+          "tool": null
+        },
+        "actual": {
+          "route": "orchestrator",
+          "tool": null,
+          "args": {},
+          "source": "model"
+        },
+        "latency_ms": 2099,
+        "correct": true
+      },
+      {
+        "utterance": "Read my latest email from Karthik",
+        "expected": {
+          "route": "orchestrator",
+          "tool": null
+        },
+        "actual": {
+          "route": "orchestrator",
+          "tool": null,
+          "args": {},
+          "source": "model"
+        },
+        "latency_ms": 2091,
+        "correct": true
+      },
+      {
+        "utterance": "Find the cheapest flight to Delhi next Friday",
+        "expected": {
+          "route": "orchestrator",
+          "tool": null
+        },
+        "actual": {
+          "route": "orchestrator",
+          "tool": null,
+          "args": {},
+          "source": "model"
+        },
+        "latency_ms": 1979,
+        "correct": true
+      }
+    ]
+  }
+}

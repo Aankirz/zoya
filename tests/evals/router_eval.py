@@ -1,253 +1,171 @@
 #!/usr/bin/env python3
-"""Phase 0 benchmark — tool calling (docs/STACK.md §4, phase-0 brief).
+"""Router eval (§17.1b), Phase 1: Zoya's real router against 40 utterances.
 
-40 router/tool utterances (English, Hinglish, names). Pass bar: >= 95%
-correct tool + args. Tests each ROUTER_MODEL candidate and records raw
-results to tests/evals/results/router_eval_<model>.json so the model choice
-in docs/DECISIONS.md is evidence-based, not guessed.
+Replaces the Phase 0 generic tool-calling benchmark (kept in git history and
+tests/evals/results/router_eval_<model>.json). Two passes over the same set:
 
-Usage: python tests/evals/router_eval.py [model_id ...]
+- `system`: route() as shipped — Translate → rules → ROUTER_MODEL.
+- `model`:  route(use_rules=False) — every utterance goes to ROUTER_MODEL, so the
+  model's own accuracy is measured, not the rules'.
+
+Pass bar: >= 95% correct route + tool (+ key args) for each pass. p90 latency is
+recorded (§17.1b asks < 500 ms; D44 already shows the model can't, which is why
+the rules carry the fast path). No tool is executed.
+
+Usage: python tests/evals/router_eval.py
 """
 
 from __future__ import annotations
 
 import json
 import os
+import statistics
 import sys
 import time
 from pathlib import Path
 from typing import Any
 
-from dotenv import load_dotenv
+from zoya.config import load_env
 
-load_dotenv()
+load_env()
+
+from zoya.router import RouteDecision, route  # noqa: E402
 
 RESULTS_DIR = Path(__file__).parent / "results"
+PASS_BAR = 0.95
+P90 = 0.9
 
-# The tools Zoya's router chooses between (docs/ZOYA_TECHNICAL_DOC.md examples:
-# "Open Spotify", "what's the weather", "read my latest email", reminders, search).
-TOOLS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "open_app",
-            "description": "Open a named application.",
-            "parameters": {
-                "type": "object",
-                "properties": {"app_name": {"type": "string"}},
-                "required": ["app_name"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_weather",
-            "description": "Get the current weather for a location.",
-            "parameters": {
-                "type": "object",
-                "properties": {"location": {"type": "string"}},
-                "required": ["location"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "set_reminder",
-            "description": "Set a reminder for a time.",
-            "parameters": {
-                "type": "object",
-                "properties": {"text": {"type": "string"}, "time": {"type": "string"}},
-                "required": ["text", "time"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "send_message",
-            "description": "Send a chat message to a contact.",
-            "parameters": {
-                "type": "object",
-                "properties": {"contact": {"type": "string"}, "text": {"type": "string"}},
-                "required": ["contact", "text"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "search_web",
-            "description": "Search the web for a query.",
-            "parameters": {
-                "type": "object",
-                "properties": {"query": {"type": "string"}},
-                "required": ["query"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "read_screen",
-            "description": "Describe what is currently on screen.",
-            "parameters": {"type": "object", "properties": {}},
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "stop",
-            "description": "Stop whatever Zoya is doing right now.",
-            "parameters": {"type": "object", "properties": {}},
-        },
-    },
-]
-
-# (utterance, expected_tool, required arg substrings to look for, case-insensitive)
-UTTERANCES: list[tuple[str, str, dict[str, str]]] = [
-    ("Hey Zoya, open Spotify", "open_app", {"app_name": "spotify"}),
-    ("Spotify khol do", "open_app", {"app_name": "spotify"}),
-    ("Open WhatsApp please", "open_app", {"app_name": "whatsapp"}),
-    ("Can you launch Safari", "open_app", {"app_name": "safari"}),
-    ("Mail khol do zara", "open_app", {"app_name": "mail"}),
-    ("Open the Notes app", "open_app", {"app_name": "notes"}),
-    ("Start Keynote for me", "open_app", {"app_name": "keynote"}),
-    ("Chrome open kardo", "open_app", {"app_name": "chrome"}),
-    ("What's the weather today", "get_weather", {"location": ""}),
-    ("Bangalore mein aaj mausam kaisa hai", "get_weather", {"location": "bangalore"}),
-    ("Is it going to rain in Mumbai tomorrow", "get_weather", {"location": "mumbai"}),
-    ("What's the temperature outside right now", "get_weather", {"location": ""}),
-    ("Weather in Delhi batao", "get_weather", {"location": "delhi"}),
-    ("Remind me to call Priya at 6pm", "set_reminder", {"text": "priya", "time": "6"}),
-    ("Set a reminder to take medicine at 9 pm", "set_reminder", {"text": "medicine", "time": "9"}),
+# (utterance, expected route, expected tool, arg substrings that must appear, case-insensitive)
+Case = tuple[str, str, str | None, dict[str, str]]
+UTTERANCES: list[Case] = [
+    ("open Spotify", "fast", "open_app", {"app_name": "spotify"}),
+    ("Hey Zoya, open WhatsApp please", "fast", "open_app", {"app_name": "whatsapp"}),
+    ("uh, open the, the Notes app", "fast", "open_app", {"app_name": "notes"}),
+    ("Can you launch Safari", "fast", "open_app", {"app_name": "safari"}),
+    ("Spotify khol do", "fast", "open_app", {"app_name": "spotify"}),
+    ("Mail khol do zara", "fast", "open_app", {"app_name": "mail"}),
+    ("Chrome open kardo", "fast", "open_app", {"app_name": "chrome"}),
+    ("स्पॉटिफाई खोलो", "fast", "open_app", {"app_name": "spotify"}),
+    ("Could you bring up Calculator for me", "fast", "open_app", {"app_name": "calculator"}),
+    ("open youtube.com", "fast", "open_url", {"url": "youtube.com"}),
+    ("go to amazon.in", "fast", "open_url", {"url": "amazon.in"}),
+    ("wikipedia.org khol do", "fast", "open_url", {"url": "wikipedia"}),
+    ("write a note: buy milk", "fast", "notes_create", {"body": "milk"}),
     (
-        "Mujhe kal subah 8 baje yaad dilana doctor appointment ke liye",
-        "set_reminder",
-        {"time": "8"},
+        "Take a note that the plumber comes Monday morning",
+        "fast",
+        "notes_create",
+        {"body": "plumber"},
     ),
-    ("Remind me to pay the electricity bill tomorrow", "set_reminder", {"text": "electricity"}),
+    ("note down call mom at 7", "fast", "notes_create", {"body": "mom"}),
+    ("doodh lena hai note kar lo", "fast", "notes_create", {"body": ""}),
+    ("एक नोट लिखो: दूध खरीदना है", "fast", "notes_create", {"body": "milk"}),
     (
-        "Set a reminder for the team meeting at 3pm",
-        "set_reminder",
-        {"text": "meeting", "time": "3"},
+        "Jot down that my locker code is at the front desk",
+        "fast",
+        "notes_create",
+        {"body": "locker"},
     ),
-    ("Message Rohan and tell him I'm running late", "send_message", {"contact": "rohan"}),
-    ("Mummy ko message bhejo ki main ghar aa raha hoon", "send_message", {"contact": "mummy"}),
-    ("Send a WhatsApp to Ananya saying happy birthday", "send_message", {"contact": "ananya"}),
-    ("Text Karthik that the meeting is postponed", "send_message", {"contact": "karthik"}),
-    ("Send Sneha a message asking if she's free tonight", "send_message", {"contact": "sneha"}),
-    ("Search the web for the best biryani near me", "search_web", {"query": "biryani"}),
-    ("Google what time the Bangalore airport opens", "search_web", {"query": "airport"}),
-    ("Look up the population of India", "search_web", {"query": "population"}),
-    ("Paas mein sabse achha coffee shop dhundo", "search_web", {"query": "coffee"}),
-    ("Find me a recipe for butter chicken", "search_web", {"query": "butter chicken"}),
-    ("What's on my screen right now", "read_screen", {}),
-    ("Can you describe what's showing on the display", "read_screen", {}),
-    ("Screen par kya hai bata do", "read_screen", {}),
-    ("Read out what's on this page", "read_screen", {}),
-    ("Zoya stop", "stop", {}),
-    ("Stop, cancel that", "stop", {}),
-    ("Ruk jao Zoya", "stop", {}),
-    ("Cancel what you're doing right now", "stop", {}),
-    ("Rukiye, mat kijiye", "stop", {}),
-    ("Open Amazon and search for running shoes", "open_app", {"app_name": "amazon"}),
-    ("Set a reminder to water the plants every morning", "set_reminder", {"text": "plants"}),
-    ("Message my sister that I'll be home by 8", "send_message", {"contact": "sister"}),
+    ("add fix the tap to my plumber note", "fast", "notes_append", {"note_name": "plumber"}),
+    ("search my notes for plumber", "fast", "notes_search", {"query": "plumber"}),
+    (
+        "Do I have any notes about the electricity bill",
+        "fast",
+        "notes_search",
+        {"query": "electric"},
+    ),
+    ("what time is it", "fast", "get_time", {}),
+    ("time kya hua", "fast", "get_time", {}),
+    ("What's today's date", "fast", "get_time", {}),
+    ("set volume to 40", "fast", "set_volume", {"level": "40"}),
+    ("turn the volume up", "fast", "volume_up", {}),
+    ("awaaz kam karo", "fast", "volume_down", {}),
+    ("mute", "fast", "mute", {}),
+    ("Zoya stop", "stop", None, {}),
+    ("Ruk jao Zoya", "stop", None, {}),
+    ("Plan a trip and book a hotel", "orchestrator", None, {}),
+    ("Open Amazon and search for running shoes", "orchestrator", None, {}),
+    ("What's the weather in Bangalore today", "orchestrator", None, {}),
+    ("Remind me to call Priya at 6pm", "orchestrator", None, {}),
+    ("Message Rohan that I'm running late", "orchestrator", None, {}),
+    ("What's on my screen right now", "orchestrator", None, {}),
+    ("Amazon pe mera usual grocery order kar do", "orchestrator", None, {}),
+    ("Make me a presentation about solar energy", "orchestrator", None, {}),
+    ("Read my latest email from Karthik", "orchestrator", None, {}),
+    ("Find the cheapest flight to Delhi next Friday", "orchestrator", None, {}),
 ]
 
 
-def _client(model_id: str):
-    import openai
-
-    return openai.OpenAI(api_key=os.environ["OPENAI_API_KEY"]), model_id
-
-
-def run_one(client, model_id: str, utterance: str) -> dict[str, Any]:
-    t0 = time.monotonic()
-    resp = client.chat.completions.create(
-        model=model_id,
-        messages=[
-            {
-                "role": "system",
-                "content": "You are Zoya's router. Call exactly one tool for the user's command.",
-            },
-            {"role": "user", "content": utterance},
-        ],
-        tools=TOOLS,
-        tool_choice="required",
-        max_completion_tokens=200,
-        reasoning_effort="none",  # function tools need this on gpt-5.6.* in Chat Completions
-        store=False,
-    )
-    latency = time.monotonic() - t0
-    call = resp.choices[0].message.tool_calls[0] if resp.choices[0].message.tool_calls else None
-    return {
-        "tool": call.function.name if call else None,
-        "args": json.loads(call.function.arguments) if call else {},
-        "latency_s": round(latency, 3),
-    }
-
-
-def score(expected_tool: str, expected_args: dict[str, str], actual: dict[str, Any]) -> bool:
-    if actual["tool"] != expected_tool:
+def score(expected: Case, decision: RouteDecision) -> bool:
+    _, expected_route, expected_tool, expected_args = expected
+    if decision.route != expected_route or decision.tool != expected_tool:
         return False
-    for key, substring in expected_args.items():
-        if not substring:
-            continue
-        value = str(actual["args"].get(key, "")).lower()
-        if substring.lower() not in value:
-            return False
-    return True
+    return all(
+        substring.lower() in str(decision.args.get(key, "")).lower()
+        for key, substring in expected_args.items()
+        if substring
+    )
 
 
-def run_benchmark(model_id: str) -> dict[str, Any]:
-    client, model_id = _client(model_id)
+def run_pass(use_rules: bool) -> dict[str, Any]:
     rows = []
-    correct = 0
-    for utterance, expected_tool, expected_args in UTTERANCES:
-        try:
-            actual = run_one(client, model_id, utterance)
-        except Exception as error:  # noqa: BLE001 — record and keep going
-            actual = {"tool": None, "args": {}, "latency_s": None, "error": str(error)}
-        ok = score(expected_tool, expected_args, actual)
-        correct += ok
+    # "stop" never reaches a model: it is a local kill switch (§12.1), so the model-only
+    # pass skips those cases instead of scoring the model on a route it can't return.
+    cases = UTTERANCES if use_rules else [case for case in UTTERANCES if case[1] != "stop"]
+    for case in cases:
+        started = time.monotonic()
+        decision = route(case[0], use_rules=use_rules)
+        latency_ms = round((time.monotonic() - started) * 1000)
         rows.append(
-            {"utterance": utterance, "expected": expected_tool, "actual": actual, "correct": ok}
+            {
+                "utterance": case[0],
+                "expected": {"route": case[1], "tool": case[2]},
+                "actual": {
+                    "route": decision.route,
+                    "tool": decision.tool,
+                    "args": decision.args,
+                    "source": decision.source,
+                },
+                "latency_ms": latency_ms,
+                "correct": score(case, decision),
+            }
         )
-
-    result = {
-        "model_id": model_id,
-        "total": len(UTTERANCES),
+    latencies = sorted(row["latency_ms"] for row in rows)
+    correct = sum(row["correct"] for row in rows)
+    return {
+        "total": len(rows),
         "correct": correct,
-        "accuracy": round(correct / len(UTTERANCES), 4),
-        "avg_latency_s": round(sum(r["actual"]["latency_s"] or 0 for r in rows) / len(rows), 3),
+        "accuracy": round(correct / len(rows), 4),
+        "answered_by_rules": sum(row["actual"]["source"] == "rules" for row in rows),
+        "median_latency_ms": statistics.median(latencies),
+        "p90_latency_ms": latencies[int(P90 * (len(latencies) - 1))],
         "rows": rows,
     }
-    return result
 
 
 def main() -> int:
-    candidates = sys.argv[1:] or ["gpt-5.6-luna", "gpt-5.6-terra"]
+    model_id = os.environ["ROUTER_MODEL"]
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    summary = []
-    for model_id in candidates:
-        print(f"Running router eval on {model_id} ({len(UTTERANCES)} utterances)...")
-        result = run_benchmark(model_id)
-        out_path = RESULTS_DIR / f"router_eval_{model_id}.json"
-        out_path.write_text(json.dumps(result, indent=2))
+    result: dict[str, Any] = {"router_model": model_id}
+    failed = False
+    for name, use_rules in (("system", True), ("model", False)):
+        print(f"[{name}] utterances (rules={'on' if use_rules else 'off'})...")
+        summary = run_pass(use_rules)
+        result[name] = summary
+        mark = "PASS" if summary["accuracy"] >= PASS_BAR else "FAIL"
+        failed |= mark == "FAIL"
         print(
-            f"  {model_id}: {result['correct']}/{result['total']} "
-            f"({result['accuracy']:.1%}), avg latency {result['avg_latency_s']}s -> {out_path}"
+            f"  [{mark}] {summary['correct']}/{summary['total']} ({summary['accuracy']:.1%}), "
+            f"rules answered {summary['answered_by_rules']}, "
+            f"median {summary['median_latency_ms']} ms, p90 {summary['p90_latency_ms']} ms"
         )
-        summary.append((model_id, result["accuracy"], result["avg_latency_s"]))
-
-    print("\nSummary (pass bar >= 95%):")
-    for model_id, accuracy, latency in summary:
-        mark = "PASS" if accuracy >= 0.95 else "FAIL"
-        print(f"  [{mark}] {model_id}: {accuracy:.1%} accuracy, {latency}s avg latency")
-    return 0
+        for row in summary["rows"]:
+            if not row["correct"]:
+                print(f"    miss: {row['utterance']!r} → {row['actual']}")
+    out_path = RESULTS_DIR / f"router_eval_phase1_{model_id}.json"
+    out_path.write_text(json.dumps(result, indent=2, ensure_ascii=False))
+    print(f"results → {out_path}")
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
