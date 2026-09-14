@@ -13,6 +13,7 @@ import time
 from decimal import Decimal
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 
 from zoya import orchestrator, safety, tasks
@@ -532,3 +533,20 @@ def test_share_file_outside_zoya_documents_is_refused(gate, shareable, tmp_path_
     with pytest.raises(ToolError):
         share.share_file(str(secret), "sister")
     assert gate["prompts"] == [] and sent == []
+
+
+def test_partial_stop_waits_for_a_task_name_once_tasks_shared_the_floor(loop, monkeypatch):
+    from zoya import voice
+
+    _task("grocery order", shared=True)  # the presentation already finished
+    spotted = []
+    monkeypatch.setattr(voice.VoiceLoop, "_zoya_busy", lambda self: True)
+    loop._spot = lambda samples: spotted.append(1) or "Zoya, stop"
+    loop.recent = [np.zeros(voice.VAD_BLOCK, "f4")] * 40
+    loop.last_stop_check = loop.last_stop_at = 0.0
+    now = time.monotonic()
+    loop.last_voice_at = now  # still talking: "…the presentation" may follow
+
+    loop._check_stop(now)
+
+    assert spotted == []

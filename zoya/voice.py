@@ -126,7 +126,7 @@ TASK_STATUS = re.compile(
     r"^how(?:'s| is| are)\s+(?P<name>.+?)(?:\s+(?:going|doing|coming along))?\??$", re.I
 )
 QUEUE_IT = re.compile(r"^(?:yes,?\s+)?queue(?:\s+(?:it|that))?(?:\s+please)?\.?$", re.I)
-# With several tasks, a partial "Zoya, stop…" waits this long for "…the presentation".
+# Once tasks have run side by side, a partial "Zoya, stop…" waits this long for "…the presentation".
 STOP_NAME_PAUSE_S = 0.35
 
 
@@ -619,8 +619,11 @@ class VoiceLoop:
             or len(self.recent) * BLOCK_S < PARTIAL_MIN_S
         ):
             return
-        if len(tasks.running()) > 1 and arrival - self.last_voice_at < STOP_NAME_PAUSE_S:
-            return  # "Zoya, stop the presentation" must not stop on its first two words
+        multitasking = any(task.shared for task in tasks.running())
+        if multitasking and arrival - self.last_voice_at < STOP_NAME_PAUSE_S:
+            # "Zoya, stop the presentation" must not stop on its first two words, even when the
+            # presentation already finished and only the grocery order is left (replay finding).
+            return
         self.last_stop_check = now
         if now - self.last_stop_at < STOP_COOLDOWN_S:
             return  # Zoya saying "Okay, stopped." must not stop her again

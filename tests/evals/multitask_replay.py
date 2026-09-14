@@ -32,7 +32,7 @@ from zoya.config import REPO_ROOT, load_env  # noqa: E402
 
 RESULTS = REPO_ROOT / "tests" / "evals" / "results" / "multitask_replay.json"
 GROCERY_STEPS = ["searching for milk", "adding milk to the cart", "adding bread to the cart"]
-STEP_S = 4.0
+STEP_S = 15.0  # confirmation after ~45 s: room for "what's running?" first, as in Flow 11
 WORDS_PER_S = 3.0  # simulated playback speed of recorded speech
 TIMEOUT_S = 180.0
 QUIET_S = 6.0  # D53: the 10 s loudness median must fall back to room noise between utterances
@@ -77,6 +77,23 @@ def stand_in_grocery(command: str, pre: dict | None = None) -> orchestrator.Comm
         grocery_outcome["result"] = type(stopped).__name__
         spoken, ok = str(stopped) or orchestrator.STOPPED_MESSAGE, False
     return orchestrator.CommandResult(task.id, decision, spoken, ok, {})
+
+
+DOCUMENT_STAND_IN_S = 45.0  # a presentation takes ~10 s; slow it so both tasks overlap
+
+
+def slow_documents() -> None:
+    """Real files, but the document agent's create step takes as long as a big deck would."""
+    from zoya.tools import office
+
+    for name in ("create_document", "create_table"):
+        real = getattr(office, name)._tool_func
+
+        def slow(*args, _real=real, **kwargs):
+            tasks.current().cancel.wait(DOCUMENT_STAND_IN_S)
+            return _real(*args, **kwargs)
+
+        getattr(office, name)._tool_func = slow
 
 
 def patch_grocery() -> None:
@@ -208,7 +225,7 @@ def fourth(mic: Mic) -> dict:
     commands = [
         "Hey Zoya, make a 6-slide presentation on the solar system.",
         "Hey Zoya, make an Excel sheet of my monthly expenses with a total.",
-        "Hey Zoya, order my usual groceries.",
+        "Hey Zoya, make a PDF with five dinner ideas.",
         "Hey Zoya, make a Word doc with a packing list for a trip to Goa.",
     ]
     for text in commands:
@@ -217,9 +234,6 @@ def fourth(mic: Mic) -> dict:
     command(mic, "Hey Zoya, queue it.")
     quiet()
     queued = any(tasks.QUEUED_MESSAGE in t for t in spoken_since(start))
-    wait_until(safety.awaiting_reply, TIMEOUT_S)
-    time.sleep(0.8)
-    mic.say("Cancel.")
     wait_until(lambda: not tasks.running(), TIMEOUT_S * 2)
     quiet()
     docs = sorted(p.name for p in (Path.home() / "Documents" / "Zoya").glob("*packing*"))
@@ -243,6 +257,7 @@ def main() -> int:
     audio.engine()
     record_speech()
     patch_grocery()
+    slow_documents()
     loop = voice.VoiceLoop()
     real_dispatch = loop._dispatch
     loop._dispatch = lambda text, *rest: (heard.append(text), real_dispatch(text, *rest))
