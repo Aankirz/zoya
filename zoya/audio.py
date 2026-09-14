@@ -15,6 +15,7 @@ import os
 import queue
 import subprocess
 import threading
+import time
 from collections import deque
 from collections.abc import Callable
 from functools import cache
@@ -88,6 +89,9 @@ class Engine:
         self._loop_pos = 0
         self._speech_gain = 1.0
         self.last_earcon = ""
+        # When the mixer last played an earcon (monotonic). The wake chime passes Silero VAD
+        # (owner's run 2026-09-15), so the mic loop compares its block arrival times to this.
+        self.one_shot_at = 0.0
         self._far_end = aec.reference() if AEC_ENABLED else None  # starts the tap outside callbacks
         self._stream = sd.OutputStream(
             samplerate=AUDIO_SAMPLE_RATE_HZ,
@@ -165,6 +169,8 @@ class Engine:
         return filled > 0
 
     def _mix_one_shots(self, out: np.ndarray) -> None:
+        if self._playing:
+            self.one_shot_at = time.monotonic()
         for sound in self._playing:
             samples, position = sound
             piece = samples[position : position + len(out)]

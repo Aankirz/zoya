@@ -94,6 +94,8 @@ STOP_COOLDOWN_S = 2.0
 # After Zoya answers, listen this long without "Hey Zoya" (§9.1 conversation timeout; GPT-Voice
 # style follow-ups; pipecat's wake-phrase strategy keeps 10 s).
 FOLLOW_UP_WINDOW_S = 8.0
+# wake.wav is 0.40 s and 4 of its 28 VAD blocks (128 ms) read as speech; one short word is ~0.3 s.
+ECHO_MAX_VOICED_S = 0.25
 
 # --- Parsers (tested: tests/test_voice_spotter.py) ------------------------------------
 
@@ -408,6 +410,7 @@ class Segment:
     woke_at: float | None = None  # set once "Zoya" was heard in this segment
     awaited: bool = False  # captured in the "Hey Zoya" … pause … command window
     began_while_busy: bool = False  # started during Zoya's speech: likely her own echo
+    over_earcon: bool = False  # started while (or just after) an earcon played
 
     @property
     def seconds(self) -> float:
@@ -558,6 +561,7 @@ class VoiceLoop:
             if voiced:
                 self.segment = Segment([*self.pre_roll, block], arrival)
                 self.segment.began_while_busy = self._zoya_talking()
+                self.segment.over_earcon = self._own_sound(arrival)
                 if time.monotonic() < self.awaiting_command_until or safety.awaiting_reply():
                     self.segment.woke_at = time.monotonic()  # already awake: this is the command
                     self.segment.awaited = True
@@ -607,6 +611,12 @@ class VoiceLoop:
         """Echo protection only: tasks running in the background don't stop "Hey Zoya" (§9.13)."""
         recently_spoke = time.monotonic() - self.last_spoke_at < ECHO_TAIL_S
         return speech.is_speaking() or recently_spoke
+
+    def _own_sound(self, arrival: float) -> bool:
+        """This mic block arrived while (or just after) an earcon played. Arrival time, not now:
+        the wake's turbo check holds the loop ~600 ms, so the chime is over when its blocks are
+        read."""
+        return arrival - audio.engine().one_shot_at < ECHO_TAIL_S
 
     def _user_speaking(self) -> bool:
         """The user is mid-utterance (or just paused): nothing may be announced over them."""
@@ -802,6 +812,9 @@ class VoiceLoop:
         if safety.awaiting_reply():
             self._confirmation_reply(segment, transcript)
             return
+        own_sound = segment.began_while_busy or segment.over_earcon
+        if segment.awaited and own_sound and self._only_echo(segment):
+            return  # Zoya's own chime heard back: no STT, no earcons, the window keeps its time
         audio.earcon("heard")
         audio.earcon("working")
         speech.reset_timing()
@@ -812,12 +825,28 @@ class VoiceLoop:
             audio.engine().silence_all()  # end the working loop
             if not segment.awaited:
                 self._await_command()  # woke (or keys pressed) but no words yet: keep listening
+            elif self.awaiting_command_until:  # junk mustn't use up the window: give its time back
+                self.awaiting_command_until += segment.seconds + stt_ms / MS_PER_S
             # Junk in the wait window (music, the chime) keeps the wake, and the music stays ducked.
             return
         self.awaiting_command_until = 0.0
         events.emit(events.OverlayEvent(text, "listening", {"role": "user"}))  # caption (Phase 7)
         audio.restore()  # the command is in: other audio comes back before Zoya answers
         self._dispatch(text, segment.last_voice_at, {"endpoint_ms": endpoint_ms, "stt_ms": stt_ms})
+
+    def _only_echo(self, segment: Segment) -> bool:
+        """Started over Zoya's output with less voice than a word: her chime, not the user.
+        ponytail: voiced-time heuristic; a user word squeezed into the chime is dropped (say it
+        again). Upgrade: gate on the AEC residual (D62) instead."""
+        dropped = segment.voiced_blocks * BLOCK_S < ECHO_MAX_VOICED_S
+        if dropped:
+            _log_voice(
+                {
+                    "event": "echo_dropped",
+                    "voiced_ms": round(segment.voiced_blocks * BLOCK_S * MS_PER_S),
+                }
+            )
+        return dropped
 
     def _confirmation_reply(self, segment: Segment, transcript: str | None) -> None:
         """Phase 3 hook: while Zoya waits for "confirm" or "cancel", the next utterance answers.
