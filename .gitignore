@@ -36,3 +36,10 @@ tests/evals/fixtures/commands/*.wav
 site/node_modules/
 site/.next/
 site/data/
+
+# Internal build docs: kept on the build machine, not published (owner, 2026-09-15)
+/docs/
+/learning/
+/AGENTS.md
+/CLAUDE.md
+/.claude/CHANGELOG.md
