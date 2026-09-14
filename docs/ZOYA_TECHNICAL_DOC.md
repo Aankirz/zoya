@@ -1214,6 +1214,7 @@ Pre-record the demo utterances as `.wav` files and feed them into the audio rout
 
 **Next 3 months**
 - Native Swift menu-bar app (signed, notarised, proper permission prompts, lower latency audio). **Start from a fork of Clicky** (MIT, https://github.com/farzaa/clicky): it already has the menu-bar shell, non-activating `NSPanel` overlays, ScreenCaptureKit capture, push-to-talk, and a companion state machine. Swap its AssemblyAI / ElevenLabs / Cloudflare Worker pipeline for a local socket to the Python Strands brain (or Nova Sonic via the AWS SDK for Swift).
+- **Zoya Chrome extension** (Claude-in-Chrome style) so Zoya can act in the user's real Chrome with existing logins: MV3 extension + authenticated local bridge to the Strands brain, with the Phase 3 click guard re-implemented in the page and per-site allow-listing so banking/email tabs stay out of reach unless the user opts in (D60).
 - Deeper AX-API tier to reduce pixel usage further.
 - Email, Calendar, Messages, Files flows.
 - User-customisable earcons and voices; multilingual (Hindi first).

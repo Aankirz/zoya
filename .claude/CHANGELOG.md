@@ -174,3 +174,6 @@
 
 ## 2026-09-14 — Duck state survives a kill
 - audio.py/main.py: SIGTERM/SIGHUP restore the volume; pre-duck level persisted to logs/duck_state.json and restored at startup after kill -9; no compounding over repeated kills (tests/test_duck_state.py)
+
+## 2026-09-14 — Zoya Chrome profile confirmed (D60)
+- DECISIONS D60 + §20 roadmap: Playwright Zoya profile for the hackathon; real-Chrome extension later.
