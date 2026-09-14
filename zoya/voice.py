@@ -31,7 +31,7 @@ from datetime import UTC, datetime
 
 import numpy as np
 
-from zoya import aec, audio, events, orchestrator, safety, speech, tasks
+from zoya import aec, audio, events, orchestrator, safety, shutdown, speech, tasks
 from zoya.config import (
     AEC_ENABLED,
     AFTER_WAKE_WAIT_S,
@@ -886,6 +886,8 @@ class VoiceLoop:
         text, stt_ms = (transcript, 0) if transcript is not None else self._transcribe(segment)
         background = segment.awaited and segment.voiced_fraction < MIN_VOICED_FRACTION
         print(f"HEARD {text!r} (endpoint {endpoint_ms} ms, stt {stt_ms} ms)")
+        if _quit(text):  # before the junk filter: "quit" alone is one word
+            return
         if background or not is_usable_command(text):
             audio.engine().silence_all()  # end the working loop
             if not segment.awaited:
@@ -951,6 +953,8 @@ class VoiceLoop:
         if segment.awaited and segment.voiced_fraction < MIN_VOICED_FRACTION:
             return  # music or noise: not an answer, silence keeps counting toward auto-cancel
         text = transcript if transcript is not None else self._transcribe(segment)[0]
+        if _quit(text):
+            return
         print(f"REPLY {text!r}")
         events.emit(events.OverlayEvent(text, "listening", {"role": "user"}))
         if is_stop_command(text):  # "Zoya, stop" / "stop the task" cancels it too
@@ -976,6 +980,8 @@ class VoiceLoop:
         return True
 
     def _dispatch(self, text: str, speech_end_at: float, pre: dict[str, int]) -> None:
+        if _quit(text):
+            return
         if not is_usable_command(text):
             audio.engine().silence_all()  # nothing heard: end the working loop quietly
             return
@@ -1020,6 +1026,14 @@ class VoiceLoop:
             speech.narrate(orchestrator.task_status(status["name"]))
             return True
         return False
+
+
+def _quit(text: str) -> bool:
+    """ "Zoya, quit": shut Zoya down (zoya/shutdown.py), before any routing or confirmation."""
+    if not shutdown.is_quit_phrase(text):
+        return False
+    threading.Thread(target=shutdown.quit_zoya, name="zoya-quit", daemon=True).start()
+    return True
 
 
 def _report(result: orchestrator.CommandResult, speech_end_at: float, pre: dict[str, int]) -> None:
