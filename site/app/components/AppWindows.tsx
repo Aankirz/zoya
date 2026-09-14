@@ -1,13 +1,14 @@
 import type { CSSProperties } from "react";
 import { APP_WINDOWS } from "../copy";
+import { GlassLock, GlassMicrophone, GlassPause, OutlineHand } from "../icons/rune";
 import { MacWindow } from "./MacWindow";
 import { Waveform } from "./Talk";
 
-// Illustrated windows for Zoya's real abilities (amazon.in shopping, Spotify, presentations).
-// Text names only: no logos, brand colours, prices, products or songs. Sized in em so one drawing serves
-// the small hero prop and the larger feature row.
+// Illustrated windows for Zoya's real abilities (amazon.in shopping, Spotify, presentations) and her two
+// safety habits (spoken confirm, password hand-off). Text names only: no logos, brand colours, prices,
+// products or songs. Sized in em so one drawing serves the small hero prop and the larger feature row.
 
-export type AppKind = "amazon" | "spotify" | "slides";
+export type AppKind = "amazon" | "spotify" | "slides" | "confirm" | "password";
 
 function Bar({ width, strong = false }: { width: string; strong?: boolean }) {
   return <span className={strong ? "bar bar-strong" : "bar"} style={{ width } as CSSProperties} />;
@@ -23,13 +24,9 @@ function CartGlyph() {
   );
 }
 
-function AmazonBody() {
+function CartItems() {
   return (
-    <div className="cart">
-      <div className="cart-head">
-        <CartGlyph />
-        <Bar width="38%" strong />
-      </div>
+    <>
       <div className="cart-item">
         <span className="product-thumb" />
         <span className="item-lines">
@@ -44,6 +41,18 @@ function AmazonBody() {
           <Bar width="38%" />
         </span>
       </div>
+    </>
+  );
+}
+
+function AmazonBody() {
+  return (
+    <div className="cart">
+      <div className="cart-head">
+        <CartGlyph />
+        <Bar width="38%" strong />
+      </div>
+      <CartItems />
       <div className="cart-actions">
         <span className="fake-button">{APP_WINDOWS.amazon.placeOrder}</span>
         <span className="say-pill">{APP_WINDOWS.amazon.sayConfirm}</span>
@@ -114,6 +123,54 @@ function SlidesBody() {
   );
 }
 
+// A macOS-style confirmation sheet over a faded cart, answered by voice.
+function ConfirmBody() {
+  return (
+    <div className="sheet-scene">
+      <div className="sheet-backdrop">
+        <CartItems />
+      </div>
+      <div className="sheet">
+        <Bar width="62%" strong />
+        <Bar width="86%" />
+        <Bar width="54%" />
+        <div className="sheet-actions">
+          <span className="sheet-button">{APP_WINDOWS.confirm.cancel}</span>
+          <span className="sheet-voice">
+            <GlassMicrophone className="sheet-mic" />
+            <Waveform active />
+          </span>
+          <span className="sheet-button sheet-confirm">{APP_WINDOWS.confirm.confirm}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const MASKED_DOTS = "••••••••";
+
+// A sign-in window: Zoya waits while the person types their own password.
+function PasswordBody() {
+  return (
+    <div className="signin">
+      <GlassLock className="signin-lock" />
+      <Bar width="44%" strong />
+      <span className="signin-field">
+        <Bar width="58%" />
+      </span>
+      <span className="signin-field">
+        <span className="masked">{MASKED_DOTS}</span>
+        <span className="caret" />
+        <OutlineHand className="typing-hand" />
+      </span>
+      <span className="waiting-pill">
+        <GlassPause className="waiting-glyph" />
+        {APP_WINDOWS.password.waiting}
+      </span>
+    </div>
+  );
+}
+
 function Body({ kind }: { kind: AppKind }) {
   switch (kind) {
     case "amazon":
@@ -122,6 +179,10 @@ function Body({ kind }: { kind: AppKind }) {
       return <SpotifyBody />;
     case "slides":
       return <SlidesBody />;
+    case "confirm":
+      return <ConfirmBody />;
+    case "password":
+      return <PasswordBody />;
   }
 }
 

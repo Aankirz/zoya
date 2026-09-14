@@ -243,6 +243,145 @@ export function GlassMicrophone({ className }: IconProps) {
   );
 }
 
+// public/glass-icons/Lock 1.svg
+export function GlassLock({ className }: IconProps) {
+  const uid = `rune${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+      <mask id={`${uid}mask0_85_1241`} style={{ maskType: "alpha" }} maskUnits="userSpaceOnUse" x="4" y="9" width="16" height="13">
+      <path d="M4.75 11.75C4.75 10.6454 5.64543 9.75 6.75 9.75H17.25C18.3546 9.75 19.25 10.6454 19.25 11.75V19.25C19.25 20.3546 18.3546 21.25 17.25 21.25H6.75C5.64543 21.25 4.75 20.3546 4.75 19.25V11.75Z" fill="black"/>
+      </mask>
+      <g mask={`url(#${uid}mask0_85_1241)`}>
+      <g filter={`url(#${uid}filter0_f_85_1241)`}>
+      <ellipse cx="16.0011" cy="20.3441" rx="0.968208" ry="3.20593" transform="rotate(49.5495 16.0011 20.3441)" fill={`url(#${uid}paint0_linear_85_1241)`}/>
+      </g>
+      <g filter={`url(#${uid}filter1_f_85_1241)`}>
+      <path d="M12.7998 14.5V17.5" stroke={`url(#${uid}paint1_linear_85_1241)`} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      </g>
+      </g>
+      <path d="M4.75 11.75C4.75 10.6454 5.64543 9.75 6.75 9.75H17.25C18.3546 9.75 19.25 10.6454 19.25 11.75V19.25C19.25 20.3546 18.3546 21.25 17.25 21.25H6.75C5.64543 21.25 4.75 20.3546 4.75 19.25V11.75Z" fill={`url(#${uid}paint2_linear_85_1241)`} stroke={`url(#${uid}paint3_linear_85_1241)`} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M16.25 9.75V7.25C16.25 4.90279 14.3472 3 12 3C9.65279 3 7.75 4.90279 7.75 7.25V9.75" stroke={`url(#${uid}paint4_linear_85_1241)`} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M12 14V17" stroke={`url(#${uid}paint5_linear_85_1241)`} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      <defs>
+      <filter id={`${uid}filter0_f_85_1241`} x="9.48145" y="14.1369" width="13.0391" height="12.4145" filterUnits="userSpaceOnUse" colorInterpolationFilters="sRGB">
+      <feFlood floodOpacity="0" result="BackgroundImageFix"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+      <feGaussianBlur stdDeviation="2" result="effect1_foregroundBlur_85_1241"/>
+      </filter>
+      <filter id={`${uid}filter1_f_85_1241`} x="11.0498" y="12.75" width="3.5" height="6.5" filterUnits="userSpaceOnUse" colorInterpolationFilters="sRGB">
+      <feFlood floodOpacity="0" result="BackgroundImageFix"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+      <feGaussianBlur stdDeviation="0.5" result="effect1_foregroundBlur_85_1241"/>
+      </filter>
+      <linearGradient id={`${uid}paint0_linear_85_1241`} x1="16.0011" y1="17.1382" x2="16.0011" y2="23.55" gradientUnits="userSpaceOnUse">
+      <stop stopColor="#575757"/>
+      <stop offset="1" stopColor="#151515"/>
+      </linearGradient>
+      <linearGradient id={`${uid}paint1_linear_85_1241`} x1="13.2998" y1="14.5" x2="13.2998" y2="17.5" gradientUnits="userSpaceOnUse">
+      <stop stopColor="#575757"/>
+      <stop offset="1" stopColor="#151515"/>
+      </linearGradient>
+      <linearGradient id={`${uid}paint2_linear_85_1241`} x1="12" y1="9.75" x2="12" y2="21.25" gradientUnits="userSpaceOnUse">
+      <stop stopColor="#E3E3E3" stopOpacity="0.6"/>
+      <stop offset="1" stopColor="#BBBBC0" stopOpacity="0.6"/>
+      </linearGradient>
+      <linearGradient id={`${uid}paint3_linear_85_1241`} x1="12" y1="9.75" x2="12" y2="21.25" gradientUnits="userSpaceOnUse">
+      <stop stopColor="#575757"/>
+      <stop offset="1" stopColor="#151515"/>
+      </linearGradient>
+      <linearGradient id={`${uid}paint4_linear_85_1241`} x1="12" y1="3" x2="12" y2="9.75" gradientUnits="userSpaceOnUse">
+      <stop stopColor="#575757"/>
+      <stop offset="1" stopColor="#151515"/>
+      </linearGradient>
+      <linearGradient id={`${uid}paint5_linear_85_1241`} x1="12.5" y1="14" x2="12.5" y2="17" gradientUnits="userSpaceOnUse">
+      <stop stopColor="#575757"/>
+      <stop offset="1" stopColor="#151515"/>
+      </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
+// public/glass-icons/Pause 2.svg
+export function GlassPause({ className }: IconProps) {
+  const uid = `rune${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+      <mask id={`${uid}mask0_85_883`} style={{ maskType: "alpha" }} maskUnits="userSpaceOnUse" x="14" y="3" width="6" height="18">
+      <path d="M14.75 5.75C14.75 4.64543 15.6454 3.75 16.75 3.75H17.25C18.3546 3.75 19.25 4.64543 19.25 5.75V18.25C19.25 19.3546 18.3546 20.25 17.25 20.25H16.75C15.6454 20.25 14.75 19.3546 14.75 18.25V5.75Z" fill="black"/>
+      </mask>
+      <g mask={`url(#${uid}mask0_85_883)`}>
+      <g filter={`url(#${uid}filter0_f_85_883)`}>
+      <ellipse cx="20.2746" cy="16.9554" rx="0.859598" ry="4.92115" transform="rotate(17.1832 20.2746 16.9554)" fill={`url(#${uid}paint0_linear_85_883)`}/>
+      </g>
+      </g>
+      <mask id={`${uid}mask1_85_883`} style={{ maskType: "alpha" }} maskUnits="userSpaceOnUse" x="4" y="3" width="6" height="18">
+      <path d="M4.75 5.75C4.75 4.64543 5.64543 3.75 6.75 3.75H7.25C8.35457 3.75 9.25 4.64543 9.25 5.75V18.25C9.25 19.3546 8.35457 20.25 7.25 20.25H6.75C5.64543 20.25 4.75 19.3546 4.75 18.25V5.75Z" fill={`url(#${uid}paint1_linear_85_883)`} stroke={`url(#${uid}paint2_linear_85_883)`} strokeLinejoin="round"/>
+      </mask>
+      <g mask={`url(#${uid}mask1_85_883)`}>
+      <g filter={`url(#${uid}filter1_f_85_883)`}>
+      <ellipse cx="8.81004" cy="16.9698" rx="1.07187" ry="4.92115" transform="rotate(21.6221 8.81004 16.9698)" fill={`url(#${uid}paint3_linear_85_883)`}/>
+      </g>
+      </g>
+      <path d="M4.75 5.75C4.75 4.64543 5.64543 3.75 6.75 3.75H7.25C8.35457 3.75 9.25 4.64543 9.25 5.75V18.25C9.25 19.3546 8.35457 20.25 7.25 20.25H6.75C5.64543 20.25 4.75 19.3546 4.75 18.25V5.75Z" fill={`url(#${uid}paint4_linear_85_883)`} stroke={`url(#${uid}paint5_linear_85_883)`} strokeLinejoin="round"/>
+      <path d="M14.75 5.75C14.75 4.64543 15.6454 3.75 16.75 3.75H17.25C18.3546 3.75 19.25 4.64543 19.25 5.75V18.25C19.25 19.3546 18.3546 20.25 17.25 20.25H16.75C15.6454 20.25 14.75 19.3546 14.75 18.25V5.75Z" fill={`url(#${uid}paint6_linear_85_883)`} stroke={`url(#${uid}paint7_linear_85_883)`} strokeLinejoin="round"/>
+      <defs>
+      <filter id={`${uid}filter0_f_85_883`} x="14.6045" y="8.24698" width="11.3398" height="17.4169" filterUnits="userSpaceOnUse" colorInterpolationFilters="sRGB">
+      <feFlood floodOpacity="0" result="BackgroundImageFix"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+      <feGaussianBlur stdDeviation="2" result="effect1_foregroundBlur_85_883"/>
+      </filter>
+      <filter id={`${uid}filter1_f_85_883`} x="2.74023" y="8.37769" width="12.1396" height="17.1843" filterUnits="userSpaceOnUse" colorInterpolationFilters="sRGB">
+      <feFlood floodOpacity="0" result="BackgroundImageFix"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+      <feGaussianBlur stdDeviation="2" result="effect1_foregroundBlur_85_883"/>
+      </filter>
+      <linearGradient id={`${uid}paint0_linear_85_883`} x1="20.2746" y1="12.0343" x2="20.2746" y2="21.8766" gradientUnits="userSpaceOnUse">
+      <stop stopColor="#575757"/>
+      <stop offset="1" stopColor="#151515"/>
+      </linearGradient>
+      <linearGradient id={`${uid}paint1_linear_85_883`} x1="7" y1="3.75" x2="7" y2="20.25" gradientUnits="userSpaceOnUse">
+      <stop stopColor="#E3E3E3" stopOpacity="0.6"/>
+      <stop offset="1" stopColor="#BBBBC0" stopOpacity="0.6"/>
+      </linearGradient>
+      <linearGradient id={`${uid}paint2_linear_85_883`} x1="7" y1="3.75" x2="7" y2="20.25" gradientUnits="userSpaceOnUse">
+      <stop stopColor="white"/>
+      <stop offset="1" stopColor="white" stopOpacity="0"/>
+      </linearGradient>
+      <linearGradient id={`${uid}paint3_linear_85_883`} x1="8.81004" y1="12.0487" x2="8.81004" y2="21.891" gradientUnits="userSpaceOnUse">
+      <stop stopColor="#575757"/>
+      <stop offset="1" stopColor="#151515"/>
+      </linearGradient>
+      <linearGradient id={`${uid}paint4_linear_85_883`} x1="7" y1="3.75" x2="7" y2="20.25" gradientUnits="userSpaceOnUse">
+      <stop stopColor="#E3E3E3" stopOpacity="0.6"/>
+      <stop offset="1" stopColor="#BBBBC0" stopOpacity="0.6"/>
+      </linearGradient>
+      <linearGradient id={`${uid}paint5_linear_85_883`} x1="7" y1="3.75" x2="7" y2="20.25" gradientUnits="userSpaceOnUse">
+      <stop stopColor="white"/>
+      <stop offset="1" stopColor="white" stopOpacity="0"/>
+      </linearGradient>
+      <linearGradient id={`${uid}paint6_linear_85_883`} x1="17" y1="3.75" x2="17" y2="20.25" gradientUnits="userSpaceOnUse">
+      <stop stopColor="#E3E3E3" stopOpacity="0.6"/>
+      <stop offset="1" stopColor="#BBBBC0" stopOpacity="0.6"/>
+      </linearGradient>
+      <linearGradient id={`${uid}paint7_linear_85_883`} x1="17" y1="3.75" x2="17" y2="20.25" gradientUnits="userSpaceOnUse">
+      <stop stopColor="white"/>
+      <stop offset="1" stopColor="white" stopOpacity="0"/>
+      </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
+// public/normal/senses/hand.svg
+export function OutlineHand({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+      <path d="M18 11V6C18 5.46957 17.7893 4.96086 17.4142 4.58579C17.0391 4.21071 16.5304 4 16 4C15.4696 4 14.9609 4.21071 14.5858 4.58579C14.2107 4.96086 14 5.46957 14 6M14 10V4C14 3.46957 13.7893 2.96086 13.4142 2.58579C13.0391 2.21071 12.5304 2 12 2C11.4696 2 10.9609 2.21071 10.5858 2.58579C10.2107 2.96086 10 3.46957 10 4V6M10 6V10.5M10 6C10 5.46957 9.78929 4.96086 9.41421 4.58579C9.03914 4.21071 8.53043 4 8 4C7.46957 4 6.96086 4.21071 6.58579 4.58579C6.21071 4.96086 6 5.46957 6 6V14M18 8C18 7.46957 18.2107 6.96086 18.5858 6.58579C18.9608 6.21071 19.4695 6 20 6C20.5304 6 21.0391 6.21071 21.4142 6.58579C21.7893 6.96086 22 7.46957 22 8V14C22 16.1217 21.1571 18.1566 19.6568 19.6569C18.1565 21.1571 16.1217 22 14 22H12C9.19998 22 7.49998 21.14 6.00998 19.66L2.40998 16.06C2.06592 15.6789 1.88157 15.1802 1.89511 14.6669C1.90864 14.1537 2.11903 13.6653 2.4827 13.303C2.84638 12.9406 3.33548 12.7319 3.84875 12.7202C4.36202 12.7085 4.86014 12.8946 5.23998 13.24L6.99998 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+
 // public/normal/senses/eye.svg
 export function OutlineEye({ className }: IconProps) {
   return (

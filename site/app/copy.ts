@@ -67,7 +67,8 @@ export const ABILITIES = {
     {
       say: "zoya, buy this on amazon",
       title: "shops for you",
-      line: "finds it, adds it to your cart, and waits for your “confirm” before it pays.",
+      // Honest: the confirm gate is verified; a real paid order has not been completed yet.
+      line: "finds it, adds it to your cart, and asks for your spoken “confirm” before anything is paid for.",
       window: "amazon",
     },
     {
@@ -83,7 +84,25 @@ export const ABILITIES = {
       window: "slides",
     },
   ],
-  trust: "it asks before anything you can't undo. it never types your passwords.",
+} as const;
+
+// Zoya's two safety habits, shown as drawn windows (tech doc §5.1 and §9.9: spoken confirm; password hand-off with "done").
+export const CHARGE = {
+  label: "you're in charge",
+  items: [
+    {
+      say: "confirm",
+      title: "nothing happens without your yes",
+      line: "paying, sending, deleting: zoya stops and waits for your “confirm”.",
+      window: "confirm",
+    },
+    {
+      say: "done",
+      title: "your passwords stay yours",
+      line: "zoya pauses at a password or code. you type it, say “done”, and it carries on.",
+      window: "password",
+    },
+  ],
 } as const;
 
 // Visible words inside the drawn windows (decorative, aria-hidden). Text names only, no logos.
@@ -91,6 +110,8 @@ export const APP_WINDOWS = {
   amazon: { title: "amazon.in", placeOrder: "place order", sayConfirm: "say confirm" },
   spotify: { title: "spotify" },
   slides: { title: "presentation.pptx" },
+  confirm: { title: "checkout", cancel: "cancel", confirm: "confirm" },
+  password: { title: "sign in", waiting: "zoya is waiting" },
 };
 
 export const FAQ = {
@@ -107,7 +128,7 @@ export const FAQ = {
     },
     {
       q: "what about passwords and payments?",
-      a: "zoya never types a password or a one-time code, and never stores your card. it uses the payment already saved on the site, and pays only after you say “confirm”.",
+      a: "zoya never types a password or a one-time code, and never stores your card. nothing is paid for until you say “confirm”.",
     },
     { q: "which mac do i need?", a: "a mac with apple silicon and an internet connection." },
     {

@@ -7,7 +7,7 @@
 - Source: https://github.com/Nexvyn/runeicons (commit c5fef36ddaca68446dc10c78f55be684cca52c1c)
 - Licence: Apache License 2.0 (full text below). The repository has no NOTICE file.
 - Used in: `app/icons/rune.tsx`
-- Icons: glass-icons/Folder.svg, TrashCan.svg, FileText.svg, Microphone 2.svg; normal/senses/eye.svg, indicators/plus.svg, playback/play.svg, indicators/square-stop.svg, other/wifi.svg, gadgets/battery-full.svg; pixelated/senses/ear.svg, messaging/message-circle.svg
+- Icons: glass-icons/Folder.svg, TrashCan.svg, FileText.svg, Microphone 2.svg, Lock 1.svg, Pause 2.svg; normal/senses/eye.svg, senses/hand.svg, indicators/plus.svg, playback/play.svg, indicators/square-stop.svg, other/wifi.svg, gadgets/battery-full.svg; pixelated/senses/ear.svg, messaging/message-circle.svg
 - Modifications: converted from SVG files to inline React components; SVG attributes renamed for JSX; outline and pixelated colours changed from black to `currentColor`; ids inside glass icons namespaced per instance.
 
 ---

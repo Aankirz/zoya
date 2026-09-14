@@ -7,7 +7,8 @@ import { Waveform } from "./components/Talk";
 import { TypingBubble } from "./components/TypingBubble";
 import { VisitorCount } from "./components/VisitorCount";
 import { WaitlistForm } from "./components/WaitlistForm";
-import { ABILITIES, CONTACT_EMAIL, FAQ, FOOTER, HERO, SKIP_LINK, WHY } from "./copy";
+import { AppKind } from "./components/AppWindows";
+import { ABILITIES, CHARGE, CONTACT_EMAIL, FAQ, FOOTER, HERO, SKIP_LINK, WHY } from "./copy";
 import { OutlinePlus } from "./icons/rune";
 import { getVisitorCount } from "@/lib/visitors";
 
@@ -15,6 +16,25 @@ import { getVisitorCount } from "@/lib/visitors";
 export const revalidate = 60;
 
 const HERO_FORM = "hero";
+
+type Row = { readonly say: string; readonly title: string; readonly line: string; readonly window: AppKind };
+
+// heyclicky's feature row, stacked and centered: waveform, typing bubble, title, line, drawn window.
+function FeatureRows({ rows }: { rows: readonly Row[] }) {
+  return (
+    <ul className="ability-list">
+      {rows.map((row) => (
+        <li className="ability" key={row.say}>
+          <Waveform />
+          <TypingBubble text={row.say} />
+          <h3 className="ability-title">{row.title}</h3>
+          <p className="ability-line">{row.line}</p>
+          <AppWindow kind={row.window} className="feature-window" />
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 export default async function Home() {
   const visitorCount = await getVisitorCount();
@@ -51,18 +71,12 @@ export default async function Home() {
 
         <section className="abilities" id="abilities">
           <h2 className="capsule">{ABILITIES.label}</h2>
-          <ul className="ability-list">
-            {ABILITIES.items.map((ability) => (
-              <li className="ability" key={ability.say}>
-                <Waveform />
-                <TypingBubble text={ability.say} />
-                <h3 className="ability-title">{ability.title}</h3>
-                <p className="ability-line">{ability.line}</p>
-                <AppWindow kind={ability.window} className="feature-window" />
-              </li>
-            ))}
-          </ul>
-          <p className="trust-line">{ABILITIES.trust}</p>
+          <FeatureRows rows={ABILITIES.items} />
+        </section>
+
+        <section className="abilities charge" id="charge">
+          <h2 className="capsule">{CHARGE.label}</h2>
+          <FeatureRows rows={CHARGE.items} />
         </section>
 
         <section className="faq" id="faq">
