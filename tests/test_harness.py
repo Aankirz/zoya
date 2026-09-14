@@ -35,6 +35,12 @@ from zoya.tools import ToolError, handoff
             {"song": "Loser", "artist": "Tame Impala"},
         ),
         ("play Escape 100 Cops on YouTube", "youtube_play_video", {"title": "Escape 100 Cops"}),
+        (
+            "play the latest Lex Fridman podcast on YouTube",
+            "youtube_play_latest",
+            {"channel": "Lex Fridman"},
+        ),
+        ("play the newest MrBeast video on youtube", "youtube_play_latest", {"channel": "MrBeast"}),
         ("search lofi beats on youtube", "youtube_search", {"query": "lofi beats"}),
         ("what's the weather in New Delhi", "get_weather", {"city": "New Delhi"}),
         ("search for basmati rice on amazon", "amazon_search", {"query": "basmati rice"}),
@@ -389,3 +395,32 @@ def test_every_guarded_tool_actually_calls_a_guard():
             continue
         source = inspect.getsource(tool._tool_func)
         assert GUARD_CALLS.search(source), f"{name} is registered guarded but never guards"
+
+
+# --- Latest channel episode (parser) -----------------------------------------------------------
+
+LEX_VIDEOS_TAB = [  # youtube.com/@lexfridman/videos, 2026-09-15, plus a live and a short item
+    ["Live: Q&A", "/watch?v=live1", "LIVE"],
+    ["Trailer", "/watch?v=short1", "0:58"],
+    ["A Short", "/shorts/abc", "0:30"],
+    ["DHH: Future of Programming | Lex Fridman Podcast #501", "/watch?v=NYFGCESmikA", "5:15:51"],
+    ["Khabib Nurmagomedov | Lex Fridman Podcast #500", "/watch?v=l6USUAIKJls", "3:12:58"],
+]
+
+
+@pytest.mark.parametrize(
+    ("badge", "seconds"), [("5:15:51", 18951), ("12:03", 723), ("LIVE", None), ("", None)]
+)
+def test_duration_badge_parses_to_seconds(badge, seconds):
+    assert youtube.duration_s(badge) == seconds
+
+
+def test_pick_latest_skips_live_shorts_and_clips():
+    assert youtube.pick_latest(LEX_VIDEOS_TAB) == (
+        "DHH: Future of Programming | Lex Fridman Podcast #501",
+        "https://www.youtube.com/watch?v=NYFGCESmikA",
+    )
+
+
+def test_pick_latest_without_a_full_episode_is_none():
+    assert youtube.pick_latest(LEX_VIDEOS_TAB[:3]) is None

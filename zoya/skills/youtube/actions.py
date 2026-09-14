@@ -74,14 +74,8 @@ def youtube_search(query: str) -> str:
     return f"YouTube results for {query}:\n" + safety.wrap_untrusted(listing)
 
 
-@tool
-def youtube_open_channel(name: str) -> str:
-    """Open a YouTube channel's page: searches, then opens the matching channel (never guesses
-    @handles).
-
-    Args:
-        name: The channel name, e.g. "MrBeast".
-    """
+def _find_channel(name: str) -> tuple[str, str]:
+    """(channel name, channel URL) from YouTube's search, cached a week. Never a guessed @handle."""
     if not name.strip():
         raise ToolError("Which channel should I open?")
     args = {"name": name}
@@ -95,9 +89,85 @@ def youtube_open_channel(name: str) -> str:
     title, url = found
     if not CHANNEL_PATH.match(urlparse(url).path):
         raise ToolError(f"I couldn't find a channel called {name} on YouTube.")
-    browser.goto(url)
     cache.put("youtube_open_channel", args, found, CHANNEL_URL_TTL_S)
-    return f"Opened {title.split(' @')[0]}'s channel on YouTube."
+    return title.split(" @")[0], url
+
+
+@tool
+def youtube_open_channel(name: str) -> str:
+    """Open a YouTube channel's page: searches, then opens the matching channel (never guesses
+    @handles).
+
+    Args:
+        name: The channel name, e.g. "MrBeast".
+    """
+    title, url = _find_channel(name)
+    browser.goto(url)
+    return f"Opened {title}'s channel on YouTube."
+
+
+# Channel Videos tab, newest first (checked on youtube.com/@lexfridman/videos, 2026-09-15): each
+# `ytd-rich-item-renderer` has `h3[title]`, an `a[href^='/watch']` and a duration badge "5:15:51".
+# Shorts live on their own tab; live and upcoming items show "LIVE"/"Upcoming" instead of a time.
+MIN_EPISODE_S = 10 * 60  # skips trailers and short clips
+DURATION = re.compile(r"^(?:(\d+):)?(\d{1,2}):(\d{2})$")
+LATEST_JS = """() => [...document.querySelectorAll('ytd-rich-item-renderer')].slice(0, 12)
+  .map(e => [e.querySelector('h3[title]')?.title || '',
+             e.querySelector("a[href^='/watch'], a[href^='/shorts']")?.getAttribute('href') || '',
+             e.querySelector('badge-shape')?.innerText.trim() || ''])"""
+
+
+def duration_s(badge: str) -> int | None:
+    """'5:15:51' → 18951; 'LIVE', 'Upcoming', '' → None. Parser, tested."""
+    match = DURATION.match(badge.strip())
+    if not match:
+        return None
+    hours, minutes, seconds = (int(part or 0) for part in match.groups())
+    return hours * 3600 + minutes * 60 + seconds
+
+
+def pick_latest(items: list[list[str]]) -> tuple[str, str] | None:
+    """First full episode in newest-first (title, href, badge) rows: a /watch link with a finished
+    duration of at least MIN_EPISODE_S. Parser, tested."""
+    for title, href, badge in items:
+        length = duration_s(badge)
+        if title and urlparse(href).path == WATCH_PATH and length and length >= MIN_EPISODE_S:
+            return title, urljoin(BASE, href)
+    return None
+
+
+def _latest_items(page: Any) -> list[list[str]]:
+    page.locator("ytd-rich-item-renderer h3[title]").first.wait_for(timeout=WAIT_MS)
+    return page.evaluate(LATEST_JS)
+
+
+def _watch_title(page: Any) -> str:
+    heading = page.locator("ytd-watch-metadata h1").first
+    heading.wait_for(timeout=WAIT_MS)
+    return " ".join(heading.inner_text().split())
+
+
+@tool
+def youtube_play_latest(channel: str) -> str:
+    """Play the newest full episode or video from a YouTube channel (its Videos tab, newest first;
+    skips Shorts, live and upcoming items), e.g. "the latest Lex Fridman podcast".
+
+    Args:
+        channel: The channel name, e.g. "Lex Fridman".
+    """
+    name, url = _find_channel(channel)
+    browser.goto(url.rstrip("/") + "/videos")
+    found = pick_latest(browser.on_page(_latest_items))
+    if found is None:
+        raise ToolError(f"I couldn't find a recent full video on {name}'s channel.")
+    title, watch_url = found
+    browser.goto(watch_url)
+    shown = browser.on_page(_watch_title)
+    if safety.normalise(shown) != safety.normalise(title):
+        raise ToolError(f"I opened a video, but it isn't {title}. Let's try again.")
+    if not browser.on_page(_video_playing):
+        return f"I opened {title} from {name}, but it isn't playing yet."
+    return f"Playing the latest from {name}: {title}."
 
 
 @tool
@@ -257,6 +327,7 @@ TOOLS = [
     youtube_search,
     youtube_open_channel,
     youtube_play_video,
+    youtube_play_latest,
     youtube_subscribe,
     youtube_like,
     youtube_comment,

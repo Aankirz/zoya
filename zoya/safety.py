@@ -104,6 +104,7 @@ TOOL_RISK: dict[str, RiskClass] = {
     "youtube_search": "free",
     "youtube_open_channel": "free",
     "youtube_play_video": "free",  # search, then navigate to the watch page (GET)
+    "youtube_play_latest": "free",  # channel Videos tab, then navigate to the watch page (GET)
     "youtube_subscribe": "guarded",
     "youtube_like": "guarded",
     "youtube_comment": "guarded",

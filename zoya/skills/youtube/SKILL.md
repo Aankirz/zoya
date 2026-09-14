@@ -2,8 +2,11 @@
 name: youtube
 description: YouTube in Zoya's browser — search, open a channel, play a video, subscribe, like, comment.
 metadata:
-  tools: [youtube_search, youtube_open_channel, youtube_play_video, youtube_subscribe, youtube_like, youtube_comment, browser_read]
+  tools: [youtube_search, youtube_open_channel, youtube_play_video, youtube_play_latest, youtube_subscribe, youtube_like, youtube_comment, browser_read]
   triggers:
+    # "Play the latest Lex Fridman podcast on YouTube" (demo flow): newest upload, not the top search hit.
+    - action: youtube_play_latest
+      pattern: '^play\s+(?:me\s+)?(?:the\s+)?(?:latest|newest|most recent|new)\s+(?P<channel>.+?)(?:''s)?(?:\s+(?:podcast|episode|video|upload))*\s+(?:on|in|from)\s+youtube$'
     - action: youtube_open_channel
       pattern: '^(?:open|show|go to|take me to)\s+(?:me\s+)?(?:the\s+)?(?P<name>.+?)(?:''s)?\s+(?:youtube\s+)?channel(?:\s+(?:on|in)\s+youtube)?$'
     - action: youtube_open_channel
@@ -29,6 +32,8 @@ metadata:
   channel; never type a guessed `youtube.com/@handle` address.
 - Playing: `youtube_play_video(title)` searches and opens the best match, which plays by itself.
   On a video page, "play <title>" means that other video.
+- "The latest/newest <channel> video, episode or podcast": `youtube_play_latest(channel)`, never a
+  search for "latest". Say the title it returns.
 - Subscribe, like and comment publish as the user. Call `youtube_subscribe`, `youtube_like` or
   `youtube_comment(text)` on the open page; Zoya's safety layer reads the summary and waits for the
   user's spoken "confirm". Don't ask yourself. If the tool says the user cancelled, stop.
