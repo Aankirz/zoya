@@ -36,11 +36,12 @@ create table waitlist (email text primary key, created_at timestamptz not null d
 create table visitors (id text primary key, first_seen timestamptz not null default now());
 ```
 
-## The "Say hi to Zoya" greeting
+## The "hello" window
 
-Clicking the line art plays `public/audio/say-hi.mp3`, Zoya's real voice (Amazon Polly, voice Kajal,
-neural, en-IN, ap-south-1), and shows the same words in a speech bubble. The words live in
-`SAY_HI.said` in `app/copy.ts`; if you change them, regenerate the clip so the two match:
+The big Mac window titled "hello" plays `public/audio/say-hi.mp3`, Zoya's real voice (Amazon Polly,
+voice Kajal, neural, en-IN, ap-south-1), while the words type out in a glossy speech bubble. The words
+live in `HELLO` in `app/copy.ts` (`transcript` for screen readers, `bubble` for the lowercase visual);
+if you change them, regenerate the clip so they match:
 
 ```bash
 aws polly synthesize-speech --profile zoya --region ap-south-1 --engine neural --voice-id Kajal \
@@ -48,8 +49,9 @@ aws polly synthesize-speech --profile zoya --region ap-south-1 --engine neural -
   --text "Hi, I'm Zoya. Just tell me what you'd like done." public/audio/say-hi.mp3
 ```
 
-The line art is a hand-authored SVG in `app/components/SayHi.tsx` (single-colour strokes with
-`stroke="currentColor"`), so replacement art can drop straight in.
+All desktop props (Mac windows, folders, trash, the "hello my name is" sticker, the folder wordmark in
+the footer) are drawn in SVG/CSS in `app/components/Props.tsx` and `FolderWordmark.tsx`: no copied
+images, videos or GIFs.
 
 ## Deploy (Vercel)
 

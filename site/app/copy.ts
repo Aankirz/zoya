@@ -1,60 +1,103 @@
 // Every string on the page lives here so copy edits are one-line changes.
-// House rules: say what Zoya does for a person, present tense, no em dashes, no invented numbers.
-// Mono and grotesk labels are written in sentence case and uppercased in CSS, so screen readers don't spell them out.
+// House rules (BRIEF-v3): heyclicky's lowercase, Steve Jobs voice, honest, no em dashes, no invented numbers or scenarios.
 
 export const CONTACT_EMAIL = "sahuankit453@gmail.com";
 
 export const META = {
-  title: "Zoya. Your Mac, by voice.",
-  description: "Your Mac, by voice. Say what you want done, and Zoya does it. Made for blind and low-vision people.",
+  title: "zoya · your mac, by voice",
+  description: "your mac, by voice. say what you want done, and zoya does it. made for blind and low-vision people.",
 };
 
-export const NAV = {
-  wordmark: "Zoya",
-  tag: "Coming soon",
-  join: "Join the waitlist",
+export const SKIP_LINK = "skip to the waitlist";
+
+export const MENU = {
+  brand: "zoya",
+  links: [
+    { href: "#promises", label: "promises" },
+    { href: "#faq", label: "faq" },
+  ],
+  cta: "join the waitlist",
 };
 
 export const HERO = {
-  name: "Zoya",
-  chip: "For blind and low-vision people",
-  intro: "Your Mac, by voice. Say what you want done, and Zoya does it.",
-  origin: "Built in India",
+  title: "zoya",
+  subline: "your mac, by voice. say what you want done, and zoya does it.",
 };
 
-export const SAY_HI = {
+export const HELLO = {
   src: "/audio/say-hi.mp3",
-  label: "Say hi to Zoya",
-  stopLabel: "Stop",
-  hint: ["Move closer", "Click to say hi"],
-  said: "Hi, I'm Zoya. Just tell me what you'd like done.",
+  windowTitle: "hello",
+  caption: "hello.mp3",
+  playLabel: "hear zoya say hello",
+  stopLabel: "stop",
+  // What the clip says, word for word (Polly Kajal). Shown typed in the bubble; read by screen readers as the transcript.
+  transcript: "Hi, I'm Zoya. Just tell me what you'd like done.",
+  transcriptLead: "Zoya says:",
+  bubble: "hi, i'm zoya. just tell me what you'd like done.",
 };
 
 export const WAITLIST = {
-  label: "Your email",
-  button: "Join the waitlist",
-  sending: "Joining…",
-  hint: "One email when Zoya is ready for you. Nothing else.",
-  success: "You're on the list. We'll email you when Zoya is ready.",
+  label: "your email",
+  button: "join the waitlist",
+  sending: "joining…",
+  hint: "made for blind and low-vision people. mac only.",
+  success: "you're on the list. we'll email you when zoya is ready.",
   errors: {
-    empty: "Enter your email address.",
-    invalid: "That email doesn't look right. Check it and try again.",
-    rateLimited: "Too many tries. Wait a few minutes, then try again.",
-    network: "We couldn't reach the waitlist. Check your connection and try again.",
+    empty: "enter your email address.",
+    invalid: "that email doesn't look right. check it and try again.",
+    rateLimited: "too many tries. wait a few minutes, then try again.",
+    network: "we couldn't reach the waitlist. check your connection and try again.",
   },
 };
 
 export const PROMISES = {
-  title: "You're in charge",
+  label: "promises",
   items: [
-    { title: "Asks first", detail: "Before anything you can't undo." },
-    { title: "Never your passwords", detail: "You type them. Zoya waits." },
-    { title: "Stops on your word", detail: "Say “Zoya, stop”." },
+    {
+      say: "confirm",
+      title: "zoya asks before anything you can't undo",
+      line: "paying, sending, deleting: zoya waits for your “confirm”.",
+    },
+    {
+      say: "done",
+      title: "your passwords stay yours",
+      line: "zoya pauses, you type them, you say “done”.",
+    },
+    {
+      say: "zoya, stop",
+      title: "stop means stop",
+      line: "say it any time, and zoya stops.",
+    },
+  ],
+};
+
+export const FAQ = {
+  label: "faq",
+  title: "questions, answered",
+  items: [
+    {
+      q: "is zoya watching my screen all the time?",
+      a: "no. zoya looks at your screen only when a task needs it, like when you ask “what's on my screen?”. it listens for “hey zoya” right on your mac, and your voice recordings stay there.",
+    },
+    {
+      q: "does zoya replace voiceover?",
+      a: "no. keep voiceover for moving around your mac. zoya works right alongside it and takes on whole tasks.",
+    },
+    {
+      q: "what about passwords and payments?",
+      a: "zoya never types a password or a one-time code, and never stores your card. it uses the payment already saved on the site, and pays only after you say “confirm”.",
+    },
+    { q: "which mac do i need?", a: "a mac with apple silicon and an internet connection." },
+    {
+      q: "when can i get it?",
+      a: "zoya works today on our own macs. join the waitlist and we'll email you the moment it's ready for yours.",
+    },
   ],
 };
 
 export const FOOTER = {
-  copyright: "Zoya © 2026",
-  contactLead: "Questions?",
-  credit: "Built for the Vision OS hackathon.",
+  disclaimer: "zoya looks at your screen only when a task needs it.",
+  contactLead: "questions?",
+  credit: "built for the vision os hackathon",
+  copyright: "© zoya 2026",
 };

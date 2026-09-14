@@ -1,7 +1,12 @@
-import { SayHi } from "./components/SayHi";
+import { FolderWordmark } from "./components/FolderWordmark";
+import { HelloWindow } from "./components/HelloWindow";
+import { MenuBar } from "./components/MenuBar";
+import { FolderIcon, HeroProps, TrashIcon } from "./components/Props";
+import { Waveform } from "./components/Talk";
+import { TypingBubble } from "./components/TypingBubble";
 import { VisitorCount } from "./components/VisitorCount";
 import { WaitlistForm } from "./components/WaitlistForm";
-import { CONTACT_EMAIL, FOOTER, HERO, NAV, PROMISES } from "./copy";
+import { CONTACT_EMAIL, FAQ, FOOTER, HERO, PROMISES, SKIP_LINK } from "./copy";
 import { getVisitorCount } from "@/lib/visitors";
 
 // The visitor count is rendered on the server and refreshed at most once a minute.
@@ -14,53 +19,68 @@ export default async function Home() {
 
   return (
     <>
-      {/* The pill's link doubles as the skip link: it is the first stop and jumps to the email field. */}
-      <header className="nav">
-        <span className="nav-mark" aria-hidden="true">
-          <span className="nav-wordmark">{NAV.wordmark}</span>
-          <span className="nav-tag">{NAV.tag}</span>
-        </span>
-        <a className="nav-join" href={`#${HERO_FORM}-email`}>
-          {NAV.join}
-        </a>
-      </header>
+      <a className="skip-link" href={`#${HERO_FORM}-email`}>
+        {SKIP_LINK}
+      </a>
+      <MenuBar joinHref={`#${HERO_FORM}-email`} />
 
-      <main className="stage">
-        <section className="hero">
-          <h1 className="hero-name">{HERO.name}</h1>
-          <p className="chip">
-            <span className="chip-dot" aria-hidden="true" />
-            {HERO.chip}
-          </p>
-          <p className="hero-intro">{HERO.intro}</p>
-          <p className="mono">{HERO.origin}</p>
-          <SayHi />
-          <WaitlistForm idPrefix={HERO_FORM} />
+      <main>
+        <section className="hero desktop-dots">
+          <HeroProps />
+          <div className="hero-copy">
+            <h1 className="hero-title">{HERO.title}</h1>
+            <p className="hero-subline">{HERO.subline}</p>
+            <WaitlistForm idPrefix={HERO_FORM} />
+          </div>
         </section>
 
-        <section className="promises">
-          <h2 className="mono">{PROMISES.title}</h2>
-          <ol className="rows">
-            {PROMISES.items.map((promise, i) => (
-              <li key={promise.title}>
-                <span className="row-number" aria-hidden="true">
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                <p className="row-title">{promise.title}</p>
-                <p className="row-detail">{promise.detail}</p>
+        <section className="hello-section">
+          <HelloWindow />
+        </section>
+
+        <section className="promises" id="promises">
+          <h2 className="capsule">{PROMISES.label}</h2>
+          <ul className="promise-list">
+            {PROMISES.items.map((promise) => (
+              <li className="promise" key={promise.say}>
+                <Waveform />
+                <TypingBubble text={promise.say} />
+                <h3 className="promise-title">{promise.title}</h3>
+                <p className="promise-line">{promise.line}</p>
               </li>
             ))}
-          </ol>
+          </ul>
+        </section>
+
+        <section className="faq" id="faq">
+          <p className="capsule" aria-hidden="true">
+            {FAQ.label}
+          </p>
+          <h2 className="section-title">{FAQ.title}</h2>
+          <div className="faq-list">
+            {FAQ.items.map((item) => (
+              <details key={item.q}>
+                <summary>{item.q}</summary>
+                <p>{item.a}</p>
+              </details>
+            ))}
+          </div>
         </section>
       </main>
 
       <footer className="site-footer">
-        <p>{FOOTER.copyright}</p>
+        <div className="footer-mark" aria-hidden="true">
+          <TrashIcon className="footer-prop footer-trash" />
+          <FolderWordmark />
+          <FolderIcon className="footer-prop footer-folder" />
+        </div>
+        <p>{FOOTER.disclaimer}</p>
         <VisitorCount initial={visitorCount} />
         <p>
           {FOOTER.contactLead} <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
         </p>
         <p>{FOOTER.credit}</p>
+        <p>{FOOTER.copyright}</p>
       </footer>
     </>
   );
