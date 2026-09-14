@@ -20,8 +20,6 @@ import time
 
 from zoya.config import DISABLE_TTS_ENV, TIMING_LOG, load_env
 
-EXIT_TIMEOUT_S = 5.0
-
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="python -m zoya.main", description=__doc__)
@@ -72,7 +70,9 @@ def main(argv: list[str] | None = None) -> int:
         loop.run(stop_event)
     except KeyboardInterrupt:
         stop_event.set()
-    speech.wait_until_quiet(EXIT_TIMEOUT_S)
+    finally:
+        speech.cancel()  # Ctrl+C means quit now, even mid-sentence
+        audio.restore_blocking()  # never leave the Mac ducked, even after a crash
     return 0
 
 

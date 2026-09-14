@@ -10,8 +10,11 @@ APIs: https://python-sounddevice.readthedocs.io/en/0.5.6/api/streams.html#soundd
 from __future__ import annotations
 
 import logging
+import queue
+import subprocess
 import threading
 from collections import deque
+from collections.abc import Callable
 from functools import cache
 
 import numpy as np
@@ -20,7 +23,9 @@ from zoya import events
 from zoya.config import (
     AUDIO_BLOCK_SIZE,
     AUDIO_SAMPLE_RATE_HZ,
+    DUCK_FRACTION,
     LOOP_DUCK_GAIN,
+    OSASCRIPT_TIMEOUT_S,
     SOUNDS_DIR,
     SPEECH_SAMPLE_RATE_HZ,
 )
@@ -148,6 +153,83 @@ class Engine:
         indices = (self._loop_pos + np.arange(len(out))) % len(self._loop)
         out += self._loop[indices] * gain
         self._loop_pos = int(indices[-1] + 1) % len(self._loop)
+
+
+# --- Ducking other apps while Zoya listens (Wispr Flow "Mute Music While Dictating") ------------
+# ponytail: macOS has no per-app volume API, so the whole output drops while listening and comes
+# back before Zoya answers. One worker keeps duck/restore in order; osascript needs no permission.
+
+_ducked_from: int | None = None
+_volume_jobs: queue.Queue[Callable[[], None]] = queue.Queue()
+
+
+def _volume_worker() -> None:
+    while True:
+        job = _volume_jobs.get()
+        try:
+            job()
+        except Exception as error:  # noqa: BLE001 — a failed duck must never break listening
+            log.warning("volume change failed (%s)", type(error).__name__)
+
+
+def _volume(script: str) -> str:
+    result = subprocess.run(
+        ["osascript", "-e", script],
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=OSASCRIPT_TIMEOUT_S,
+        check=True,
+    )
+    return result.stdout.strip()
+
+
+def _duck_now() -> None:
+    global _ducked_from
+    if _ducked_from is not None:
+        return
+    level = int(_volume("output volume of (get volume settings)"))
+    _ducked_from = level  # set before lowering, so a failed or partial duck is still restored
+    _volume(f"set volume output volume {round(level * DUCK_FRACTION)}")
+
+
+def _restore_now() -> None:
+    """Put back the user's exact volume; stay marked ducked until that really succeeded."""
+    global _ducked_from
+    if _ducked_from is None:
+        return
+    try:
+        _volume(f"set volume output volume {_ducked_from}")
+    except (subprocess.SubprocessError, OSError):
+        _volume(f"set volume output volume {_ducked_from}")  # one retry, then the worker logs it
+    _ducked_from = None
+
+
+@cache
+def _start_volume_worker() -> None:
+    threading.Thread(target=_volume_worker, name="zoya-duck", daemon=True).start()
+
+
+def duck() -> None:
+    _start_volume_worker()
+    _volume_jobs.put(_duck_now)
+
+
+def restore() -> None:
+    _start_volume_worker()
+    _volume_jobs.put(_restore_now)
+
+
+def restore_blocking(timeout_s: float = OSASCRIPT_TIMEOUT_S) -> None:
+    """On exit: never leave the Mac quiet."""
+    done = threading.Event()
+    restore()
+    _volume_jobs.put(done.set)
+    done.wait(timeout_s)
+
+
+def is_ducked() -> bool:
+    return _ducked_from is not None
 
 
 @cache

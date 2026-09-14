@@ -20,6 +20,7 @@ from zoya.voice import after_wake, is_stop, is_stop_command, is_usable_command, 
         "Here Zoya.",  # how base.en heard the owner's real "Hey Zoya"
         "He's Zoya",
         "Zoya, what's the weather?",
+        "ज़ोया, स्पॉटिफ़ाई खोल दो",  # turbo writes Hinglish in Devanagari (D42)
     ],
 )
 def test_wake_on_zoya_like_name_in_first_three_words(heard):

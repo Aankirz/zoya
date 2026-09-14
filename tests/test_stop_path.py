@@ -58,6 +58,7 @@ def test_no_sentence_is_spoken_after_stop(engine, monkeypatch):
 def test_cancelled_run_is_reported_as_stopped_not_success(monkeypatch):
     class CancelledAgent:
         messages = []
+        event_loop_metrics = type("M", (), {"accumulated_usage": {}})()
 
         def __call__(self, command, cancel_signal):
             cancel_signal.set()

@@ -62,6 +62,7 @@ VAD_STATE_SHAPE = (1, 1, 128)
 STOP_WINDOW_S = 2.0  # spot "stop" in the last 2 s of mic audio, across utterance boundaries
 WARM_UP_S = 1.0
 CLIPS_DIR = LOG_DIR / "wake_clips"
+ONE_BREATH_MIN_S = 1.2  # longer utterances get a turbo wake check if base.en misses the name
 FIRST_WORD_WAIT_S = 5.0
 FIRST_WORD_POLL_S = 0.02
 NAME_MEMORY_S = 2.5  # "Zoya … stop" may land in two different 2 s windows
@@ -72,12 +73,14 @@ NAME_MEMORY_S = 2.5  # "Zoya … stop" may land in two different 2 s windows
 NAME = re.compile(r"^z(?:oo?e?y|oi|o)ah?$")
 # Whisper sometimes merges the greeting: "Hizoya", "Hezoya".
 MERGED_WAKE = re.compile(r"^(?:hey|hi|he|hay|ok|okay)z(?:oo?e?y|oi|o)ah?$")
-WORD = re.compile(r"[a-z]+")
+WORD = re.compile(r"[a-z]+|[\u0900-\u097F]+")
+# large-v3-turbo writes Hinglish in Devanagari (D42): "ज़ोया, स्पॉटिफ़ाई खोल दो".
+DEVANAGARI_NAME = re.compile(r"^(?:ज़|ज़|ज)ोया$")
 WAKE_NAME_WORDS = 3
 # Only greetings may come before the name: "I bought soya milk" transcribes as "I bought
 # Zoya milk" even on the whole clip (Phase 2 test), so "name anywhere in 3 words" isn't enough.
 # "here"/"he's" (→ "he", "s"): how base.en heard the owner's real "Hey Zoya" (Phase 2 voice test).
-GREETINGS = {"hey", "hi", "hay", "he", "here", "hear", "s", "hello", "ok", "okay", "oh", "a"}
+GREETINGS = {"hey", "hi", "hay", "he", "here", "hear", "s", "hello", "ok", "okay", "oh", "a", "हे"}
 # Whisper's classic outputs on near-silence (seen live: "you", "ん", "예소야").
 HALLUCINATIONS = {"you", "thank you", "thanks for watching", "bye", "so", "okay"}
 SUPPORTED_SCRIPT = re.compile(r"[A-Za-z\u0900-\u097F]")  # Latin or Devanagari (D42)
@@ -90,11 +93,15 @@ def words(text: str) -> list[str]:
     return WORD.findall(text.lower())
 
 
+def is_name(word: str) -> bool:
+    return bool(NAME.match(word) or DEVANAGARI_NAME.match(word))
+
+
 def is_wake(text: str) -> bool:
     """A Zoya-like name within the first 3 words, with only greetings before it (D19, D51)."""
     spoken = words(text)[:WAKE_NAME_WORDS]
     for index, word in enumerate(spoken):
-        if NAME.match(word) or MERGED_WAKE.match(word):
+        if is_name(word) or MERGED_WAKE.match(word):
             return all(earlier in GREETINGS for earlier in spoken[:index])
     return False
 
@@ -103,7 +110,7 @@ def after_wake(text: str) -> str:
     """The words after the wake name: "Here Zoya, open Spotify" → "open spotify"."""
     spoken = words(text)
     for index, word in enumerate(spoken[:WAKE_NAME_WORDS]):
-        if NAME.match(word) or MERGED_WAKE.match(word):
+        if is_name(word) or MERGED_WAKE.match(word):
             return " ".join(spoken[index + 1 :])
     return ""
 
@@ -124,7 +131,7 @@ def is_stop(text: str) -> bool:
     spoken = words(text)
     if not spoken or len(spoken) > MAX_STOP_PHRASE_WORDS:
         return False
-    return any(NAME.match(w) for w in spoken) and any(w in STOP_WORDS for w in spoken)
+    return any(is_name(w) for w in spoken) and any(w in STOP_WORDS for w in spoken)
 
 
 def is_stop_command(text: str) -> bool:
@@ -213,6 +220,8 @@ class Segment:
     blocks: list[np.ndarray]
     last_voice_at: float
     woke_at: float | None = None  # set once "Zoya" was heard in this segment
+    awaited: bool = False  # captured in the "Hey Zoya" … pause … command window
+    began_while_busy: bool = False  # started during Zoya's speech: likely her own echo
 
     @property
     def seconds(self) -> float:
@@ -279,14 +288,18 @@ class VoiceLoop:
         if speech.is_speaking():
             self.last_spoke_at = time.monotonic()
         self._check_stop(arrival)
+        if audio.is_ducked() and self._idle_since_wake():
+            audio.restore()
         if self._push_to_talk(arrival, block):
             return
         if self.segment is None:
             self.pre_roll.append(block)
             if voiced:
                 self.segment = Segment([*self.pre_roll, block], arrival)
+                self.segment.began_while_busy = self._zoya_busy()
                 if time.monotonic() < self.awaiting_command_until:
                     self.segment.woke_at = time.monotonic()  # already awake: this is the command
+                    self.segment.awaited = True
             return
         self.segment.blocks.append(block)
         if voiced:
@@ -318,7 +331,7 @@ class VoiceLoop:
             return
         self.last_stop_check = now
         text = self._spot(np.concatenate(self.recent))
-        if any(NAME.match(word) for word in words(text)):
+        if any(is_name(word) for word in words(text)):
             self.name_heard_at = now
         recent_name = now - self.name_heard_at < NAME_MEMORY_S
         if is_stop(text) or (recent_name and is_stop(f"Zoya {text}")):
@@ -334,8 +347,8 @@ class VoiceLoop:
         if segment.woke_at is not None:
             self._command(segment)
             return
-        if self._zoya_busy() or not self.wake_enabled:
-            return  # echo protection: only the stop spotter listens now
+        if self._zoya_busy() or segment.began_while_busy or not self.wake_enabled:
+            return  # echo protection (Done-when #2): only the stop spotter listens now
         # Whole utterance only: partial audio makes Whisper hallucinate the "Zoya" prompt.
         text = self._spot(segment.samples(WAKE_WINDOW_S))
         self.utterances += 1
@@ -351,15 +364,27 @@ class VoiceLoop:
                 self._command(segment)  # "Hey Zoya, open Spotify" in one breath
             else:
                 self._await_command()  # "Hey Zoya" … pause … command
+        elif segment.seconds >= ONE_BREATH_MIN_S and is_wake(full := self._transcribe(segment)[0]):
+            # base.en misses the name inside a long sentence (owner's live run); turbo's transcript
+            # is the command itself, so a real command pays nothing extra.
+            self._wake(segment, full)
+            if not self.test_wake:
+                self._command(segment, transcript=full)
         elif self.test_wake:
             print(f"#{self.utterances} no wake — heard {text!r}")
 
     def _await_command(self) -> None:
         self.awaiting_command_until = time.monotonic() + AFTER_WAKE_WAIT_S
 
+    def _idle_since_wake(self) -> bool:
+        waiting = time.monotonic() < self.awaiting_command_until
+        capturing = self.segment is not None and self.segment.woke_at is not None
+        return not (waiting or capturing or self.ptt is not None)
+
     def _wake(self, segment: Segment, text: str) -> None:
         segment.woke_at = time.monotonic()
         audio.earcon("listening")
+        audio.duck()  # Wispr Flow's "mute music while dictating": other audio drops while we listen
         after_end = round((segment.woke_at - segment.last_voice_at) * MS_PER_S)
         print(f"#{self.utterances} WAKE {after_end} ms after the phrase ended — heard {text!r}")
         _log_voice({"event": "wake", "phrase_end_to_earcon_ms": after_end, "heard": text})
@@ -376,6 +401,7 @@ class VoiceLoop:
         self.name_heard_at = 0.0
         self.utterances = 0
         self.awaiting_command_until = 0.0
+        audio.restore()
         print(f"STOP {after_end} ms after last voice (partial={partial}) — heard {text!r}")
         _log_voice(
             {
@@ -393,9 +419,13 @@ class VoiceLoop:
         if self.ptt is None and not held:
             return False
         if self.ptt is None:
+            if self._zoya_busy():
+                orchestrator.stop_task()  # pressing the keys interrupts Zoya, like Wispr's fn key
+                audio.engine().silence_all()
             self.ptt = Segment([*self.pre_roll, block], arrival, woke_at=time.monotonic())
             self.segment = None
             audio.earcon("listening")
+            audio.duck()
             print("PUSH-TO-TALK down")
             return True
         self.ptt.blocks.append(block)
@@ -412,19 +442,25 @@ class VoiceLoop:
     def _task_running(self) -> bool:
         return self.task is not None and self.task.is_alive()
 
-    def _command(self, segment: Segment) -> None:
-        endpointed_at = time.monotonic()
+    def _transcribe(self, segment: Segment) -> tuple[str, int]:
+        started = time.monotonic()
+        text = self.stt(segment.samples())
+        return text, round((time.monotonic() - started) * MS_PER_S)
+
+    def _command(self, segment: Segment, transcript: str | None = None) -> None:
+        endpoint_ms = round((time.monotonic() - segment.last_voice_at) * MS_PER_S)
+        audio.restore()
         audio.earcon("heard")
         audio.earcon("working")
         speech.reset_timing()
-        started = time.monotonic()
-        text = self.stt(segment.samples())
-        stt_ms = round((time.monotonic() - started) * MS_PER_S)
-        endpoint_ms = round((endpointed_at - segment.last_voice_at) * MS_PER_S)
+        text, stt_ms = (transcript, 0) if transcript is not None else self._transcribe(segment)
         print(f"HEARD {text!r} (endpoint {endpoint_ms} ms, stt {stt_ms} ms)")
-        if not is_usable_command(text) and time.monotonic() >= self.awaiting_command_until:
-            self._await_command()  # push-to-talk or wake with nothing after it yet
+        if not is_usable_command(text):
             audio.engine().silence_all()  # end the working loop
+            if not segment.awaited:
+                self._await_command()  # woke (or keys pressed) but no words yet: keep listening
+                audio.duck()
+            # Junk inside the wait window (music, the chime) must not use up the wake.
             return
         self.awaiting_command_until = 0.0
         self._dispatch(text, segment.last_voice_at, {"endpoint_ms": endpoint_ms, "stt_ms": stt_ms})

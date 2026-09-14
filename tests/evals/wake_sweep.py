@@ -29,6 +29,7 @@ WAKES = [1, 2, 3, 4, 5, 6, 8, 9, 11, 12, 13]
 FRAGMENTS = [7, 10]
 NEGATIVES = list(range(14, 31))
 CONFIDENCE_GATES = (0.0, 0.3, 0.5, 0.7)
+PRIVATE_CHATTER = {29, 30}  # free chatter: never written to the committed results
 
 
 def load_clips() -> dict[int, np.ndarray]:
@@ -107,6 +108,9 @@ def score(name: str, spot, clips: dict[int, np.ndarray]) -> list[dict]:
                 "false": sorted(woke & set(NEGATIVES)),
                 "median_ms": round(float(np.median(latencies))),
                 "missed": {n: heard[n][0] for n in WAKES if n not in woke},
+                "negatives_heard": {
+                    n: "<chatter>" if n in PRIVATE_CHATTER else heard[n][0] for n in NEGATIVES
+                },
             }
         )
         if name.startswith("faster"):

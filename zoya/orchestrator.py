@@ -167,7 +167,15 @@ def _speak_stream(sentences: SentenceStream) -> Any:
     return handler
 
 
-def run_orchestrator(command: str) -> str:
+def _record_usage(agent: Agent, timings: dict[str, int]) -> None:
+    """Tokens next to the timings; cached_tokens shows whether OpenAI's prefix cache applied."""
+    usage = agent.event_loop_metrics.accumulated_usage
+    timings["input_tokens"] = usage.get("inputTokens", 0)
+    timings["output_tokens"] = usage.get("outputTokens", 0)
+    timings["cached_tokens"] = usage.get("cacheReadInputTokens", 0)
+
+
+def run_orchestrator(command: str, timings: dict[str, int] | None = None) -> str:
     """Speak the brain's answer sentence by sentence as it streams; return the full text."""
     history = [message for turn in _conversation for message in turn]
     sentences = SentenceStream()
@@ -177,9 +185,11 @@ def run_orchestrator(command: str) -> str:
         # before tool execution and between steps, returning stop_reason="cancelled" (§11.3).
         result = agent(command, cancel_signal=_cancel)
     except TaskLimitExceeded as limit:
+        _record_usage(agent, timings if timings is not None else {})
         log.warning("task stopped: %s", limit)
         speech.narrate(LIMIT_MESSAGE)
         return LIMIT_MESSAGE
+    _record_usage(agent, timings if timings is not None else {})
     if result.stop_reason == "cancelled" or _cancel.is_set():
         raise TaskCancelled  # half-finished turn: not kept in the conversation
     speech.narrate(sentences.flush())
@@ -204,7 +214,7 @@ def _execute(decision: RouteDecision, timings: dict[str, int]) -> tuple[str, boo
             return STOPPED_MESSAGE, True
         if decision.route == "fast":
             return run_fast_tool(decision), True
-        return run_orchestrator(decision.text), True
+        return run_orchestrator(decision.text, timings), True
     except ToolError as error:
         return str(error), False
     except (KeyboardInterrupt, TaskCancelled):

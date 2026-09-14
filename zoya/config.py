@@ -77,6 +77,7 @@ SOUNDS_DIR = REPO_ROOT / "sounds"
 AUDIO_SAMPLE_RATE_HZ = 48000  # earcons are built at this rate (scripts/build_sounds.sh)
 AUDIO_BLOCK_SIZE = 480  # 10 ms mixer blocks → stop silences within one block
 LOOP_DUCK_GAIN = 10 ** (-18 / 20)  # working loop −18 dB under speech (§9.10)
+DUCK_FRACTION = 0.3  # other apps' audio drops to 30% of the volume while Zoya listens
 
 # TTS bounds. ElevenLabs SDK default timeout is 240 s (elevenlabs/client.py).
 ELEVENLABS_TIMEOUT_S = 5.0
@@ -97,7 +98,7 @@ PARTIAL_MIN_S = 0.35
 WAKE_WINDOW_S = 2.5  # the name must come in the first 3 words: spot only this much audio
 MAX_UTTERANCE_S = 15.0  # bounds every Whisper call
 AFTER_WAKE_WAIT_S = 5.0  # "Hey Zoya" … pause … command
-ECHO_TAIL_S = 0.4  # ignore wake words this long after Zoya stops talking (Done-when #2)
+ECHO_TAIL_S = 0.6  # ignore wake words this long after Zoya stops talking (Done-when #2)
 MIC_READ_TIMEOUT_S = 1.0
 WAKE_MODEL = "mlx-community/whisper-base.en-mlx"  # D51: ~30 ms/call on GPU vs ~250 ms CPU
 SPOTTER_ENGINE = "mlx"  # "faster-whisper" = D19's CPU spotter, if mlx misbehaves on stage

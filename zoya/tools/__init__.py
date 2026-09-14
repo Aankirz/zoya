@@ -21,7 +21,8 @@ def collect_tools(*packages: str) -> list[Any]:
     tools: list[Any] = []
     for package_name in packages:
         package = importlib.import_module(package_name)
-        for module_info in pkgutil.iter_modules(package.__path__):
+        # Sorted: the tool list must be byte-identical across calls so OpenAI can cache the prefix.
+        for module_info in sorted(pkgutil.iter_modules(package.__path__), key=lambda m: m.name):
             module = importlib.import_module(f"{package_name}.{module_info.name}")
             tools.extend(getattr(module, "TOOLS", []))
     return tools
