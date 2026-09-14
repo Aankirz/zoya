@@ -95,7 +95,7 @@ VOLUME_DOWN = re.compile(
 MEDIA = re.compile(
     r"^(?P<action>play|pause|resume|stop|next|skip|previous)(?:\s+playing)?"
     r"(?:\s+(?:the\s+)?(?:music|song|track|playback))?"
-    r"(?:\s+(?:on|in|from)?\s*(?P<app>spotify|music))?$",
+    r"(?:\s+(?:on|in|from)?\s*(?:the\s+)?(?P<app>spotify|music)(?:\s+app)?)?$",
     _I,
 )
 MEDIA_ACTIONS = {"resume": "play", "stop": "pause", "skip": "next"}
@@ -184,6 +184,8 @@ def match_rules(text: str) -> RouteDecision | None:
             "action": MEDIA_ACTIONS.get(action, action),
             "app": (match["app"] or "spotify").lower(),
         }
+        if EXPLICIT_APP.search(command):
+            args["in_app"] = True
         return RouteDecision("fast", "media_control", args)
     if TIME.match(command):
         return RouteDecision("fast", "get_time")

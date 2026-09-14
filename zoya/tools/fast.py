@@ -128,15 +128,65 @@ MEDIA_COMMANDS = {
 }
 
 
+# System media keys (IOKit hidsystem/ev_keymap.h): NX_KEYTYPE_PLAY 16, NEXT 17, PREVIOUS 18. The
+# play key toggles, so "pause" while nothing plays starts playback — same as the keyboard key.
+MEDIA_KEYS = {"play": 16, "pause": 16, "playpause": 16, "next": 17, "previous": 18}
+NX_SUBTYPE_AUX_CONTROL_BUTTONS = 8
+KEY_DOWN, KEY_UP = 0xA, 0xB
+
+
+def press_media_key(key: int) -> None:
+    """Post the ⏯/⏭/⏮ key like the keyboard does, so a Spotify web tab (Chrome's Media Session)
+    and the Music/Spotify apps all respond (D58).
+
+    APIs: https://developer.apple.com/documentation/appkit/nsevent/1528566-othereventwithtype
+    https://developer.apple.com/documentation/coregraphics/1456527-cgeventpost
+    https://developer.apple.com/documentation/coregraphics/3656526-cgpreflightposteventaccess
+    """
+    import AppKit
+    import Quartz
+
+    if not Quartz.CGPreflightPostEventAccess():
+        Quartz.CGRequestPostEventAccess()  # macOS shows the permission prompt once
+        raise ToolError(
+            "I need permission to press the media keys. Please allow this app under System "
+            "Settings, Privacy and Security, Accessibility, then ask me again."
+        )
+    for state in (KEY_DOWN, KEY_UP):
+        event = AppKit.NSEvent.otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2_(  # noqa: E501
+            AppKit.NSEventTypeSystemDefined,
+            (0, 0),
+            state << 8,
+            0,
+            0,
+            None,
+            NX_SUBTYPE_AUX_CONTROL_BUTTONS,
+            (key << 16) | (state << 8),
+            -1,
+        )
+        Quartz.CGEventPost(Quartz.kCGHIDEventTap, event.CGEvent())
+
+
 @tool
-def media_control(action: str, app: str = "spotify") -> str:
-    """Control music playback. action: play | pause | playpause | next | previous.
-    app: spotify | music."""
+def media_control(action: str, app: str = "spotify", in_app: bool = False) -> str:
+    """Control music playback in the browser or apps. action: play | pause | playpause | next |
+    previous. It cannot choose a song.
+
+    Args:
+        action: play | pause | playpause | next | previous.
+        app: spotify | music (only used with in_app).
+        in_app: True only when the user explicitly said "app": control that Mac app directly.
+    """
+    key = MEDIA_KEYS.get(action.strip().lower())
+    if key is None:
+        raise ToolError("I can only play, pause or skip songs.")
+    if not in_app:
+        press_media_key(key)
+        return "Done."
     app_name = MEDIA_APPS.get(app.strip().lower())
-    command = MEDIA_COMMANDS.get(action.strip().lower())
-    if app_name is None or command is None:
-        raise ToolError("I can only play, pause or skip songs in Spotify or Music.")
-    osascript(f'tell application "{app_name}" to {command}')
+    if app_name is None:
+        raise ToolError("I can only control the Spotify or Music app.")
+    osascript(f'tell application "{app_name}" to {MEDIA_COMMANDS[action.strip().lower()]}')
     return "Done."
 
 

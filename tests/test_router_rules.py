@@ -18,6 +18,11 @@ from zoya.tools.fast import media_control, normalise_url
         ("I want you to open Spotify.", "open_app", {"app_name": "Spotify"}),
         ("Can you now open open.spotify.com?", "open_url", {"url": "open.spotify.com"}),
         ("Can you stop playing the song?", "media_control", {"action": "pause", "app": "spotify"}),
+        (
+            "pause the Spotify app",
+            "media_control",
+            {"action": "pause", "app": "spotify", "in_app": True},
+        ),
         ("Play music from Spotify.", "media_control", {"action": "play", "app": "spotify"}),
         ("Hey Zoya, open Spotify!", "open_app", {"app_name": "Spotify"}),
         ("uh, launch the Notes app please", "open_app", {"app_name": "Notes", "prefer_web": False}),
@@ -137,11 +142,24 @@ def test_no_tool_accepts_free_form_applescript():
 def test_media_control_rejects_script_text(payload, field, monkeypatch):
     ran = []
     monkeypatch.setattr("zoya.tools.fast.osascript", lambda *args: ran.append(args))
-    kwargs = {"action": "play", "app": "spotify", field: payload}
+    monkeypatch.setattr("zoya.tools.fast.press_media_key", lambda key: ran.append(key))
+    kwargs = {"action": "play", "app": "spotify", "in_app": True, field: payload}
 
     with pytest.raises(ToolError):
         media_control(**kwargs)
     assert ran == []
+
+
+def test_media_control_uses_media_keys_unless_the_app_was_asked_for(monkeypatch):
+    keys, scripts = [], []
+    monkeypatch.setattr("zoya.tools.fast.press_media_key", keys.append)
+    monkeypatch.setattr("zoya.tools.fast.osascript", lambda *args: scripts.append(args))
+
+    media_control(action="pause")
+    media_control(action="next", app="spotify", in_app=True)
+
+    assert keys == [16]  # NX_KEYTYPE_PLAY toggles the browser tab or app that is playing
+    assert scripts == [('tell application "Spotify" to next track',)]
 
 
 @pytest.mark.parametrize("url", ["file:///etc/passwd", "javascript:alert(1)", "localhost"])
