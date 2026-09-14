@@ -68,7 +68,6 @@ def test_harmless_pixel_click_lands_without_asking(mac):
         ["Don't Save"],
         ["Quit"],
         ["Send"],
-        ["Pay ₹499"],
     ],
 )
 def test_risky_pixel_click_asks_before_clicking(mac, labels):
@@ -124,7 +123,7 @@ def test_target_that_changes_while_asking_is_not_clicked(mac, monkeypatch):
 
 def test_model_label_is_ignored_the_real_target_decides(mac):
     """The model can't name a click; only AX at the point is read."""
-    mac["facts"]["now"] = safety.ClickFacts(labels=["Place order"], nearby_text="Total ₹2,847")
+    mac["facts"]["now"] = safety.ClickFacts(labels=["Continue"], nearby_text="Total ₹2,847")
 
     computer.click(10, 10)
 
@@ -462,3 +461,14 @@ def test_typing_spoils_a_flow_so_personal_text_is_never_recorded():
     recorder.after_tool(Event())
 
     assert recorder.spoiled and recorder.steps == []
+
+
+@pytest.mark.parametrize("labels", [["Pay ₹499"], ["Place your order"], ["Buy Now"], ["खरीदें"]])
+def test_native_clicks_never_pay_even_with_confirm(mac, labels):
+    """No OCR check of amount and item on this path: purchases go through browser_click only."""
+    mac["facts"]["now"] = safety.ClickFacts(labels=labels)
+
+    with pytest.raises(ToolError, match="browser"):
+        computer.click(640, 400)
+
+    assert mac["posted"] == [] and mac["gate"].asked == []

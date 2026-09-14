@@ -291,12 +291,24 @@ def _counted(error: ToolError) -> ToolError:
     return ToolError(_failed(str(error)))
 
 
+PURCHASE_REFUSED = (
+    "I only pay or place orders in Zoya's browser, where I check the total on screen first. "
+    "Stop and tell the user."
+)
+
+
 def refuse_if_blocked(labels: list[str], app: str) -> None:
-    """Permission prompts end the task: the user answers them, never Zoya (not even confirmed)."""
+    """Permission prompts end the task: the user answers them, never Zoya (not even confirmed).
+    Purchases too: a native click can't verify the amount and item like browser_click does."""
     if safety.native_input_blocked(labels, app):
         safety.log_safety_timing(event="permission_prompt_blocked")
         session.stop_reason = safety.PERMISSION_MESSAGE
         raise ToolError(safety.PERMISSION_MESSAGE)
+    hit = safety.risky_label(labels)
+    if hit is not None and hit.kind == "purchase":
+        safety.log_safety_timing(event="native_purchase_blocked")
+        session.stop_reason = PURCHASE_REFUSED
+        raise ToolError(PURCHASE_REFUSED)
 
 
 def _confirm_input(risky: safety.RiskyLabel, probe: Any) -> None:
