@@ -127,9 +127,8 @@ def main() -> int:
     RESULTS.write_text(json.dumps(rows, indent=1))
     print(f"\n{'config':52} gate wakes  false median_ms")
     for r in rows:
-        print(
-            f"{r['config']:52} {r['gate']:.1f}  {r['wakes']:6} {len(r['false']):>3}  {r['median_ms']}"
-        )
+        false = len(r["false"])
+        print(f"{r['config']:52} {r['gate']:.1f}  {r['wakes']:6} {false:>3}  {r['median_ms']}")
     return 0
 
 
