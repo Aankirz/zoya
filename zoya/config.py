@@ -172,6 +172,27 @@ OTHER_AUDIO_MIN_RMS = 0.003  # tap reference above this = another app is playing
 BARGE_IN_SPEECH_GAIN = 10 ** (-20 / 20)  # Zoya keeps talking, 20 dB quieter
 BARGE_IN_HOLD_S = 2.5  # restore this long after the user's last voiced block, if no stop/wake
 
+# --- Phase 5: computer use (§9.4, §9.6, D23) ---------------------------------------------------
+
+SCREENSHOT_MAX_WIDTH = 1280  # ~1280×800 ≈ 1.3k image tokens; captured at point size or smaller
+SCREEN_PIXEL_DELTA = 24  # a pixel "changed" when a colour channel moved more than this
+SCREEN_CHANGED_FRACTION = 0.02  # >2% of pixels near the target changed → the action did something
+CHANGE_BOX_PX = 60  # half-size of the region compared around a click point
+ACTION_SETTLE_S = 0.6  # wait before the verify screenshot after a click, key or typing
+KEEP_SCREENSHOTS = 2  # older screenshots leave the computer agent's context (§9.3)
+MAX_FAILED_ATTEMPTS = 3  # consecutive failed actions → give up honestly (Done-when #4)
+CURSOR_MOVED_BY_USER_PT = 8.0  # the pointer moved this far since Zoya's last action → user wins
+AX_MESSAGING_TIMEOUT_S = 1.0  # per AX call into an app (AXUIElementSetMessagingTimeout)
+AX_READ_MAX_ITEMS = 120  # elements listed by ax_read
+AX_WALK_DEADLINE_S = 2.0  # whole-tree walk bound
+AX_NEARBY_MAX_CHARS = 2000  # sibling text used to spot a price next to a button
+TYPE_CHUNK_CHARS = 16  # UTF-16 units per unicode keyboard event
+SHORTCUTS_TIMEOUT_S = 20.0  # `shortcuts run` bound
+TEXTRACT_TIMEOUT_S = 15.0  # AnalyzeDocument on one page
+DOCUMENT_MAX_PAGES = 5  # pages read aloud per document (sync Textract: 1 page per call)
+DOCUMENT_RENDER_DPI = 150  # Textract needs ≥ 15 px text height; 8 pt at 150 DPI qualifies
+DOCUMENT_TEXT_MAX_CHARS = 6000
+
 
 def load_env() -> None:
     """Load .env from the repo root without overriding real environment variables."""

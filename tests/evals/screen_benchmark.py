@@ -204,14 +204,16 @@ def _image_to_data_uri(path: Path) -> str:
     return f"data:image/png;base64,{data}"
 
 
+def _spoken(text: str) -> str:
+    """ "₹2,847" and "rupees 2,847" / "2,847 rupees" (how Zoya's prompt says ₹) grade the same."""
+    for word in ("₹", "rupees", "rupee"):
+        text = text.lower().replace(word, " ")
+    return " ".join(text.split())
+
+
 def grade(truth: dict[str, Any], answer: str) -> bool:
-    answer_lower = answer.lower()
-    for expected in truth.values():
-        if not expected:
-            continue
-        if expected.lower() not in answer_lower:
-            return False
-    return True
+    answer_spoken = _spoken(answer)
+    return all(_spoken(expected) in answer_spoken for expected in truth.values() if expected)
 
 
 def run_benchmark(model_id: str) -> dict[str, Any]:
@@ -344,7 +346,64 @@ def run_computer_use_benchmark(model_id: str) -> dict[str, Any]:
     return {"model_id": model_id, "total": len(rows), "complete": complete, "rows": rows}
 
 
+def run_zoya_benchmark(model_id: str) -> dict[str, Any]:
+    """Phase 5: the same screenshots through Zoya's real screen_describer (its system prompt,
+    Strands Agent, models.py store=False), graded on the same ground truth."""
+    from zoya.agents.screen_describer import describe_image
+
+    ensure_fixtures()
+    os.environ["VISION_MODEL"] = model_id
+    rows, correct = [], 0
+    for spec in FIXTURES:
+        t0 = time.monotonic()
+        answer, usage = describe_image(
+            (FIXTURES_DIR / spec["file"]).read_bytes(), "Google Chrome", spec["question"], "png"
+        )
+        ok = grade(spec["truth"], answer)
+        correct += ok
+        rows.append(
+            {
+                "file": spec["file"],
+                "question": spec["question"],
+                "truth": spec["truth"],
+                "answer": answer,
+                "correct": ok,
+                "latency_s": round(time.monotonic() - t0, 3),
+                "input_tokens": usage.get("inputTokens", 0),
+                "output_tokens": usage.get("outputTokens", 0),
+            }
+        )
+    total = len(FIXTURES)
+    return {
+        "model_id": model_id,
+        "prompt": "zoya",
+        "total": total,
+        "correct": correct,
+        "rows": rows,
+    }
+
+
+def main_zoya(models: list[str]) -> int:
+    """python tests/evals/screen_benchmark.py --zoya gpt-5.6-terra gpt-5.6-luna"""
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    for model_id in models:
+        result = run_zoya_benchmark(model_id)
+        out_path = RESULTS_DIR / f"screen_benchmark_zoya_{model_id}.json"
+        out_path.write_text(json.dumps(result, indent=2, ensure_ascii=False))
+        latencies = sorted(row["latency_s"] for row in result["rows"])
+        print(
+            f"{model_id}: {result['correct']}/{result['total']} correct, "
+            f"median {latencies[len(latencies) // 2]} s -> {out_path}"
+        )
+        for row in result["rows"]:
+            if not row["correct"]:
+                print(f"  MISREAD [{row['file']}]: {row['answer'][:160]}")
+    return 0
+
+
 def main() -> int:
+    if "--zoya" in sys.argv:
+        return main_zoya([a for a in sys.argv[1:] if a != "--zoya"] or ["gpt-5.6-terra"])
     model_id = sys.argv[1] if len(sys.argv) > 1 else "gpt-5.6-terra"
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 

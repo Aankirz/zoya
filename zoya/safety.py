@@ -88,6 +88,20 @@ TOOL_RISK: dict[str, RiskClass] = {
     "browser_read": "free",
     "browser_click": "guarded",
     "browser_type": "guarded",
+    # Computer use (Phase 5): seeing and reading are free; every input to the Mac checks its target.
+    "screenshot": "free",
+    "scroll": "free",
+    "ax_read": "free",
+    "describe_screen": "free",
+    "read_screen_text": "free",
+    "read_document": "free",
+    "list_shortcuts": "free",
+    "click": "guarded",
+    "type_text": "guarded",
+    "key": "guarded",
+    "ax_press": "guarded",
+    "run_shortcut": "guarded",  # a user's shortcut can do anything: it always asks
+    "computer_task": "guarded",  # its own agent runs the gate on every step
 }
 RISK_ORDER: dict[RiskClass, int] = {"free": 0, "guarded": 1, "confirm": 2, "blocked": 3}
 
@@ -266,6 +280,51 @@ def click_risk(facts: ClickFacts) -> RiskyLabel | None:
     if path_words & COMMERCE_PATH_WORDS or CURRENCY_AMOUNT.search(facts.nearby_text):
         return RiskyLabel("context", f"click {name}")
     return None
+
+
+# Native Mac apps (Phase 5): system and data-loss buttons a web page rarely has. Checked before
+# click_risk for AX and pixel clicks only, so browser behaviour is unchanged.
+NATIVE_RISKY_PHRASES: tuple[tuple[str, str, str], ...] = (
+    ("system", r"shut ?down|power off", "Shut down"),
+    ("system", r"restart|reboot", "Restart"),
+    ("system", r"log ?out|sign ?out|log off", "Log out"),
+    ("system", r"(?:force )?quit", "Quit"),
+    ("delete", r"don ?t save|do not save|discard changes|revert", "Don't save"),
+    ("delete", r"replace|overwrite|reset|format|wipe", "Replace or reset"),
+    ("system", r"(?:un)?install|update now", "Install"),
+    ("send", r"share|reply|forward|call|facetime", "Share or call"),
+    ("submit", r"accept|agree|sign", "Accept"),
+)
+_NATIVE = [
+    (kind, re.compile(rf"(?:^| )(?:{pattern})(?: |$)"), say)
+    for kind, pattern, say in NATIVE_RISKY_PHRASES
+]
+
+
+# macOS permission prompts are the owner's to answer (coordinator): blocked, a voice token can't
+# unlock them. Any input while a prompt app is in front, or on a control that grants access.
+PERMISSION_APPS = {"UserNotificationCenter", "SecurityAgent", "CoreServicesUIAgent"}
+PERMISSION_LABEL = re.compile(
+    r"(?:^| )(?:(?:always |don t |dont |do not )?allow|grant|authori[sz]e|unlock)(?: |$)"
+)
+PERMISSION_MESSAGE = "That's a macOS permission prompt. Please answer it yourself; I never do."
+
+
+def native_input_blocked(labels: list[str], app: str) -> bool:
+    """True for a permission prompt or a grant-access control: no input, even with "confirm"."""
+    if app in PERMISSION_APPS:
+        return True
+    return any(PERMISSION_LABEL.search(normalise(label)) for label in labels)
+
+
+def native_click_risk(facts: ClickFacts) -> RiskyLabel | None:
+    """Guard 2 for Mac apps (AX press, pixel click, keys): system actions, then `click_risk`."""
+    for raw in facts.labels:
+        plain = normalise(raw)
+        for kind, pattern, say in _NATIVE:
+            if pattern.search(plain) or pattern.search(plain.translate(LEET)):
+                return RiskyLabel(kind, say)
+    return click_risk(facts)
 
 
 # --- Money ---------------------------------------------------------------------------------------

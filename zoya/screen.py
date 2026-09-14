@@ -21,12 +21,16 @@ from __future__ import annotations
 import os
 import threading
 import time
+from dataclasses import dataclass
 from typing import Any
 
 from zoya.config import (
     REKOGNITION_TIMEOUT_S,
     SCREEN_CAPTURE_TIMEOUT_S,
+    SCREEN_CHANGED_FRACTION,
+    SCREEN_PIXEL_DELTA,
     SCREENSHOT_JPEG_QUALITY,
+    SCREENSHOT_MAX_WIDTH,
     aws_region,
 )
 from zoya.tools import ToolError
@@ -95,13 +99,16 @@ def _windows(SCK: Any, app_substring: str, title: str) -> list[Any]:  # noqa: N8
 
 
 def _capture(content_filter: Any, size: Any) -> bytes:
-    import AppKit
+    scale = content_filter.pointPixelScale()  # per display (D23): 2.0 Retina, 1.0 external
+    return _jpeg(_capture_image(content_filter, size.width * scale, size.height * scale))
+
+
+def _capture_image(content_filter: Any, width: float, height: float) -> Any:
     import ScreenCaptureKit as SCK
 
-    scale = content_filter.pointPixelScale()  # per display (D23): 2.0 Retina, 1.0 external
     config = SCK.SCStreamConfiguration.alloc().init()
-    config.setWidth_(int(size.width * scale))
-    config.setHeight_(int(size.height * scale))
+    config.setWidth_(int(width))
+    config.setHeight_(int(height))
     config.setShowsCursor_(False)
     image, error = _await(
         lambda h: SCK.SCScreenshotManager.captureImageWithFilter_configuration_completionHandler_(
@@ -110,6 +117,12 @@ def _capture(content_filter: Any, size: Any) -> bytes:
     )
     if error is not None or image is None:
         raise ToolError("I couldn't take a screenshot to check the page.")
+    return image
+
+
+def _jpeg(image: Any) -> bytes:
+    import AppKit
+
     bitmap = AppKit.NSBitmapImageRep.alloc().initWithCGImage_(image)
     jpeg = bitmap.representationUsingType_properties_(
         AppKit.NSBitmapImageFileTypeJPEG,
@@ -134,14 +147,17 @@ def detect_text(jpeg: bytes) -> list[OcrLine]:
 
 
 _client_lock = threading.Lock()
-_client: Any = None
+_clients: dict[str, Any] = {}
 
 
 def _rekognition() -> Any:
-    """Own client: aws.client's 2 s read timeout is too short for an image upload."""
-    global _client
+    return aws_client("rekognition", REKOGNITION_TIMEOUT_S)
+
+
+def aws_client(service: str, timeout_s: float) -> Any:
+    """Own clients: aws.client's 2 s read timeout is too short for an image upload."""
     with _client_lock:
-        if _client is None:
+        if service not in _clients:
             profile = os.environ.get("AWS_PROFILE")
             if not profile:
                 raise RuntimeError("AWS_PROFILE not set (D35)")
@@ -149,13 +165,11 @@ def _rekognition() -> Any:
             from botocore.config import Config
 
             config = Config(
-                connect_timeout=REKOGNITION_TIMEOUT_S,
-                read_timeout=REKOGNITION_TIMEOUT_S,
-                retries={"max_attempts": 1},
+                connect_timeout=timeout_s, read_timeout=timeout_s, retries={"max_attempts": 1}
             )
             session = boto3.Session(profile_name=profile)
-            _client = session.client("rekognition", region_name=aws_region(), config=config)
-        return _client
+            _clients[service] = session.client(service, region_name=aws_region(), config=config)
+        return _clients[service]
 
 
 # --- Accessibility (native apps; Phase 5 click tools call these) --------------------------------
@@ -197,3 +211,131 @@ def ax_focused_subrole() -> str:
 
     focused = _ax(AS.AXUIElementCreateSystemWide(), "AXFocusedUIElement")
     return str(_ax(focused, "AXSubrole") or "") if focused is not None else ""
+
+
+# --- Whole-display screenshots for computer use (Phase 5, §9.6, D23) ---------------------------
+#
+# Captured at the display's POINT size (or smaller, ≤ SCREENSHOT_MAX_WIDTH), never pixel size,
+# so image coordinates map to click coordinates by one ratio whatever the backing scale (AUDIT B10).
+# Zoya's own windows are excluded by the content filter, not NSWindowSharingNone (AUDIT B11).
+# SCDisplay.frame is in global display points, top-left origin: the space CGEvent and AX use.
+# https://developer.apple.com/documentation/screencapturekit/scdisplay/frame
+# https://developer.apple.com/documentation/screencapturekit/sccontentfilter/init(display:excludingapplications:exceptingwindows:)
+
+Frame = tuple[float, float, float, float]  # x, y, width, height in global points
+
+
+@dataclass(frozen=True)
+class Shot:
+    jpeg: bytes
+    width: int  # image pixels, the space the model answers in
+    height: int
+    frame: Frame  # the display this image shows
+    app: str  # frontmost app name (from the system, not the screen)
+    pixel_scale: float  # that display's backing scale, logged only: clicks never need it
+    raw: bytes  # BGRA rows, for `screen_changed`; memory only, like the JPEG
+    bytes_per_row: int
+
+
+def capture_size(width_pt: float, height_pt: float, max_width: int) -> tuple[int, int]:
+    """Point size, scaled down to at most `max_width` wide, aspect ratio kept."""
+    ratio = min(1.0, max_width / width_pt)
+    return round(width_pt * ratio), round(height_pt * ratio)
+
+
+def image_to_screen(
+    x: float, y: float, width: int, height: int, frame: Frame
+) -> tuple[float, float]:
+    """Model coordinates on a `width`×`height` screenshot → global click point on that display.
+
+    Outside the image is refused: a click must never land on another display or off screen.
+    """
+    if not (0 <= x < width and 0 <= y < height):
+        raise ToolError("That spot is outside the screenshot, so I won't click there.")
+    left, top, frame_width, frame_height = frame
+    return left + x * frame_width / width, top + y * frame_height / height
+
+
+Box = tuple[int, int, int, int]  # left, top, right, bottom in image pixels
+
+
+def screen_changed(before: Shot, after: Shot, box: Box | None = None) -> bool:
+    """Did the region an action aimed at visibly change? Elsewhere on screen doesn't count: other
+    apps animate (a clock, a video), so only the neighbourhood of the click or field is compared."""
+    import numpy as np
+
+    if (before.width, before.height, before.frame) != (after.width, after.height, after.frame):
+        return True
+    left, top, right, bottom = box or (0, 0, before.width, before.height)
+    left, top = max(0, left), max(0, top)
+    right, bottom = min(before.width, right), min(before.height, bottom)
+    if right <= left or bottom <= top:
+        return True
+
+    def region(shot: Shot) -> Any:
+        rows = np.frombuffer(shot.raw, np.uint8)[: shot.bytes_per_row * shot.height]
+        pixels = rows.reshape(shot.height, shot.bytes_per_row // 4, 4)
+        return pixels[top:bottom, left:right, :3].astype(np.int16)
+
+    moved = np.abs(region(before) - region(after)).max(axis=2) > SCREEN_PIXEL_DELTA
+    return float(moved.mean()) > SCREEN_CHANGED_FRACTION
+
+
+def capture_display() -> Shot:
+    """The display under the frontmost window, Zoya's own windows left out."""
+    import AppKit
+    import Quartz
+    import ScreenCaptureKit as SCK
+
+    Quartz.CGMainDisplayID()  # opens the window-server connection (see capture_window_jpeg)
+    content, error = _await(
+        lambda h: SCK.SCShareableContent.getShareableContentExcludingDesktopWindows_onScreenWindowsOnly_completionHandler_(  # noqa: E501
+            True, True, h
+        )
+    )
+    if error is not None or content is None:
+        raise ToolError("I need Screen Recording permission to see the screen.")
+    front = AppKit.NSWorkspace.sharedWorkspace().frontmostApplication()
+    display = _front_display(content, front.processIdentifier() if front else -1)
+    mine = [a for a in content.applications() if a.processID() == os.getpid()]
+    content_filter = (
+        SCK.SCContentFilter.alloc().initWithDisplay_excludingApplications_exceptingWindows_(
+            display, mine, []
+        )
+    )
+    rect = display.frame()
+    frame = (rect.origin.x, rect.origin.y, rect.size.width, rect.size.height)
+    width, height = capture_size(frame[2], frame[3], SCREENSHOT_MAX_WIDTH)
+    image = _capture_image(content_filter, width, height)
+    return Shot(
+        jpeg=_jpeg(image),
+        width=Quartz.CGImageGetWidth(image),
+        height=Quartz.CGImageGetHeight(image),
+        frame=frame,
+        app=str(front.localizedName()) if front else "",
+        pixel_scale=float(content_filter.pointPixelScale()),
+        raw=bytes(Quartz.CGDataProviderCopyData(Quartz.CGImageGetDataProvider(image))),
+        bytes_per_row=Quartz.CGImageGetBytesPerRow(image),
+    )
+
+
+def _front_display(content: Any, pid: int) -> Any:
+    """The display holding the centre of the frontmost app's biggest normal window, else main."""
+    import Quartz
+
+    displays = list(content.displays())
+    windows = [
+        w
+        for w in content.windows()
+        if w.owningApplication()
+        and w.owningApplication().processID() == pid
+        and w.windowLayer() == 0
+    ]
+    if windows:
+        rect = max(windows, key=lambda w: w.frame().size.width * w.frame().size.height).frame()
+        cx, cy = rect.origin.x + rect.size.width / 2, rect.origin.y + rect.size.height / 2
+        for display in displays:
+            if Quartz.CGRectContainsPoint(display.frame(), (cx, cy)):
+                return display
+    main = Quartz.CGMainDisplayID()
+    return next((d for d in displays if d.displayID() == main), displays[0])

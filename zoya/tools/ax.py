@@ -1,0 +1,255 @@
+"""T1 — the Accessibility tier (§9.4, D6): read an app's controls and press them by name.
+
+Also the evidence for Guard 2 on every native-app input: `facts_at` / `click_facts` describe the
+element that will REALLY receive a pixel click or AX press, whatever the model said it was.
+AX text is page/app text: untrusted (§12.2), only ever returned inside <untrusted_content>.
+
+These tools belong to computer_agent (which holds the GUI lock), so this module has no TOOLS list.
+
+APIs (pyobjc-framework-ApplicationServices 12.2.2, checked live on this Mac 2026-09-14):
+- https://developer.apple.com/documentation/applicationservices/1462077-axuielementcopyelementatposition
+- https://developer.apple.com/documentation/applicationservices/1459345-axuielementsetmessagingtimeout
+- https://developer.apple.com/documentation/applicationservices/1462091-axuielementperformaction
+- https://developer.apple.com/documentation/applicationservices/1462092-axvaluegetvalue
+- AXManualAccessibility (Chromium/Electron build their web AX tree on request):
+  https://www.electronjs.org/docs/latest/tutorial/accessibility#macos
+"""
+
+from __future__ import annotations
+
+import time
+from typing import Any
+from urllib.parse import urlparse
+
+from strands import tool
+
+from zoya import safety
+from zoya.config import (
+    AX_MESSAGING_TIMEOUT_S,
+    AX_NEARBY_MAX_CHARS,
+    AX_READ_MAX_ITEMS,
+    AX_WALK_DEADLINE_S,
+)
+from zoya.screen import AX_CLICKABLE_ROLES, AX_LABEL_ATTRIBUTES, AX_MAX_PARENTS, _ax
+from zoya.tools import ToolError
+
+TEXT_ROLES = {"AXTextField", "AXTextArea", "AXComboBox", "AXSearchField"}
+PRESSABLE_ROLES = AX_CLICKABLE_ROLES | {"AXPopUpButton", "AXMenuButton", "AXTab", "AXCell"}
+LISTED_ROLES = PRESSABLE_ROLES | TEXT_ROLES | {"AXStaticText", "AXHeading", "AXSlider"}
+NAME_ATTRIBUTES = ("AXTitle", "AXDescription", "AXValue", "AXPlaceholderValue", "AXHelp")
+DIALOG_SUBROLES = {"AXDialog", "AXSystemDialog", "AXFloatingWindow"}
+MAX_ANCESTORS_FOR_URL = 40
+AX_SUCCESS = 0
+
+
+def front_app() -> tuple[str, Any]:
+    """(name, AX application element) of the frontmost app, with a bounded messaging timeout."""
+    import AppKit
+    import ApplicationServices as AS
+
+    app = AppKit.NSWorkspace.sharedWorkspace().frontmostApplication()
+    if app is None:
+        raise ToolError("I can't tell which app is in front.")
+    element = AS.AXUIElementCreateApplication(app.processIdentifier())
+    AS.AXUIElementSetMessagingTimeout(element, AX_MESSAGING_TIMEOUT_S)
+    AS.AXUIElementSetAttributeValue(element, "AXManualAccessibility", True)  # no-op elsewhere
+    return str(app.localizedName()), element
+
+
+def element_at(x: float, y: float) -> Any:
+    """The accessible element under global point (x, y), or None (canvas, no AX, no permission)."""
+    import ApplicationServices as AS
+
+    system = AS.AXUIElementCreateSystemWide()
+    AS.AXUIElementSetMessagingTimeout(system, AX_MESSAGING_TIMEOUT_S)
+    error, element = AS.AXUIElementCopyElementAtPosition(system, x, y, None)
+    return element if error == AX_SUCCESS else None
+
+
+def focused_element() -> Any:
+    _name, app = front_app()
+    return _ax(app, "AXFocusedUIElement")
+
+
+def name_of(element: Any) -> str:
+    return next(
+        (str(v) for a in NAME_ATTRIBUTES if isinstance(v := _ax(element, a), str) and v), ""
+    )
+
+
+def frame_of(element: Any) -> tuple[float, float, float, float] | None:
+    import ApplicationServices as AS
+
+    position, size = _ax(element, "AXPosition"), _ax(element, "AXSize")
+    if position is None or size is None:
+        return None
+    ok_p, point = AS.AXValueGetValue(position, AS.kAXValueCGPointType, None)
+    ok_s, extent = AS.AXValueGetValue(size, AS.kAXValueCGSizeType, None)
+    if not (ok_p and ok_s):
+        return None
+    return point.x, point.y, extent.width, extent.height
+
+
+def _clickable(element: Any) -> tuple[Any, list[str]]:
+    """The element a click on `element` presses (itself or a clickable ancestor) and all labels
+    on the way up (same walk as screen.ax_labels_at)."""
+    labels: list[str] = []
+    current = element
+    for _ in range(AX_MAX_PARENTS):
+        labels += [str(v) for a in AX_LABEL_ATTRIBUTES if isinstance(v := _ax(current, a), str)]
+        if _ax(current, "AXRole") in PRESSABLE_ROLES:
+            return current, labels
+        parent = _ax(current, "AXParent")
+        if parent is None:
+            break
+        current = parent
+    return element, labels
+
+
+def _web_path(element: Any) -> str:
+    """URL path of the web page holding `element` (Chrome/Safari AXWebArea), "" in native apps."""
+    current = element
+    for _ in range(MAX_ANCESTORS_FOR_URL):
+        if current is None:
+            return ""
+        if _ax(current, "AXRole") == "AXWebArea" and (url := _ax(current, "AXURL")) is not None:
+            return urlparse(str(url)).path
+        current = _ax(current, "AXParent")
+    return ""
+
+
+def _nearby_text(element: Any) -> str:
+    """Text of the target's siblings and its parent's siblings: where a price would sit."""
+    texts: list[str] = []
+    parent = _ax(element, "AXParent")
+    for container in (parent, _ax(parent, "AXParent") if parent is not None else None):
+        for child in (_ax(container, "AXChildren") or []) if container is not None else []:
+            texts += [str(v) for a in AX_LABEL_ATTRIBUTES if isinstance(v := _ax(child, a), str)]
+            if sum(map(len, texts)) > AX_NEARBY_MAX_CHARS:
+                return " ".join(texts)[:AX_NEARBY_MAX_CHARS]
+    return " ".join(texts)
+
+
+def click_facts(element: Any) -> safety.ClickFacts:
+    """What the app says about the element that will really be pressed. No element → no labels,
+    which click_risk treats as an unnamed target (asks: fail closed)."""
+    if element is None:
+        return safety.ClickFacts(labels=[])
+    target, labels = _clickable(element)
+    window = _ax(target, "AXWindow")
+    default = _ax(window, "AXDefaultButton") if window is not None else None
+    return safety.ClickFacts(
+        labels=labels,
+        is_submit=default is not None and default == target,  # Return presses it: a form's submit
+        path=_web_path(target),
+        nearby_text=_nearby_text(target),
+    )
+
+
+def is_secure(element: Any) -> bool:
+    """Password/OTP/card field (§12.1): secure subrole, or a label/identifier that says so."""
+    if element is None:
+        return False
+    names = " ".join(
+        str(v)
+        for a in (*NAME_ATTRIBUTES, "AXIdentifier", "AXRoleDescription")
+        if isinstance(v := _ax(element, a), str) and a != "AXValue"  # the value is what's typed
+    )
+    return safety.is_secret_field(name=names, ax_subrole=str(_ax(element, "AXSubrole") or ""))
+
+
+# --- Reading and pressing -----------------------------------------------------------------------
+
+
+def _windows(app: Any) -> list[Any]:
+    """Dialogs and sheets first (§6 Flow 5), then the focused window, then the rest."""
+    windows = list(_ax(app, "AXWindows") or [])
+    focused = _ax(app, "AXFocusedWindow")
+    return sorted(
+        windows,
+        key=lambda w: (_ax(w, "AXSubrole") not in DIALOG_SUBROLES, w != focused),
+    )
+
+
+def listed_elements(app: Any) -> list[tuple[str, str, Any]]:
+    """(role, name, element) of named controls and text, breadth first, bounded in time/count."""
+    deadline = time.monotonic() + AX_WALK_DEADLINE_S
+    queue, found = _windows(app), []
+    while queue and len(found) < AX_READ_MAX_ITEMS and time.monotonic() < deadline:
+        element = queue.pop(0)
+        role = str(_ax(element, "AXRole") or "")
+        name = name_of(element)
+        if role in LISTED_ROLES and (name or role in TEXT_ROLES):
+            found.append((role, name, element))
+        queue += list(_ax(element, "AXChildren") or [])
+    return found
+
+
+@tool
+def ax_read() -> str:
+    """List the frontmost app's windows, dialogs first, with their buttons, fields and text.
+
+    Fast and exact: use before taking a screenshot. Press a listed control with ax_press.
+    """
+    name, app = front_app()
+    items = listed_elements(app)
+    if not items:
+        return f"{name} doesn't expose its controls. Take a screenshot instead."
+    lines = [f"{role.removeprefix('AX')}: {label}".strip() for role, label, _e in items]
+    return f"Frontmost app: {name}\n" + safety.wrap_untrusted("\n".join(lines))
+
+
+def find(label: str, occurrence: int = 1) -> Any:
+    """The `occurrence`-th pressable element named `label` (exact name first, then contains)."""
+    _name, app = front_app()
+    wanted = safety.normalise(label)
+    pressable = [
+        (safety.normalise(n), e) for r, n, e in listed_elements(app) if r in PRESSABLE_ROLES
+    ]
+    for matches in (
+        [e for n, e in pressable if n == wanted],
+        [e for n, e in pressable if wanted and wanted in n],
+    ):
+        if len(matches) >= occurrence >= 1:
+            return matches[occurrence - 1]
+    raise ToolError(f"I can't find {label} in this app. Read it again or take a screenshot.")
+
+
+@tool
+def ax_press(label: str, occurrence: int = 1) -> str:
+    """Press a button, checkbox, tab or menu item in the frontmost app by its name from ax_read.
+
+    Quitting, deleting, sending, paying and unnamed controls make Zoya ask the user out loud
+    first. macOS permission prompts (Allow / Don't Allow) are never pressed: the user answers them.
+
+    Args:
+        label: The control's name exactly as ax_read listed it, e.g. "Dark".
+        occurrence: 1 for the first control with that name, 2 for the second, ...
+    """
+    from zoya.tools import computer
+
+    computer.check_user_idle()
+    app_name, _app = front_app()
+    element = find(label, occurrence)
+    facts = click_facts(element)
+    computer.refuse_if_blocked(facts.labels, app_name)
+    risky = safety.native_click_risk(facts)
+    safety.log_safety_timing(event="ax_press", risk=risky.kind if risky else "free")
+    if risky is not None:
+        action = safety.Action(risky.kind, risky.say, target=app_name)
+        verified: list[Any] = []
+
+        def live() -> safety.Action:
+            again = find(label, occurrence)
+            same = click_facts(again) == facts and front_app()[0] == app_name
+            verified.append(again)
+            return action if same else safety.Action("changed", "changed")
+
+        safety.require_confirmation(action, current=live)
+        element = verified[-1]
+    target, _labels = _clickable(element)
+    computer.press_element(target, frame_of(target))
+    return f"Pressed {label}." + (" The user confirmed it out loud." if risky else "")
+
+
+AX_TOOLS = [ax_read, ax_press]

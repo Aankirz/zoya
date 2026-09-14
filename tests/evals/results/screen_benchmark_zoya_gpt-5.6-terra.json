@@ -1,0 +1,143 @@
+{
+  "model_id": "gpt-5.6-terra",
+  "prompt": "zoya",
+  "total": 10,
+  "correct": 10,
+  "rows": [
+    {
+      "file": "checkout_total.png",
+      "question": "What is the order total shown on this checkout screen?",
+      "truth": {
+        "amount": "₹2,847"
+      },
+      "answer": "The order total is rupees 2,847. Google Chrome is showing an Amazon.in checkout screen. Items are rupees 2,499, delivery is rupees 49, and the discount is minus rupees 101.",
+      "correct": true,
+      "latency_s": 3.56,
+      "input_tokens": 939,
+      "output_tokens": 50
+    },
+    {
+      "file": "popup_confirm_delete.png",
+      "question": "What does this popup dialog say, and what are the button options?",
+      "truth": {
+        "amount": null,
+        "name": null,
+        "keyword": "delete"
+      },
+      "answer": "Google Chrome is in front, showing a confirmation dialog. It says, “Delete this photo? This cannot be undone.” The button options are “Cancel” and “Delete.”",
+      "correct": true,
+      "latency_s": 3.847,
+      "input_tokens": 942,
+      "output_tokens": 38
+    },
+    {
+      "file": "error_dialog.png",
+      "question": "What is the exact error message shown?",
+      "truth": {
+        "amount": null,
+        "name": null,
+        "keyword": "network connection was lost"
+      },
+      "answer": "Google Chrome is in front, showing an error page. The exact error message is: “Could not send message. The network connection was lost.” There is a “Try Again” button.",
+      "correct": true,
+      "latency_s": 2.288,
+      "input_tokens": 936,
+      "output_tokens": 41
+    },
+    {
+      "file": "whatsapp_message.png",
+      "question": "Who sent the latest message, and what does it say?",
+      "truth": {
+        "amount": null,
+        "name": "Rohan Mehta",
+        "keyword": "pick up milk"
+      },
+      "answer": "Rohan Mehta sent the latest message: “Can you pick up milk on your way home?” at 10:42 AM. Google Chrome is in front, showing a WhatsApp message screen.",
+      "correct": true,
+      "latency_s": 2.814,
+      "input_tokens": 940,
+      "output_tokens": 43
+    },
+    {
+      "file": "login_page.png",
+      "question": "What fields does this login form ask for?",
+      "truth": {
+        "amount": null,
+        "name": null,
+        "keyword": "password"
+      },
+      "answer": "Google Chrome is in front, showing a Sign in page. The form asks for an Email address and Password, with a Sign in button.",
+      "correct": true,
+      "latency_s": 2.418,
+      "input_tokens": 937,
+      "output_tokens": 31
+    },
+    {
+      "file": "reminder_card.png",
+      "question": "What is the reminder text and what time is it set for?",
+      "truth": {
+        "amount": null,
+        "name": null,
+        "keyword": "6:00 pm",
+        "keyword2": "medicine"
+      },
+      "answer": "The reminder says “Take evening medicine” and is set for Today at 6:00 PM. Google Chrome is in front, showing a reminder page.",
+      "correct": true,
+      "latency_s": 2.99,
+      "input_tokens": 941,
+      "output_tokens": 34
+    },
+    {
+      "file": "bank_transfer_confirm.png",
+      "question": "How much money is being transferred, and to whom?",
+      "truth": {
+        "amount": "₹15,000",
+        "name": "Ankit Sharma"
+      },
+      "answer": "₹15,000 is being transferred to Ankit Sharma. Google Chrome is showing a Confirm Transfer screen. The account ends in 4821, with Cancel and Confirm buttons.",
+      "correct": true,
+      "latency_s": 2.59,
+      "input_tokens": 939,
+      "output_tokens": 38
+    },
+    {
+      "file": "delivery_address.png",
+      "question": "What name and address is the delivery going to?",
+      "truth": {
+        "amount": null,
+        "name": "Sneha Reddy"
+      },
+      "answer": "The delivery is going to Sneha Reddy at 221 MG Road, Indiranagar, Bangalore, Karnataka 560038. Google Chrome is showing a Delivery Address screen.",
+      "correct": true,
+      "latency_s": 2.954,
+      "input_tokens": 938,
+      "output_tokens": 38
+    },
+    {
+      "file": "discount_applied.png",
+      "question": "What discount code was applied and how much was saved?",
+      "truth": {
+        "amount": "₹300",
+        "keyword": "FESTIVE"
+      },
+      "answer": "The code FESTIVE was applied, saving rupees 300. Google Chrome is showing a cart screen with a new total of rupees 4,199.",
+      "correct": true,
+      "latency_s": 2.284,
+      "input_tokens": 939,
+      "output_tokens": 35
+    },
+    {
+      "file": "cart_summary.png",
+      "question": "How many items are in the cart and what is the subtotal?",
+      "truth": {
+        "amount": "₹6,198",
+        "keyword": "4 items"
+      },
+      "answer": "There are 4 items in the cart, and the subtotal is rupees 6,198. Google Chrome is showing a Your Cart page with a Proceed to Checkout button.",
+      "correct": true,
+      "latency_s": 2.587,
+      "input_tokens": 941,
+      "output_tokens": 38
+    }
+  ]
+}
