@@ -208,3 +208,6 @@
 - zoya/tasks.py Task Manager; task-bound confirmations in safety.py (D61 extended, D67); voice controls (named stop, what's running, queue it).
 - document_agent (as_tool delegate) + office/share tools; set_reminder (EventBridge Scheduler → SNS, no Lambda); earcons queued/complete.
 - Tests: tests/test_tasks.py, tests/test_office_reminders.py; eval tests/evals/multitask_replay.py (3/3 pass). Docs: D67, STACK §8 row.
+
+## 2026-09-14 — Phase 6 review fixes
+- Formula-looking spreadsheet text stored as text (xlsx) / apostrophe-prefixed (csv); outside-task confirmations refused while any task runs; reminder caps (5 per command, 20 active).
