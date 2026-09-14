@@ -24,7 +24,7 @@ import os
 from strands.models import BedrockModel, Model
 from strands.models.openai import OpenAIModel
 
-from zoya.config import FIREWORKS_BASE_URL
+from zoya.config import FIREWORKS_BASE_URL, MODEL_MAX_RETRIES, MODEL_TIMEOUT_S
 
 Role = str  # "brain" | "vision" | "router"
 
@@ -55,7 +55,11 @@ def get_model(role: Role = "brain", provider: str | None = None) -> Model:
 
     if provider == "openai":
         return OpenAIModel(
-            client_args={"api_key": os.environ["OPENAI_API_KEY"]},
+            client_args={
+                "api_key": os.environ["OPENAI_API_KEY"],
+                "timeout": MODEL_TIMEOUT_S[role],
+                "max_retries": MODEL_MAX_RETRIES,
+            },
             model_id=model_id,
             params={
                 "store": False,  # D36 — never relax this.
@@ -68,6 +72,8 @@ def get_model(role: Role = "brain", provider: str | None = None) -> Model:
             client_args={
                 "api_key": os.environ["FIREWORKS_API_KEY"],
                 "base_url": FIREWORKS_BASE_URL,
+                "timeout": MODEL_TIMEOUT_S[role],
+                "max_retries": MODEL_MAX_RETRIES,
             },
             model_id=model_id,
         )
