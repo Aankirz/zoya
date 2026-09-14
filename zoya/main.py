@@ -19,11 +19,16 @@ os.environ["HF_HUB_OFFLINE"] = "1"
 
 import argparse  # noqa: E402
 import logging  # noqa: E402
+import signal  # noqa: E402
 import sys  # noqa: E402
 import threading  # noqa: E402
 import time  # noqa: E402
 
 from zoya.config import DISABLE_TTS_ENV, TIMING_LOG, load_env  # noqa: E402
+
+
+def _raise_interrupt(_signum: int, _frame: object) -> None:
+    raise KeyboardInterrupt  # the finally in main() restores the volume
 
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
@@ -67,6 +72,9 @@ def main(argv: list[str] | None = None) -> int:
     from zoya import audio, speech
     from zoya.setup_models import ModelsMissing
 
+    audio.restore_after_kill()  # before anything else: undo a previous run killed while ducked
+    for quit_signal in (signal.SIGTERM, signal.SIGHUP):  # kill / terminal closed → same as Ctrl+C
+        signal.signal(quit_signal, _raise_interrupt)
     try:
         loop = _start(args)
     except ModelsMissing as missing:

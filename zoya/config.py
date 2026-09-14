@@ -78,6 +78,7 @@ AUDIO_SAMPLE_RATE_HZ = 48000  # earcons are built at this rate (scripts/build_so
 AUDIO_BLOCK_SIZE = 480  # 10 ms mixer blocks → stop silences within one block
 LOOP_DUCK_GAIN = 10 ** (-18 / 20)  # working loop −18 dB under speech (§9.10)
 DUCK_FRACTION = 0.3  # other apps' audio drops to 30% of the volume while Zoya listens
+DUCK_STATE_FILE = LOG_DIR / "duck_state.json"  # pre-duck volume, so a killed run can be undone
 
 # TTS bounds. ElevenLabs SDK default timeout is 240 s (elevenlabs/client.py).
 ELEVENLABS_TIMEOUT_S = 5.0

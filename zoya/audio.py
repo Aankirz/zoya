@@ -9,7 +9,9 @@ APIs: https://python-sounddevice.readthedocs.io/en/0.5.6/api/streams.html#soundd
 
 from __future__ import annotations
 
+import json
 import logging
+import os
 import queue
 import subprocess
 import threading
@@ -24,6 +26,7 @@ from zoya.config import (
     AUDIO_BLOCK_SIZE,
     AUDIO_SAMPLE_RATE_HZ,
     DUCK_FRACTION,
+    DUCK_STATE_FILE,
     LOOP_DUCK_GAIN,
     OSASCRIPT_TIMEOUT_S,
     SOUNDS_DIR,
@@ -184,11 +187,33 @@ def _volume(script: str) -> str:
     return result.stdout.strip()
 
 
+def _saved_level() -> int | None:
+    """The pre-duck volume a run wrote to DUCK_STATE_FILE (still there if it was killed)."""
+    try:
+        return int(json.loads(DUCK_STATE_FILE.read_text())["volume"])
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        log.warning("unreadable duck state (%s) — ignored", type(error).__name__)
+        return None
+
+
+def _save_level(level: int) -> None:
+    DUCK_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    partial = DUCK_STATE_FILE.with_suffix(".tmp")
+    partial.write_text(json.dumps({"volume": level}))
+    os.replace(partial, DUCK_STATE_FILE)  # atomic: a kill mid-write never leaves half a file
+
+
 def _duck_now() -> None:
     global _ducked_from
     if _ducked_from is not None:
         return
-    level = int(_volume("output volume of (get volume settings)"))
+    # A killed run's saved level is the real one: reading the ducked volume as "normal"
+    # compounded 100 → 30 → 9 → 3 → 0 over repeated kills.
+    saved = _saved_level()
+    level = saved if saved is not None else int(_volume("output volume of (get volume settings)"))
+    _save_level(level)  # before lowering, so even kill -9 mid-duck can be undone at next start
     _ducked_from = level  # set before lowering, so a failed or partial duck is still restored
     _volume(f"set volume output volume {round(level * DUCK_FRACTION)}")
 
@@ -203,6 +228,17 @@ def _restore_now() -> None:
     except (subprocess.SubprocessError, OSError):
         _volume(f"set volume output volume {_ducked_from}")  # one retry, then the worker logs it
     _ducked_from = None
+    DUCK_STATE_FILE.unlink(missing_ok=True)
+
+
+def restore_after_kill() -> None:
+    """At startup: a run killed while ducked (kill -9, closed terminal) left the Mac quiet."""
+    saved = _saved_level()
+    if saved is None:
+        return
+    _volume(f"set volume output volume {saved}")
+    DUCK_STATE_FILE.unlink(missing_ok=True)
+    log.warning("restored the volume to %d left ducked by a killed run", saved)
 
 
 @cache
