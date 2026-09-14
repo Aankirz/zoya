@@ -22,7 +22,7 @@ TASK = "task"
 CONFIRMATION = "confirmation"
 OVERLAY = "overlay"
 
-EarconKind = Literal["listening", "heard", "working", "success", "error", "attention"]
+EarconKind = Literal["listening", "heard", "working", "success", "error", "attention", "stop"]
 TaskStatus = Literal["started", "running", "done", "failed", "cancelled"]
 Route = Literal["fast", "orchestrator", "stop"]
 
