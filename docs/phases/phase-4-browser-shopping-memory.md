@@ -20,6 +20,7 @@
 - Login/CAPTCHA handoff flow (Flow 10), plus an **SNS email to the trusted contact** when Zoya is blocked.
 - **Order history + key-memory copy** in DynamoDB (fallback when Supermemory is unavailable).
 - **Amazon Location Service** tool: "nearest pharmacy / what's near me".
+- **Zoya harness, layers 1–2 (owner priority; design in [`docs/research/harness.md`](../research/harness.md), Strands-first):** build `zoya/skills/<name>/` as `SKILL.md` files (loaded through the Strands `AgentSkills` plugin) plus `actions.py` @tool recipes run through `agent.tool.X()` at 0 tokens. Dispatch order: rules → skill trigger index (0 model calls) → one luna `SkillPick` → terra brain with only that skill's tools. Start with the skills youtube (search, open channel, play video), spotify_web (search, play song), media, notes and weather. Also a stable prompt-prefix builder (`prompt_cache_key` via `params`) and a result TTL cache (never for money/send/delete). Every recipe inherits the Phase 3 risk registry and token check, and `allowed_tools` is not a security boundary. Verify each `[UNVERIFIED]` item in the report before relying on it.
 - **Deep web research (Claude-style search → fetch → answer):** `web_search(query, intent)` and `web_fetch(url)` tools on the **TinyFish Search and Fetch APIs** (free tier: 30 searches/min, 150 fetches/min — https://docs.tinyfish.ai/search-api/reference, https://www.tinyfish.ai/blog/search-and-fetch-are-now-free-for-every-agent-everywhere). The brain searches, fetches the 2–3 best pages, and answers with the source name spoken ("according to…"). Fetched text is wrapped in `<untrusted_content>` (§12.2). API key in Secrets Manager `zoya/providers`; timeouts; only the query/URL leaves the Mac. Record as a DECISIONS entry. This handles "look it up" questions (population, news, comparisons) instead of the model guessing.
 - **In-tab site control on the user's logged-in sites** (DOM-first, Playwright Zoya profile): "play <song> on Spotify web", "play <video> on YouTube", "search <x> on YouTube", "subscribe to this channel", "comment <text> on this video", "like this video". Playing, searching and opening are free actions. **Subscribe, like, comment and post go through the Phase 3 safety gate** (spoken summary + "confirm") because they publish as the user.
 - `tests/test_memory_filter.py`.
@@ -36,6 +37,8 @@
 5. ☐ "Confirm" path places the order (cheap item) and saves order history to memory.
 6. ☐ Logged-out session → handoff message, resumes after "done".
 7. ☐ Card number / OTP rejected by `memory_add`.
+11. ☐ "Open the MrBeast channel on YouTube" → the channel page opens via the youtube skill; the timing log shows the skill path, not a multi-step brain loop.
+12. ☐ Repeating a skill task a second time uses 0 model calls where a trigger matches, shown in the timing log.
 8. ☐ "What's the population of Bangalore compared to New York?" → Zoya searches, reads sources, answers with a named source (no "I can't read the results").
 9. ☐ "Play Love Me Not on Spotify" (Spotify web in the Zoya profile) → that exact song plays, not the last-played track.
 10. ☐ On a YouTube video: "play <video title>" works; "comment 'great video'" → spoken confirmation → "cancel" posts nothing.

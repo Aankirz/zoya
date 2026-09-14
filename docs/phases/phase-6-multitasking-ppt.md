@@ -18,6 +18,7 @@
 - `document_agent` (STACK §9): creates **Word (.docx, python-docx), Excel (.xlsx with formulas, openpyxl), slides (.pptx, python-pptx), PDF (reportlab), CSV/Markdown** in `~/Documents/Zoya/`; opens the file by bundle id; reads back structure (title/sections, columns/rows/totals); "read section N" / "read row N"; edits on request. Optional share: upload to S3 + pre-signed link via SNS email.
 - **Reminders (STACK §8):** EventBridge Scheduler + Lambda → SNS email and a spoken reminder.
 - Earcons: `queued`, `complete`.
+- **Harness, multi-agent layer** ([`docs/research/harness.md`](../research/harness.md), Strands-first): use Strands multi-agent primitives (agents-as-tools `as_tool(delegate=True)`, Swarm/Graph where they fit) instead of custom orchestration. Concurrent tasks can run skill recipes and recorded flows, and a flow that succeeds repeatedly gets promoted to a named skill. Verify each API in the strands 1.55.1 source and cite it.
 
 **Not in this phase:** overlay, WhatsApp/email flows.
 

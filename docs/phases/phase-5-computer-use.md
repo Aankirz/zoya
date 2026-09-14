@@ -19,7 +19,7 @@
 - AX API tier T1 (`ax_read`, `ax_press`) before pixels (§9.4).
 - `screen_describer` on `VISION_MODEL` (chosen in Phase 0); re-run the screen benchmark with real Zoya prompts.
 - Context pruning: last 2 screenshots only (§9.3).
-- Context pruning: last 2 screenshots only (§9.3).
+- **Harness, cheapest path first** ([`docs/research/harness.md`](../research/harness.md)): before any pixel loop, try the Shortcuts app (`shortcuts run`) and fixed AppleScript actions as skill recipes. Record each successful pixel/DOM task as a replayable flow keyed by intent + app, replay it at 0 model calls next time, and fall back to the brain if a step doesn't match. Every replayed step still goes through the Phase 3 gate.
 - **Amazon Textract**: "read this PDF / bill / letter to me" (text + tables read aloud).
 - **Rekognition DetectText** as a fast OCR tool for "read the text on my screen".
 - `tests/test_coords.py`.

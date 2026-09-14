@@ -168,3 +168,6 @@
 
 ## 2026-09-14 — Harness research
 - docs/research/harness.md: Strands feature audit, 3-layer harness design, caching plan, Phase 3–6 rollout (research only).
+
+## 2026-09-14 — Harness rollout into phase briefs
+- Phases 4–6: Strands-first harness layers from docs/research/harness.md (skills + actions + caching in 4, Shortcuts/recorded flows in 5, multi-agent in 6); phase 5 duplicate line removed.
