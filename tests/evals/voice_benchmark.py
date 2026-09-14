@@ -27,8 +27,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+REPO_ROOT = Path(__file__).parent.parent.parent
 RESULTS_DIR = Path(__file__).parent / "results"
 AUDIO_DIR = RESULTS_DIR / "audio"
+
+
+def _relpath(path: Path) -> str:
+    return path.relative_to(REPO_ROOT).as_posix()
+
 
 # 5 Zoya sentences incl. Hinglish (STACK §4 "Voice" row).
 SENTENCES = [
@@ -74,7 +80,7 @@ def bench_polly() -> list[dict]:
         rest = resp["AudioStream"].read()
         path = AUDIO_DIR / f"polly_kajal_{i}.mp3"
         path.write_bytes(first_byte + rest)
-        rows.append({"sentence": sentence, "time_to_first_audio_s": ttfa, "file": str(path)})
+        rows.append({"sentence": sentence, "time_to_first_audio_s": ttfa, "file": _relpath(path)})
     return rows
 
 
@@ -97,13 +103,25 @@ def bench_elevenlabs(voice_id: str = "Be3X8pg7kLN4vyyMC3QN") -> list[dict]:
         audio = first_chunk + b"".join(chunks)
         path = AUDIO_DIR / f"elevenlabs_tara_{i}.mp3"
         path.write_bytes(audio)
-        rows.append({"sentence": sentence, "time_to_first_byte_s": ttfb, "file": str(path)})
+        rows.append({"sentence": sentence, "time_to_first_byte_s": ttfb, "file": _relpath(path)})
     return rows
+
+
+WHISPER_REPO = "mlx-community/whisper-large-v3-turbo"
 
 
 def whisper_smoke_test() -> list[dict]:
     """Transcribe the Polly clips with mlx-whisper as an end-to-end pipeline check."""
     import mlx_whisper
+
+    # First call downloads + loads the model (one-time, ~60s); warm up before timing
+    # any clip so per-command latency reflects steady-state, not the cold start.
+    first_clip = AUDIO_DIR / "polly_kajal_0.mp3"
+    model_load_s = None
+    if first_clip.exists():
+        t0 = time.monotonic()
+        mlx_whisper.transcribe(str(first_clip), path_or_hf_repo=WHISPER_REPO)
+        model_load_s = round(time.monotonic() - t0, 3)
 
     rows = []
     for i, sentence in enumerate(SENTENCES):
@@ -111,9 +129,7 @@ def whisper_smoke_test() -> list[dict]:
         if not path.exists():
             continue
         t0 = time.monotonic()
-        result = mlx_whisper.transcribe(
-            str(path), path_or_hf_repo="mlx-community/whisper-large-v3-turbo"
-        )
+        result = mlx_whisper.transcribe(str(path), path_or_hf_repo=WHISPER_REPO)
         latency = round(time.monotonic() - t0, 3)
         rows.append(
             {
@@ -122,7 +138,7 @@ def whisper_smoke_test() -> list[dict]:
                 "latency_s": latency,
             }
         )
-    return rows
+    return model_load_s, rows
 
 
 def main() -> int:
@@ -146,7 +162,9 @@ def main() -> int:
         print(f"  [FAIL] {type(error).__name__}: {error}")
 
     print("\nWhisper smoke test (mlx-whisper large-v3-turbo on the Polly clips)...")
-    whisper_rows = whisper_smoke_test()
+    model_load_s, whisper_rows = whisper_smoke_test()
+    if model_load_s is not None:
+        print(f"  (model load/warm-up, excluded from per-clip latency: {model_load_s}s)")
     for row in whisper_rows:
         print(f"  expected: {row['expected'][:50]!r}")
         print(f"  heard:    {row['transcribed'][:50]!r}  ({row['latency_s']}s)")
@@ -154,7 +172,7 @@ def main() -> int:
     result = {
         "polly_kajal": {"avg_time_to_first_audio_s": avg_polly, "rows": polly_rows},
         "elevenlabs_tara": {"avg_time_to_first_byte_s": avg_eleven, "rows": eleven_rows},
-        "whisper_smoke_test": whisper_rows,
+        "whisper_smoke_test": {"model_load_warm_up_s": model_load_s, "rows": whisper_rows},
     }
     out_path = RESULTS_DIR / "voice_benchmark.json"
     out_path.write_text(json.dumps(result, indent=2, ensure_ascii=False))

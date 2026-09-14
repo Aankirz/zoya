@@ -1,0 +1,25 @@
+{
+  "model_id": "gpt-5.6-luna",
+  "avg_time_to_first_token_s": 1.706,
+  "avg_time_to_first_sentence_s": 1.883,
+  "rows": [
+    {
+      "prompt": "What's the weather like in Bangalore today, and should I carry an umbrella?",
+      "time_to_first_token_s": 2.02,
+      "time_to_first_sentence_s": 2.343,
+      "response": "I can’t access live weather data in this chat, so I can’t reliably report today’s conditions in Bengaluru (Bangalore). Check a current weather app or the India Meteorological Department forecast; if there’s any rain chance—especially during the afternoon or evening—carry a compact umbrella, as showers can be sudden."
+    },
+    {
+      "prompt": "I just added a running shoe to my cart for 2499 rupees. Should I check for a discount code first?",
+      "time_to_first_token_s": 1.241,
+      "time_to_first_sentence_s": 1.367,
+      "response": "Yes—before checking out, it’s worth checking for a discount code. Try:\n\n- The retailer’s homepage, app, email/SMS offers, or first-order promotions  \n- Coupon sites and the shoe brand’s official social pages  \n- Bank, wallet, UPI, or card-specific instant discounts  \n- Cart thresholds, such as discounts above ₹2,500—adding a low-cost item might qualify, but only if the savings exceed the extra cost  \n- Cashback and loyalty points, while checking whether they can be combined with a coupon  \n\nCompare the final price after shipping, taxes, and any code restrictions. Avoid delaying if the shoe is low in stock or the sale price may expire."
+    },
+    {
+      "prompt": "Summarize in two sentences: the user wants a reminder to call their mother at 6pm and to also check today's cricket score.",
+      "time_to_first_token_s": 1.857,
+      "time_to_first_sentence_s": 1.94,
+      "response": "The user wants a reminder to call their mother at 6:00 PM. They also want to check today’s cricket score."
+    }
+  ]
+}

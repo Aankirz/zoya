@@ -7,6 +7,14 @@ D36 (mandatory): every OpenAI request is sent with store=False — Zoya's
 requests carry screenshots, voice commands and personal data. Verified
 against the installed SDK: strands/models/openai.py spreads `params` (which
 we set to {"store": False}) straight into the Chat Completions request body.
+
+D43: gpt-5.6.* rejects function tools in Chat Completions unless
+reasoning_effort="none" — verified live via `Agent(model=get_model(role),
+tools=[...])` for both "router" and "brain" roles, which otherwise 400 with
+"Function tools with reasoning_effort are not supported... set
+reasoning_effort to 'none'." This trades away gpt-5.6's deeper reasoning
+mode for tool-calling support; revisit via OpenAIResponsesModel if a later
+phase needs both.
 """
 
 from __future__ import annotations
@@ -49,7 +57,10 @@ def get_model(role: Role = "brain", provider: str | None = None) -> Model:
         return OpenAIModel(
             client_args={"api_key": os.environ["OPENAI_API_KEY"]},
             model_id=model_id,
-            params={"store": False},  # D36 — never relax this.
+            params={
+                "store": False,  # D36 — never relax this.
+                "reasoning_effort": "none",  # D43 — required for function tools on gpt-5.6.*
+            },
         )
 
     if provider == "fireworks":

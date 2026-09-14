@@ -99,3 +99,12 @@
 - D40-D43: BRAIN_MODEL/VISION_MODEL=gpt-5.6-terra, ROUTER_MODEL=gpt-5.6-luna, ElevenLabs fallback voice Tara; documented gpt-5.6.* needs max_completion_tokens + reasoning_effort="none" for tool calls; Whisper returns Devanagari for Hindi input, not romanized Hinglish.
 - .env filled with benchmark-chosen model IDs and voice ID (no secrets changed).
 - Not done: S3 bucket for results (blocked by permission classifier, needs owner sign-off), real 20-command Whisper/Transcribe benchmark and mic/Accessibility permission grants (need the owner on this Mac).
+
+## 2026-09-14 — Phase 0 review fixes (from reviewer session zoya-6c)
+- Fixed real bug: zoya/models.py didn't set reasoning_effort="none", so a live Strands Agent+tool call through get_model() 400'd for both router and brain roles (D43); fixed and reverified live.
+- Added tests/evals/brain_latency.py (D44): streamed time-to-first-token/sentence; neither gpt-5.6-luna nor -terra clears the <=1s preference, and terra is actually faster than luna here despite costing more.
+- Added tests/evals/stt_benchmark.py + commands_data.py + scripts/record_commands.py (D45): Amazon Transcribe vs Whisper harness (batch via boto3, not the amazon-transcribe streaming SDK — it pins awscrt~=0.26.1 and broke the zoya AWS profile's login credential provider, caught and reverted). Fixed a real grading bug: Whisper normalizes spoken numbers to digits, so keyword matching needed both surface forms.
+- Recorded computer-use call cost, ElevenLabs character usage (50/10,000), and that Fireworks balance isn't readable from the inference API key (D40/D41).
+- Fixed voice_benchmark.json to store repo-relative paths and exclude Whisper's one-time model-load from per-clip latency.
+- S3 bucket still not created — denied by Claude Code's permission classifier; the reviewer session asked for it again but a peer can't grant that approval, so it was not re-attempted (D46).
+- 32fbc1b's direct push to main was this session's own user's explicit instruction (asked and confirmed twice), not an oversight — noted back to the reviewer session rather than reverting to a branch workflow.

@@ -1,89 +1,92 @@
 {
   "polly_kajal": {
-    "avg_time_to_first_audio_s": 0.151,
+    "avg_time_to_first_audio_s": 0.149,
     "rows": [
       {
         "sentence": "Hi, I'm Zoya. How can I help you today?",
-        "time_to_first_audio_s": 0.168,
-        "file": "/Users/ankitkiran/Desktop/zoya/tests/evals/results/audio/polly_kajal_0.mp3"
+        "time_to_first_audio_s": 0.158,
+        "file": "tests/evals/results/audio/polly_kajal_0.mp3"
       },
       {
         "sentence": "Your order total is two thousand eight hundred and forty seven rupees.",
-        "time_to_first_audio_s": 0.148,
-        "file": "/Users/ankitkiran/Desktop/zoya/tests/evals/results/audio/polly_kajal_1.mp3"
+        "time_to_first_audio_s": 0.151,
+        "file": "tests/evals/results/audio/polly_kajal_1.mp3"
       },
       {
         "sentence": "Aapka Swiggy order pandrah minute mein aa jayega.",
-        "time_to_first_audio_s": 0.149,
-        "file": "/Users/ankitkiran/Desktop/zoya/tests/evals/results/audio/polly_kajal_2.mp3"
+        "time_to_first_audio_s": 0.142,
+        "file": "tests/evals/results/audio/polly_kajal_2.mp3"
       },
       {
         "sentence": "I've set a reminder for six pm to call Priya.",
-        "time_to_first_audio_s": 0.142,
-        "file": "/Users/ankitkiran/Desktop/zoya/tests/evals/results/audio/polly_kajal_3.mp3"
+        "time_to_first_audio_s": 0.145,
+        "file": "tests/evals/results/audio/polly_kajal_3.mp3"
       },
       {
         "sentence": "Zoya ruk gayi hai, bataiye aage kya karna hai.",
-        "time_to_first_audio_s": 0.148,
-        "file": "/Users/ankitkiran/Desktop/zoya/tests/evals/results/audio/polly_kajal_4.mp3"
+        "time_to_first_audio_s": 0.149,
+        "file": "tests/evals/results/audio/polly_kajal_4.mp3"
       }
     ]
   },
   "elevenlabs_tara": {
-    "avg_time_to_first_byte_s": 0.568,
+    "avg_time_to_first_byte_s": 0.386,
     "rows": [
       {
         "sentence": "Hi, I'm Zoya. How can I help you today?",
-        "time_to_first_byte_s": 1.609,
-        "file": "/Users/ankitkiran/Desktop/zoya/tests/evals/results/audio/elevenlabs_tara_0.mp3"
+        "time_to_first_byte_s": 0.65,
+        "file": "tests/evals/results/audio/elevenlabs_tara_0.mp3"
       },
       {
         "sentence": "Your order total is two thousand eight hundred and forty seven rupees.",
-        "time_to_first_byte_s": 0.31,
-        "file": "/Users/ankitkiran/Desktop/zoya/tests/evals/results/audio/elevenlabs_tara_1.mp3"
+        "time_to_first_byte_s": 0.325,
+        "file": "tests/evals/results/audio/elevenlabs_tara_1.mp3"
       },
       {
         "sentence": "Aapka Swiggy order pandrah minute mein aa jayega.",
-        "time_to_first_byte_s": 0.318,
-        "file": "/Users/ankitkiran/Desktop/zoya/tests/evals/results/audio/elevenlabs_tara_2.mp3"
+        "time_to_first_byte_s": 0.291,
+        "file": "tests/evals/results/audio/elevenlabs_tara_2.mp3"
       },
       {
         "sentence": "I've set a reminder for six pm to call Priya.",
-        "time_to_first_byte_s": 0.297,
-        "file": "/Users/ankitkiran/Desktop/zoya/tests/evals/results/audio/elevenlabs_tara_3.mp3"
+        "time_to_first_byte_s": 0.295,
+        "file": "tests/evals/results/audio/elevenlabs_tara_3.mp3"
       },
       {
         "sentence": "Zoya ruk gayi hai, bataiye aage kya karna hai.",
-        "time_to_first_byte_s": 0.307,
-        "file": "/Users/ankitkiran/Desktop/zoya/tests/evals/results/audio/elevenlabs_tara_4.mp3"
+        "time_to_first_byte_s": 0.369,
+        "file": "tests/evals/results/audio/elevenlabs_tara_4.mp3"
       }
     ]
   },
-  "whisper_smoke_test": [
-    {
-      "expected": "Hi, I'm Zoya. How can I help you today?",
-      "transcribed": "Hi, I'm Zoya. How can I help you today?",
-      "latency_s": 66.842
-    },
-    {
-      "expected": "Your order total is two thousand eight hundred and forty seven rupees.",
-      "transcribed": "Your order total is Rs. 2847.",
-      "latency_s": 0.66
-    },
-    {
-      "expected": "Aapka Swiggy order pandrah minute mein aa jayega.",
-      "transcribed": "आपका स्विगी ओर्डर 15 मिनिट में आ जाएगा.",
-      "latency_s": 0.782
-    },
-    {
-      "expected": "I've set a reminder for six pm to call Priya.",
-      "transcribed": "I've set a reminder for 6 pm to call Priya.",
-      "latency_s": 0.703
-    },
-    {
-      "expected": "Zoya ruk gayi hai, bataiye aage kya karna hai.",
-      "transcribed": "जोया रुख गई है, बताईए आगे क्या करना है।",
-      "latency_s": 0.801
-    }
-  ]
+  "whisper_smoke_test": {
+    "model_load_warm_up_s": 1.606,
+    "rows": [
+      {
+        "expected": "Hi, I'm Zoya. How can I help you today?",
+        "transcribed": "Hi, I'm Zoya. How can I help you today?",
+        "latency_s": 0.641
+      },
+      {
+        "expected": "Your order total is two thousand eight hundred and forty seven rupees.",
+        "transcribed": "Your order total is Rs. 2847.",
+        "latency_s": 0.618
+      },
+      {
+        "expected": "Aapka Swiggy order pandrah minute mein aa jayega.",
+        "transcribed": "आपका स्विगी ओर्डर 15 मिनिट में आ जाएगा.",
+        "latency_s": 0.735
+      },
+      {
+        "expected": "I've set a reminder for six pm to call Priya.",
+        "transcribed": "I've set a reminder for 6 pm to call Priya.",
+        "latency_s": 0.634
+      },
+      {
+        "expected": "Zoya ruk gayi hai, bataiye aage kya karna hai.",
+        "transcribed": "जोया रुख गई है, बताईए आगे क्या करना है।",
+        "latency_s": 0.733
+      }
+    ]
+  }
 }

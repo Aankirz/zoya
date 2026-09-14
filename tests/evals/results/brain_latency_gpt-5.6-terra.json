@@ -1,0 +1,25 @@
+{
+  "model_id": "gpt-5.6-terra",
+  "avg_time_to_first_token_s": 1.501,
+  "avg_time_to_first_sentence_s": 1.611,
+  "rows": [
+    {
+      "prompt": "What's the weather like in Bangalore today, and should I carry an umbrella?",
+      "time_to_first_token_s": 0.963,
+      "time_to_first_sentence_s": 0.996,
+      "response": "I can’t check live weather from here. For Bangalore in September, expect warm, humid conditions with a good chance of afternoon or evening showers/thunderstorms.\n\nYes—carry a compact umbrella, especially if you’ll be out later in the day. It’s also useful for strong sun."
+    },
+    {
+      "prompt": "I just added a running shoe to my cart for 2499 rupees. Should I check for a discount code first?",
+      "time_to_first_token_s": 2.09,
+      "time_to_first_sentence_s": 2.31,
+      "response": "Yes—it's worth checking before you pay, especially for a ₹2,499 purchase. Look for:\n\n- First-order/app-only discounts\n- Bank, UPI, wallet, or credit-card offers\n- Brand newsletter/signup coupons\n- Student, employee, or membership discounts\n- Cashback offers on payment apps\n- Sale bundles or free-shipping thresholds\n\nAlso compare the final price after any coupon, since some codes can remove existing sale pricing. Spend 2–3 minutes checking the store’s offers page and your payment app, then buy if nothing better applies."
+    },
+    {
+      "prompt": "Summarize in two sentences: the user wants a reminder to call their mother at 6pm and to also check today's cricket score.",
+      "time_to_first_token_s": 1.451,
+      "time_to_first_sentence_s": 1.527,
+      "response": "The user wants a reminder to call their mother at 6 PM. They also want to check today’s cricket score."
+    }
+  ]
+}
