@@ -141,3 +141,6 @@
 
 ## 2026-09-14 — Phase 2: Smart Turn endpointing + wake veto
 - Smart Turn v3.2 end-of-turn (D55), turbo veto of sound-alike wakes with name guard (D54), pinned onnxruntime/huggingface-hub.
+
+## 2026-09-14 — AEC research recorded
+- AUDIT.md §5 + D56: measured wake rates under music, Apple VP limits, OpenWhispr AEC3+process-tap design, deps, risks.
