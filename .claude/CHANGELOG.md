@@ -144,3 +144,6 @@
 
 ## 2026-09-14 — AEC research recorded
 - AUDIT.md §5 + D56: measured wake rates under music, Apple VP limits, OpenWhispr AEC3+process-tap design, deps, risks.
+
+## 2026-09-14 — Learning doc
+- learning/learning.md: architecture overview and the story of phases 0–2 for the owner.
