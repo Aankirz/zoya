@@ -273,3 +273,12 @@
 ## 2026-09-15 — Rune Icons on the Zoya website
 - Added 12 Rune Icons (Nexvyn, Apache-2.0) as inline components in site/app/icons/rune.tsx: glass folder, trash, notes and microphone for the desktop props and hello window; outline eye, plus, play, stop, wifi and battery for UI; two pixelated accents (ear, message) in the desktop hero. Glass ids are namespaced per instance.
 - Added site/THIRD_PARTY_NOTICES.md with the Apache-2.0 text and a footer credit "icons by rune icons". axe 0 (incl. AAA), no overflow at 320–1440 and 200% zoom, build clean.
+
+## 2026-09-15 — Rune Icons live on the website
+- Pushed main@fdcfe5b (Rune Icons, Apache-2.0, inline SVG + THIRD_PARTY_NOTICES + footer credit); Vercel production READY. Live checks pass; the only external reference is the credit link.
+
+## 2026-09-15 — Website: no hackathon credit, two promises
+- Owner change: removed the "built for the vision os hackathon" footer line (the only such mention in site/) and the "stop means stop" promise row. The promises are now "confirm" and "done"; the hello window's "stop" control is unchanged.
+
+## 2026-09-15 — Website: show real abilities (owner)
+- Owner: remove hackathon mentions and the stop promise; replace the generic hero windows and promises with drawn Amazon / Spotify / presentation windows and a "what zoya does" section (real shipped abilities, no invented prices or songs). Sent to the builder.
