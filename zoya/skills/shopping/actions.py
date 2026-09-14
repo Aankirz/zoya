@@ -25,12 +25,14 @@ from urllib.parse import quote_plus, urlparse
 
 from strands import tool
 
-from zoya import events, safety, speech
+from zoya import cache, events, recipes, safety, speech, tasks
 from zoya.tools import ToolError, browser
 from zoya.tools.handoff import alert, handoff_to_user
 from zoya.tools.memory import remember
 
-BASE = "https://www.amazon.in"
+HOST = "www.amazon.in"
+BASE = f"https://{HOST}"
+SEARCH_CACHE_TTL_S = 5 * 60  # prices move; a repeat within a conversation shouldn't reload
 CART_URL = f"{BASE}/gp/cart/view.html"
 WAIT_MS = 8000
 MAX_RESULTS = 5
@@ -41,9 +43,20 @@ SELECTORS = {
     "price": ".a-price .a-offscreen",
     "rating": ".a-icon-alt",
     "add_to_cart": "#add-to-cart-button",
+    "buy_now": "#buy-now-button",
+    # Amazon Now (QCom) listings, e.g. eggs: no price on the row, no button on /dp, only "See All
+    # Buying Choices", whose side panel holds the offer's Add to cart (owner's profile 2026-09-15).
+    "see_offers": "#buybox-see-all-buying-choices",
+    "offers_panel": "#aod-container",
+    "offer_add_to_cart": (
+        "#aod-container #freshAddToCartButton input, #aod-container input[name='submit.addToCart']"
+    ),
     "product_title": "#productTitle",
-    "cart_item": "div.sc-list-item[data-asin]",
+    # Active cart only: "Saved for later" rows share the class (owner's run read 18 "items" with 10
+    # saved-for-later ones among them, while checkout had 6).
+    "cart_item": "#sc-active-cart div.sc-list-item[data-asin]",
     "cart_item_title": ".sc-product-title, .a-truncate-full",
+    "cart_delete": "input[name^='submit.delete-active.']",
     "cart_subtotal": "#sc-subtotal-amount-activecart",
     # Groceries sit in the Amazon Now cart ("proceedToALMCheckout-<id>", page /tez/browse/cart);
     # the retail cart holds everything else. Checked on the owner's account 2026-09-14.
@@ -55,6 +68,7 @@ SELECTORS = {
 }
 ORDER_PLACED = re.compile(r"order placed|thank you, your order|order (?:is )?confirmed", re.I)
 THANK_YOU_PATH = re.compile(r"thankyou|thank-you|order-confirmation", re.I)
+PAYMENT_STEP_PATH = re.compile(r"^/checkout/p/[^/]+/(?:pay|offers)\b", re.I)
 CHECKOUT_PATH = re.compile(r"^/(?:tez/browse/cart|gp/buy/|checkout/)", re.I)
 PLACE_ORDER_NAME = re.compile(r"place (?:your )?order|^pay\b", re.I)
 ADD_MONEY = re.compile(r"add money", re.I)
@@ -64,6 +78,26 @@ SUMMARY_MAX_CHARS = 1500
 SUMMARY_BILL = re.compile(r"bill summary|order summary|order total", re.I)
 MAX_SPOKEN_ITEMS = 5
 CONFIRMATION_PAGE_WAIT_MS = 3000
+STORE_CLOSED = re.compile(r"store is closed[^\n]*", re.I)
+ORDER_TOTAL = re.compile(
+    r"(?:order total|grand total|to pay)\s*:?\s*(₹\s*\d[\d,]*(?:\.\d{1,2})?)", re.I
+)
+SPONSORED = "Sponsored"
+MIN_ITEM_WORD_CHARS = 3
+FILLER_WORDS = frozenset({"the", "and", "that", "this", "one", "item", "from", "with", "for", "my"})
+ITEM_WORDS_FOR_CHECK = 4  # the first words of a title: what a checkout page shows untruncated
+PANEL_SETTLE_MS = 1000
+PAYMENT_ROW = "xpath=ancestor::*[self::label or contains(@class,'pmts')][1]"
+PAYMENT_NAME_MAX_CHARS = 60
+
+
+class FinalAnswer(ToolError):
+    """The site's own answer (a closed store, nothing to remove). Tools return it as their result
+    instead of failing, so neither a skill fallback nor the brain retries other listings for it."""
+
+
+class NoBuyNow(FinalAnswer):
+    """The product page has no Buy Now (Amazon Now groceries): add it to the cart instead."""
 
 
 @dataclass(frozen=True)
@@ -101,8 +135,35 @@ def _read_results(page: Any) -> list[dict[str, str]]:
                 ),
                 "price": (price.first.text_content() or "").strip() if price.count() else "",
                 "rating": (rating.first.text_content() or "").strip() if rating.count() else "",
+                "sponsored": "yes" if row.get_by_text(SPONSORED, exact=True).count() else "",
             }
         )
+    return results
+
+
+def _result_lines(results: list[dict[str, str]]) -> str:
+    return "\n".join(
+        f"{n}. {r['title']} — {r['price'] or 'price in the offers panel'}"
+        + (f", {r['rating']}" if r["rating"] else "")
+        + (", sponsored ad" if r.get("sponsored") else "")
+        for n, r in enumerate(results, start=1)
+    )
+
+
+def _search(query: str) -> list[dict[str, str]]:
+    """Results from the cache (read-only, SEARCH_CACHE_TTL_S) or the live page."""
+    args = {"query": query}
+    results = cache.get("amazon_search", args)
+    if results is None:
+        browser.goto(search_url(query))
+        if browser.on_page(browser.sign_in_wall):
+            handoff_to_user("captcha")
+            raise FinalAnswer("Amazon wants a check before showing results.")
+        results = browser.on_page(_read_results)
+        cache.put("amazon_search", args, results, SEARCH_CACHE_TTL_S)
+    _last_results[:] = results
+    _last_query[0] = query
+    events.emit(events.EarconEvent("progress-step"))
     return results
 
 
@@ -113,20 +174,11 @@ def amazon_search(query: str) -> str:
     Args:
         query: What to buy, e.g. "Amul milk 1 litre".
     """
-    browser.goto(search_url(query))
-    if browser.on_page(browser.sign_in_wall):
-        handoff_to_user("captcha")
-        return "Amazon wants a check before showing results."
-    results = browser.on_page(_read_results)
-    _last_results[:] = results
-    _last_query[0] = query
-    events.emit(events.EarconEvent("progress-step"))
-    lines = [
-        f"{n}. {r['title']} — {r['price'] or 'no price shown'}"
-        + (f", {r['rating']}" if r["rating"] else "")
-        for n, r in enumerate(results, start=1)
-    ]
-    return f"Amazon.in results for {query}:\n" + safety.wrap_untrusted("\n".join(lines))
+    try:
+        results = _search(query)
+    except FinalAnswer as answer:
+        return str(answer)
+    return f"Amazon.in results for {query}:\n" + safety.wrap_untrusted(_result_lines(results))
 
 
 def product_url(asin: str) -> str:
@@ -142,30 +194,79 @@ def amazon_add_to_cart(result_number: int) -> str:
     Args:
         result_number: Its number in the last search results (1 = first).
     """
+    chosen = _chosen(result_number)
+    try:
+        browser.click_checked(browser.probe_with(_add_to_cart_finder(chosen)), "Add to Cart")
+    except FinalAnswer as answer:
+        return str(answer)  # the brain says it as is instead of retrying other listings
+    events.emit(events.EarconEvent("add-to-cart"))
+    return f"Added to cart: {chosen['title']} ({chosen['price'] or 'price in the offers panel'})."
+
+
+def _chosen(result_number: int) -> dict[str, str]:
     if not 1 <= result_number <= len(_last_results):
         raise ToolError("Search Amazon first, then tell me which result to add.")
     chosen = _last_results[result_number - 1]
     product_url(chosen["asin"])  # validates the ASIN before it goes into a selector
-    row_selector = f"{SELECTORS['result']}[data-asin='{chosen['asin']}']"
-    if not browser.on_page(lambda page: page.locator(row_selector).count()):
-        browser.goto(search_url(_last_query[0]))
+    return chosen
+
+
+def _on_product_page(page: Any, asin: str) -> None:
+    if f"/dp/{asin}" not in page.url:
+        page.goto(product_url(asin), wait_until="domcontentloaded")
+    if browser.sign_in_wall(page):
+        raise FinalAnswer("Amazon needs you to sign in first.")
+
+
+def _offer_button(page: Any, asin: str) -> Any:
+    """Amazon Now listings: open "See All Buying Choices" (a side panel, nothing is bought) and
+    take the offer's Add to cart. A closed store is said as Amazon words it."""
+    _on_product_page(page, asin)
+    see = page.locator(SELECTORS["see_offers"]).filter(visible=True)
+    if not see.count():
+        return None
+    see.first.click()
+    page.locator(SELECTORS["offers_panel"]).first.wait_for(timeout=WAIT_MS)
+    page.wait_for_timeout(PANEL_SETTLE_MS)  # the offers render after the panel frame
+    panel = page.locator(SELECTORS["offers_panel"]).first
+    if closed := STORE_CLOSED.search(panel.inner_text()):
+        raise FinalAnswer(
+            f"Amazon Now sells this, and its {closed.group(0).strip()} Nothing was added."
+        )
+    button = page.locator(SELECTORS["offer_add_to_cart"]).filter(visible=True)
+    return button.first if button.count() else None
+
+
+def _add_to_cart_finder(chosen: dict[str, str]) -> Any:
+    asin = chosen["asin"]
+    row_selector = f"{SELECTORS['result']}[data-asin='{asin}']"
 
     def find(page: Any) -> Any:
-        """The row's own "Add to cart" (groceries), else the product page's button."""
-        row_button = page.locator(row_selector).locator(SELECTORS["result_add_to_cart"])
-        if row_button.filter(visible=True).count():
-            return row_button.filter(visible=True).first
-        page.goto(product_url(chosen["asin"]), wait_until="domcontentloaded")
-        if browser.sign_in_wall(page):
-            raise ToolError("Amazon needs you to sign in first.")
-        button = page.locator(SELECTORS["add_to_cart"]).filter(visible=True)
-        if not button.count():
+        """Cheapest first by the site recipe: the row's own button (groceries), the product
+        page's button, or the Amazon Now offers panel."""
+        strategies = {
+            "row": lambda: _visible(
+                page.locator(row_selector).locator(SELECTORS["result_add_to_cart"])
+            ),
+            "product_page": lambda: _product_button(page, asin, "add_to_cart"),
+            "offers_panel": lambda: _offer_button(page, asin),
+        }
+        _, button = recipes.first_found(HOST, "add to cart", strategies)
+        if button is None:
             raise ToolError("This product can't be added to the cart right now.")
-        return button.first
+        return button
 
-    browser.click_checked(browser.probe_with(find), "Add to Cart")
-    events.emit(events.EarconEvent("add-to-cart"))
-    return f"Added to cart: {chosen['title']} ({chosen['price']})."
+    return find
+
+
+def _visible(locator: Any) -> Any:
+    visible = locator.filter(visible=True)
+    return visible.first if visible.count() else None
+
+
+def _product_button(page: Any, asin: str, name: str) -> Any:
+    _on_product_page(page, asin)
+    return _visible(page.locator(SELECTORS[name]))
 
 
 def _read_cart(page: Any) -> tuple[list[str], str]:
@@ -188,9 +289,65 @@ def amazon_cart() -> str:
         return "Amazon needs you to sign in first."
     items, subtotal = browser.on_page(_read_cart)
     if not items:
-        return "Your Amazon cart is empty."
-    listing = "\n".join(f"- {item}" for item in items[:MAX_SPOKEN_ITEMS])
-    return safety.wrap_untrusted(f"Cart ({len(items)} items), subtotal {subtotal}:\n{listing}")
+        return "Your Amazon cart is empty (saved-for-later items don't count)."
+    listing = "\n".join(f"{n}. {item}" for n, item in enumerate(items[:MAX_SPOKEN_ITEMS], 1))
+    more = f"\n…and {len(items) - MAX_SPOKEN_ITEMS} more" if len(items) > MAX_SPOKEN_ITEMS else ""
+    return safety.wrap_untrusted(
+        f"Cart ({len(items)} items, not counting saved for later), subtotal {subtotal}:\n"
+        f"{listing}{more}"
+    )
+
+
+def match_cart_item(titles: list[str], item: str) -> int:
+    """Decision (tests/test_harness.py): the one cart line the user named, by its words.
+
+    Every word of `item` (3+ letters) must be in the title. No line or several lines → ToolError:
+    removing the wrong thing, or two things, is never a guess.
+    """
+    wanted = [
+        w
+        for w in safety.normalise(item).split()
+        if len(w) >= MIN_ITEM_WORD_CHARS and w not in FILLER_WORDS
+    ]
+    if not wanted:
+        raise ToolError("Tell me which item to remove, by its name.")
+    hits = [
+        n for n, title in enumerate(titles) if set(wanted) <= set(safety.normalise(title).split())
+    ]
+    if not hits:
+        raise FinalAnswer(f"I don't see {item} in your Amazon cart.")
+    if len(hits) > 1:
+        names = "; ".join(titles[n][:60] for n in hits[:MAX_SPOKEN_ITEMS])
+        raise FinalAnswer(f"Several cart items match {item}: {names}. Which one?")
+    return hits[0]
+
+
+@tool
+def amazon_cart_remove(item: str) -> str:
+    """Remove one item from the Amazon.in cart (the cart only; nothing is bought or cancelled).
+
+    Args:
+        item: Words from the item's name, e.g. "48 Laws of Power".
+    """
+    browser.goto(CART_URL)
+    removed: list[str] = []
+
+    def find(page: Any) -> Any:
+        rows = page.locator(SELECTORS["cart_item"])
+        rows.first.wait_for(timeout=WAIT_MS)
+        titles = [_text(row.locator(SELECTORS["cart_item_title"])) for row in rows.all()]
+        index = match_cart_item(titles, item)
+        button = _visible(rows.nth(index).locator(SELECTORS["cart_delete"]))
+        if button is None:
+            raise ToolError("I can't find the Delete link for that item.")
+        removed[:] = [titles[index]]
+        return button
+
+    try:
+        browser.click_checked(browser.probe_with(find), "Delete")
+    except FinalAnswer as answer:
+        return str(answer)
+    return safety.wrap_untrusted(f"Removed from the cart: {removed[0] if removed else item}.")
 
 
 def checkout_summary(text: str) -> str:
@@ -219,12 +376,16 @@ def checkout_verdict(state: CheckoutState) -> str:
     """Parser (tests/test_harness.py): "ok", "order_placed" or "unexpected" after Proceed.
 
     An order confirmation / thank-you page means Amazon finalised without Zoya's confirmation.
-    Anything that isn't a checkout path with a Place-order (or Add-money) control is unexpected.
+    Amazon's newer checkout (/checkout/p/<id>/pay, then /offers with a Prime upsell) asks for a
+    payment method before any Place-order control exists: "payment_step" (owner's profile
+    2026-09-15). Anything else without a Place-order (or Add-money) control is unexpected.
     """
     if ORDER_PLACED.search(state.text) or THANK_YOU_PATH.search(state.path):
         return "order_placed"
     if CHECKOUT_PATH.search(state.path) and state.has_order_control:
         return "ok"
+    if PAYMENT_STEP_PATH.search(state.path):
+        return "payment_step"
     return "unexpected"
 
 
@@ -272,13 +433,114 @@ def amazon_checkout(groceries: bool = True) -> str:
 
     # Guard 2 like any click: only the exact KNOWN_SAFE_CLICKS proceed forms pass without asking.
     browser.click_checked(browser.probe_with(find), "Proceed to checkout")
+    return "Checkout page:\n" + safety.wrap_untrusted(_opened_checkout())
+
+
+def _opened_checkout() -> str:
+    """After Proceed or Buy Now: signed in, no order was placed, then the page's summary."""
     if browser.on_page(browser.sign_in_wall):
         handoff_to_user("sign_in")
-        return "Amazon needs you to sign in before checkout."
-    _verify_no_order(browser.on_page(_checkout_state))
+        raise FinalAnswer("Amazon needs you to sign in before checkout.")
+    state = browser.on_page(_checkout_state)
+    if checkout_verdict(state) == "payment_step":
+        method = browser.on_page(_selected_payment)
+        raise FinalAnswer(
+            "Amazon's checkout is asking you to choose a payment method"
+            + (f" ({method} is selected)" if method else "")
+            + " and may offer Prime. I stopped there, so nothing was ordered."
+        )
+    _verify_no_order(state)
     events.emit(events.EarconEvent("progress-step"))
-    summary = browser.on_page(_read_checkout)
-    return "Checkout page:\n" + safety.wrap_untrusted(summary)
+    return browser.on_page(_read_checkout)
+
+
+def _selected_payment(page: Any) -> str:
+    """The payment method Amazon pre-selected, as its row reads ("Visa ending in 1060")."""
+    checked = page.locator("input[type=radio]:checked").locator(PAYMENT_ROW)
+    return safety.UNTRUSTED_TAG.sub("", _text(checked))[:PAYMENT_NAME_MAX_CHARS]
+
+
+def order_total(summary: str) -> str:
+    """Parser (tests/test_harness.py): the payable total a checkout summary shows ("₹399.00"), the
+    last "Order total" / "To pay" / "Grand total" amount. "" when there is none."""
+    found = ORDER_TOTAL.findall(" ".join(summary.split()))
+    return found[-1].replace(" ", "") if found else ""
+
+
+@tool
+def amazon_buy_now(result_number: int) -> str:
+    """Buy one product from the last amazon_search on its own with the product page's Buy Now:
+    opens checkout for only that item and leaves the cart untouched. Nothing is ordered: that needs
+    amazon_place_order and the user's spoken confirm.
+
+    Args:
+        result_number: Its number in the last search results (1 = first).
+    """
+    chosen = _chosen(result_number)
+    try:
+        # KNOWN_SAFE_CLICKS lists this exact form; _opened_checkout proves no order came back.
+        browser.click_checked(browser.probe_with(_buy_now_finder(chosen)), "Buy Now")
+        summary = _opened_checkout()
+    except FinalAnswer as answer:
+        return str(answer)
+    return "Checkout page (only this item):\n" + safety.wrap_untrusted(summary)
+
+
+def _buy_now_finder(chosen: dict[str, str]) -> Any:
+    def find(page: Any) -> Any:
+        button = _product_button(page, chosen["asin"], "buy_now")
+        if button is None:
+            raise NoBuyNow("This one has no Buy Now on Amazon; I can add it to the cart instead.")
+        return button
+
+    return find
+
+
+def pick_result(results: list[dict[str, str]]) -> int:
+    """Decision (tests/test_harness.py): the result number to buy for a spoken "buy X": the first
+    listing that isn't a sponsored ad, else the first. The spoken confirm names it before paying."""
+    if not results:
+        raise FinalAnswer("Amazon found nothing for that.")
+    return next((n for n, r in enumerate(results, 1) if not r.get("sponsored")), 1)
+
+
+def _check_item(title: str) -> str:
+    """The first words of a title: what the screen check looks for on the checkout page."""
+    return " ".join(title.split()[:ITEM_WORDS_FOR_CHECK])
+
+
+@tool
+def amazon_buy(query: str) -> str:
+    """One call for "buy X on Amazon": search, pick the first non-sponsored listing, Buy Now (only
+    that item; the cart is untouched), read the checkout, then place the order through Zoya's
+    spoken confirmation. Amazon Now items (groceries) are added to the cart instead.
+
+    Args:
+        query: What to buy, e.g. "48 Laws of Power book".
+    """
+    try:
+        chosen = _last_results[pick_result(_search(query)) - 1]
+        found = f"Found {_check_item(chosen['title'])}" + (
+            f", {chosen['price']}." if chosen["price"] else "."
+        )
+        tasks.say(found)
+        browser.click_checked(browser.probe_with(_buy_now_finder(chosen)), "Buy Now")
+        summary = _opened_checkout()
+    except NoBuyNow:
+        try:
+            browser.click_checked(browser.probe_with(_add_to_cart_finder(chosen)), "Add to Cart")
+        except FinalAnswer as closed:
+            return str(closed)
+        events.emit(events.EarconEvent("add-to-cart"))
+        return (
+            f"Added {_check_item(chosen['title'])} to your Amazon cart. Say check out when ready."
+        )
+    except FinalAnswer as answer:
+        return str(answer)
+    total = order_total(summary)
+    if not total:
+        raise ToolError("I couldn't read the order total on the checkout page.")
+    return amazon_place_order(total, _check_item(chosen["title"]))
 
 
 def _order_confirmed(page: Any) -> bool:
@@ -327,4 +589,13 @@ def amazon_place_order(order_total: str, items: str) -> str:
     return f"Order placed for {spoken}. The user confirmed it out loud."
 
 
-TOOLS = [amazon_search, amazon_add_to_cart, amazon_cart, amazon_checkout, amazon_place_order]
+TOOLS = [
+    amazon_search,
+    amazon_add_to_cart,
+    amazon_buy_now,
+    amazon_buy,
+    amazon_cart,
+    amazon_cart_remove,
+    amazon_checkout,
+    amazon_place_order,
+]
