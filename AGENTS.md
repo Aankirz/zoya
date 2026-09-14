@@ -50,10 +50,9 @@ A phase is done only when **every item in its "Done when" list passes on the rea
 
 ## 7. Git workflow
 
-- Never commit to `main` directly; work on a branch and fast-forward merge only after approval. Branch per phase: `phase-N-slug` (see brief). Sub-branches: `phase-N-slug/<topic>`.
+- **Commit and push directly to `main`** (D47, owner's choice). Before every push: `git pull --rebase origin main` and the §5 checks. Never force-push.
 - Conventional commits: `feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`.
-- One logical change per commit. **No pull requests.** Push your branch, then post a hand-off report in the session: what was built, each "Done when" item as ✅ verified by you or 🧑 needs the human (with steps), doc URLs you relied on.
-- **Merge only when the human says "merge approved":** `git fetch && git rebase origin/main && pytest`, then `git switch main && git pull && git merge --ff-only <branch> && git push origin main`.
+- One logical change per commit. **No pull requests.** After pushing, post a hand-off report: what was built, each "Done when" item as ✅ verified by you or 🧑 needs the human (with steps), doc URLs you relied on. A reviewer session checks it and sends back gaps to fix.
 - No `Co-Authored-By` or session trailers in commits.
 
 ## 8. When you change a decision or discover something

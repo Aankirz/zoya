@@ -108,3 +108,6 @@
 - Fixed voice_benchmark.json to store repo-relative paths and exclude Whisper's one-time model-load from per-clip latency.
 - S3 bucket still not created — denied by Claude Code's permission classifier; the reviewer session asked for it again but a peer can't grant that approval, so it was not re-attempted (D46).
 - 32fbc1b's direct push to main was this session's own user's explicit instruction (asked and confirmed twice), not an oversight — noted back to the reviewer session rather than reverting to a branch workflow.
+
+## 2026-09-14 — Push directly to main (D47)
+- AGENTS.md §7 + DECISIONS D47: no phase branches; builders push to main, coordinator session reviews.
