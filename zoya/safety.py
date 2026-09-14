@@ -105,6 +105,7 @@ CONFUSABLES = str.maketrans(
     "aeopcxyijsdhlABEKMHOPCTXYIJSabeiknoptuxABEZHIKMNOPTYX",
 )
 LEET = str.maketrans("0134578@$", "oleastbas")
+CAMEL_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 LATIN_END = "\u0250"  # combining marks after these letters are accents
 NON_WORD = re.compile(r"[^0-9a-zऀ-ॿ₹]+")
 
@@ -113,8 +114,11 @@ def normalise(text: str) -> str:
     """Casefolded Latin words: fullwidth, look-alike letters and invisible characters removed."""
     folded = unicodedata.normalize("NFKC", text)
     visible = "".join(ch for ch in folded if unicodedata.category(ch) != "Cf")  # zero-width etc.
+    split = CAMEL_BOUNDARY.sub(
+        " ", visible.translate(CONFUSABLES)
+    )  # "btnPlaceOrder" → "btn Place Order"
     plain = ""
-    for ch in unicodedata.normalize("NFKD", visible.translate(CONFUSABLES)):
+    for ch in unicodedata.normalize("NFKD", split):
         if unicodedata.combining(ch) and plain and plain[-1] < LATIN_END:
             continue  # "Plàce" → "place"; Devanagari vowel signs are letters, keep them
         plain += ch
@@ -129,27 +133,41 @@ RISKY_PHRASES: tuple[tuple[str, str, str], ...] = (
     ("purchase", r"buy(?: it)?(?: now)?", "Buy"),
     ("purchase", r"pay(?: now)?", "Pay"),
     ("purchase", r"proceed to pay(?:ment)?", "Pay"),
-    ("purchase", r"(?:confirm|complete) (?:purchase|order|payment)", "Confirm purchase"),
+    ("purchase", r"(?:confirm|complete|submit) (?:purchase|order|payment)", "Confirm purchase"),
     ("purchase", r"purchase", "Purchase"),
     ("purchase", r"transfer(?: money| funds)?", "Transfer"),
+    # Hindi (Devanagari) and Hinglish: "ऑर्डर करें", "खरीदें", "भुगतान करें", "order karo".
+    (
+        "purchase",
+        r"ऑर्डर(?: \S+)?|खरीद\S*|भुगतान\S*|पे करें|order kar\w*|kharid\w*|bhugtan\w*|pay kar\w*",
+        "Place order",
+    ),
+    ("checkout", r"checkout|check out|proceed to checkout", "Check out"),
     ("send", r"send(?: message| money)?", "Send"),
-    ("send", r"post|publish", "Post"),
-    ("delete", r"delete|remove|erase|trash|discard", "Delete"),
-    ("submit", r"submit|confirm", "Submit"),
+    ("send", r"post|publish|भेज\S*|bhej\w*", "Send"),
+    (
+        "delete",
+        r"delete|remove|erase|trash|discard|हटा\S*|मिटा\S*|डिलीट\S*|hata\w*|mita\w*",
+        "Delete",
+    ),
+    ("submit", r"submit|confirm|सबमिट\S*|जमा करें", "Submit"),
 )
 _RISKY = [
     (kind, re.compile(rf"(?:^| )(?:{pattern})(?: |$)"), say) for kind, pattern, say in RISKY_PHRASES
 ]
-# Letters spaced out or glued ("P l a c e o r d e r"): only long phrases, so "pay" never
-# matches "display".
+# Joined words with no case boundary ("buynow", "placeorder"), and letters spaced out ("P l a c e"):
+# long phrases only, so "pay" never matches "display" and "delete" never matches "Deleted items".
 SQUASHED = (
     ("purchase", "placeorder", "Place order"),
+    ("purchase", "placeyourorder", "Place order"),
     ("purchase", "buynow", "Buy"),
     ("purchase", "paynow", "Pay"),
     ("purchase", "confirmpurchase", "Confirm purchase"),
-    ("purchase", "placeyourorder", "Place order"),
-    ("delete", "delete", "Delete"),
-    ("submit", "submit", "Submit"),
+    ("purchase", "submitorder", "Place order"),
+    ("purchase", "proceedtopay", "Pay"),
+    ("checkout", "checkout", "Check out"),
+    ("send", "sendmessage", "Send"),
+    ("send", "sendmoney", "Send"),
 )
 
 
@@ -163,18 +181,14 @@ def risky_label(labels: list[str]) -> RiskyLabel | None:
     """Guard 2: does any label of the real click target mean pay/send/delete/submit?
 
     Checked on every label source (text, aria-label, value, title), in plain and de-leeted form.
-    ponytail: labels only — a page can still name its order button "Continue"; the real shop
-    flows (Phase 4) must also treat their known final buttons as risky.
+    One signal only: `click_risk` also asks on submit controls, unnamed targets and commerce pages.
     """
     found: list[RiskyLabel] = []
     for raw in labels:
         plain = normalise(raw)
         for variant in (plain, plain.translate(LEET)):
             found += [RiskyLabel(k, say) for k, pattern, say in _RISKY if pattern.search(variant)]
-        tokens = plain.split()
-        if sum(len(token) == 1 for token in tokens) * 2 < len(tokens):
-            continue  # squash only spaced-out letters: "Deleted items" must not read as "delete"
-        squashed = "".join(tokens)
+        squashed = plain.replace(" ", "")
         found += [
             RiskyLabel(k, say)
             for k, needle, say in SQUASHED
@@ -182,6 +196,76 @@ def risky_label(labels: list[str]) -> RiskyLabel | None:
         ]
     # A purchase wins: "Pay and send" must get the amount check.
     return next((hit for hit in found if hit.kind == "purchase"), found[0] if found else None)
+
+
+MIN_NAME_CHARS = 2
+SPOKEN_NAME_WORDS = 6
+COMMERCE_PATH_WORDS = {
+    "checkout",
+    "cart",
+    "basket",
+    "payment",
+    "payments",
+    "pay",
+    "buy",
+    "order",
+    "orders",
+    "compose",
+    "send",
+    "delete",
+    "transfer",
+    "billing",
+}
+CURRENCY_AMOUNT = re.compile(r"(?:₹|\brs\.?|\binr\b|\$|€|£)\s*\d|\d\s*(?:rupees|inr)\b", re.I)
+ACCESSIBLE_NAME = re.compile(r'^- \w+(?: "(.*)")?', re.S)
+
+
+@dataclass(frozen=True)
+class ClickFacts:
+    """What the page says about the element that will really be clicked (Playwright or AX)."""
+
+    labels: list[str]  # text, aria-label, title, value, alt, accessible name
+    is_submit: bool = False  # button type=submit / default inside a <form>, input submit/image
+    path: str = ""  # URL path (no query: a search for "buy shoes" is not a checkout)
+    nearby_text: str = ""  # text around the target (its form or a few ancestors)
+
+
+def spoken_name(labels: list[str]) -> str:
+    """The target's own name, normalised and short; "" when it has none (icon-only)."""
+    for label in labels:
+        name = normalise(label)
+        if sum(ch.isalnum() for ch in name) >= MIN_NAME_CHARS:
+            return " ".join(name.split()[:SPOKEN_NAME_WORDS])
+    return ""
+
+
+def accessible_name(snapshot: str) -> str:
+    """Name from a Playwright aria snapshot line: '- button "Place order"' → 'Place order'."""
+    match = ACCESSIBLE_NAME.match(snapshot.strip())
+    return (match.group(1) or "") if match else snapshot
+
+
+def click_risk(facts: ClickFacts) -> RiskyLabel | None:
+    """Guard 2, failing closed: ask unless the click is clearly harmless.
+
+    Asks when ANY holds: a risky label (English, Hindi, Hinglish, camelCase, joined), no usable
+    name (icon-only / unknown), a submit control, or a commerce/compose page (URL path words, or
+    a currency amount near the target). Coordinator review of cb10192 found the label-only guard
+    failing open ("Checkout", "BuyNow", "खरीदें", icon-only).
+    ponytail: a JS-handled <div> with a harmless name ("Continue") on a page with no amount and a
+    neutral URL still passes. Phase 4 skills must list their known final buttons as risky.
+    """
+    if hit := risky_label(facts.labels):
+        return hit
+    name = spoken_name(facts.labels)
+    if not name:
+        return RiskyLabel("unknown", "click a button with no name")
+    if facts.is_submit:
+        return RiskyLabel("submit", f"submit {name}")
+    path_words = set(normalise(facts.path).split())
+    if path_words & COMMERCE_PATH_WORDS or CURRENCY_AMOUNT.search(facts.nearby_text):
+        return RiskyLabel("context", f"click {name}")
+    return None
 
 
 # --- Money ---------------------------------------------------------------------------------------
@@ -197,8 +281,8 @@ CURRENCY_WORDS = {
     "usd": "dollars",
 }
 STRONG_TOTAL = re.compile(
-    r"order total|grand total|total amount|amount payable|total payable|you pay|to pay|"
-    r"\bpay\b|payable",
+    r"order total|grand total|total amount|amount payable|total payable|you pay|to pay|payable|"
+    r"\bpay\s*(?:₹|rs\.?|inr)?\s*\d",  # "Pay ₹2,847", not "Pay in 3 EMIs"
     re.I,
 )
 WEAK_TOTAL = re.compile(r"\btotal\b", re.I)
@@ -249,15 +333,21 @@ def rows_from_ocr(lines: list[tuple[str, float, float, float]]) -> list[str]:
 
 
 def amount_on_screen(claimed: Decimal, rows: list[str]) -> bool:
-    """The agent's amount must be the total the screen shows (independent OCR, not page DOM).
+    """The agent's amount must be THE total the screen shows (independent OCR, not page DOM).
 
-    Rows with "order total / pay / payable" win over plain "total" rows ("Items total" is a
-    subtotal). No total row at all, or a different number, is a mismatch → never confirm.
-    ponytail: keyword rows; a shop that labels its total differently fails closed (asks again).
+    Every strong row ("order total", "pay ₹…", "payable") must show exactly the claimed amount:
+    an injected second total disagreeing with the real one is a mismatch (coordinator review).
+    With no strong row, the largest plain "total" must be it ("Items total" is a subtotal).
+    No total at all → mismatch → never confirm.
+    ponytail: a row's largest number is its total ("Order total ₹2,847 incl. ₹48 delivery").
     """
-    strong = [row for row in rows if STRONG_TOTAL.search(row)]
-    candidates = strong or [row for row in rows if WEAK_TOTAL.search(row)]
-    return any(claimed in parse_amounts(row) for row in candidates)
+    strong = [
+        max(values) for row in rows if STRONG_TOTAL.search(row) if (values := parse_amounts(row))
+    ]
+    if strong:
+        return all(value == claimed for value in strong)
+    weak = [max(values) for row in rows if WEAK_TOTAL.search(row) if (values := parse_amounts(row))]
+    return bool(weak) and max(weak) == claimed
 
 
 MIN_TARGET_WORD_CHARS = 3
@@ -293,6 +383,10 @@ _DEVANAGARI = {normalise(key): value for key, value in DEVANAGARI_WORDS.items()}
 CONFIRM_WORDS = {"confirm", "confirmed"}
 NEGATIVE_WORDS = {
     "no",
+    "cannot",
+    "can",  # "I can't confirm" → "can", "t": a negation must never read as yes
+    "won",
+    "wont",
     "not",
     "don",
     "dont",
@@ -398,10 +492,13 @@ class Action:
     def summary(self) -> str:
         parts = [f"I'm about to {self.say.lower()}"]
         if self.target:
-            parts.append(f"for {self.target}" if self.kind == "purchase" else self.target)
+            parts.append(f"{SUMMARY_CONNECTOR.get(self.kind, 'on')} {self.target}".strip())
         if self.amount:
             parts.append(f"total {self.amount}")
         return " ".join(parts) + "."
+
+
+SUMMARY_CONNECTOR = {"purchase": "for", "send": "to", "delete": "", "tool": ""}
 
 
 def summary_hash(summary: str) -> str:

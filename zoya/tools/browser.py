@@ -36,6 +36,17 @@ LABEL_ATTRIBUTES = ("aria-label", "title", "value", "alt", "placeholder")
 # The nearest clickable ancestor-or-self: clicking a <span> inside "Place order" presses the button.
 CLICKABLE = "xpath=ancestor-or-self::*[self::button or self::a or @role='button' or self::input][1]"
 CHROME_APP = "Chrome"
+# Submit controls, XPath in Playwright's selector engine (not page JS). A <button> with no type
+# inside a <form> submits it (HTML spec default).
+_LOWER = "translate(@type, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')"
+SUBMIT_CONTROL = (
+    f"xpath=self::input[{_LOWER}='submit' or {_LOWER}='image']"
+    f" | self::button[{_LOWER}='submit']"
+    f" | self::button[ancestor::form][not(@type) or not({_LOWER}='button' or {_LOWER}='reset')]"
+)
+# The target's form, else its third ancestor: where a price "near the target" would be.
+NEARBY = "xpath=(ancestor::form | ancestor::*[3])[last()]"
+NEARBY_MAX_CHARS = 2000
 
 _executor = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="zoya-browser")
 _state: dict[str, Any] = {}
@@ -98,7 +109,7 @@ def browser_read() -> str:
 @dataclass(frozen=True)
 class Target:
     handle: Any  # the exact element that will be clicked
-    labels: list[str]
+    facts: safety.ClickFacts
     title: str
     host: str  # shown in Chrome's address bar: proves the screenshot is this page, not a stale one
 
@@ -126,7 +137,8 @@ def _labels(locator: Any) -> list[str]:
         if not part.count():
             continue
         labels.append(part.inner_text())
-        labels.append(part.aria_snapshot())  # computed accessible name, incl. aria-labelledby
+        # Computed accessible name (incl. aria-labelledby); "- button" alone means no name.
+        labels.append(safety.accessible_name(part.aria_snapshot()))
         labels += [value for a in LABEL_ATTRIBUTES if (value := part.get_attribute(a))]
     return labels
 
@@ -134,9 +146,17 @@ def _labels(locator: Any) -> list[str]:
 def _probe(text: str) -> Target:
     page = _page()
     locator = _locate(page, text)
-    return Target(
-        locator.element_handle(), _labels(locator), page.title(), urlparse(page.url).netloc
+    clickable = locator.locator(CLICKABLE)
+    surroundings = locator.locator(NEARBY)
+    facts = safety.ClickFacts(
+        labels=_labels(locator),
+        is_submit=bool(clickable.count() and clickable.locator(SUBMIT_CONTROL).count()),
+        path=urlparse(page.url).path,
+        nearby_text=(
+            surroundings.first.inner_text()[:NEARBY_MAX_CHARS] if surroundings.count() else ""
+        ),
     )
+    return Target(locator.element_handle(), facts, page.title(), urlparse(page.url).netloc)
 
 
 def _screen_rows(target: Target) -> list[str]:
@@ -158,7 +178,11 @@ def _screen_rows(target: Target) -> list[str]:
 def _verified_action(
     risky: safety.RiskyLabel, target: Target, amount: str, item: str
 ) -> safety.Action:
-    """The summary from screen evidence: the agent's amount and item must be visible on screen."""
+    """The summary from evidence. Purchases: amount and item visible on screen (OCR). Send and
+    delete: the recipient or file visible on screen. Anything else risky (checkout, submit,
+    unnamed, commerce page): the click itself is confirmed, named with the page's host."""
+    if risky.kind not in ("purchase", "send", "delete"):
+        return safety.Action(risky.kind, risky.say, target=target.host)
     if not item.strip():
         raise ToolError(
             "Before clicking that, read the page and call browser_click again with `item` set to "
@@ -192,8 +216,8 @@ def _click(handle: Any) -> None:
 def browser_click(text: str, amount: str = "", item: str = "") -> str:
     """Click a button or link on the page by its visible text.
 
-    Paying, ordering, sending, deleting or submitting makes Zoya ask the user out loud first;
-    for those pass what the page shows.
+    Paying, ordering, checking out, sending, deleting, submitting, unnamed buttons and clicks on
+    shopping pages make Zoya ask the user out loud first; for purchases pass what the page shows.
 
     Args:
         text: The button or link text, e.g. "Add to cart".
@@ -201,7 +225,7 @@ def browser_click(text: str, amount: str = "", item: str = "") -> str:
         item: For purchases, messages or deletions: the item, recipient or file as shown.
     """
     target = _on_browser(lambda: _probe(text))
-    risky = safety.risky_label(target.labels)
+    risky = safety.click_risk(target.facts)
     if risky is None:
         _click(target.handle)
         return f"Clicked {text}."
@@ -211,8 +235,8 @@ def browser_click(text: str, amount: str = "", item: str = "") -> str:
         """Re-probe right before acting: same element, same risky label, same screen evidence."""
         again = _on_browser(lambda: _probe(text))
         same = _on_browser(lambda: again.handle.evaluate("(a, b) => a === b", target.handle))
-        now = safety.risky_label(again.labels)
-        if not same or now is None or now.say != risky.say:
+        now = safety.click_risk(again.facts)
+        if not same or now != risky:
             return safety.Action("changed", "changed")
         return _verified_action(now, again, amount, item)
 

@@ -6,6 +6,7 @@ Every path here is one where a silent bug means a blind user pays, sends or dele
 from __future__ import annotations
 
 import ast
+import re
 import threading
 import time
 from decimal import Decimal
@@ -229,6 +230,9 @@ def test_clear_confirm_is_yes(heard):
         "mat karo confirm",
         "stop",
         "नहीं",
+        "I can't confirm",
+        "I cannot confirm that",
+        "won't confirm",
     ],
 )
 def test_any_negation_cancels(heard):
@@ -289,6 +293,29 @@ def test_silence_noise_and_ambiguity_are_never_yes(heard):
         ("S­end", "send"),  # soft hyphen
         ("De‍lete", "delete"),  # zero-width joiner
         ('- button "Place your order"', "purchase"),  # Playwright aria snapshot
+        ("Checkout", "checkout"),  # coordinator review of cb10192: all of these failed open
+        ("Check out", "checkout"),
+        ("Proceed to checkout", "checkout"),
+        ("PlaceOrder", "purchase"),
+        ("placeOrder", "purchase"),
+        ("btnPlaceOrder", "purchase"),
+        ("place_order", "purchase"),
+        ("BuyNow", "purchase"),
+        ("buynow", "purchase"),
+        ("placeorder", "purchase"),
+        ("ConfirmPurchase", "purchase"),
+        ("SubmitOrder", "purchase"),
+        ("Complete order", "purchase"),
+        ("ऑर्डर करें", "purchase"),
+        ("खरीदें", "purchase"),
+        ("भुगतान करें", "purchase"),
+        ("Order karo", "purchase"),
+        ("abhi kharidein", "purchase"),
+        ("भेजें", "send"),
+        ("bhejo", "send"),
+        ("हटाएं", "delete"),
+        ("DeleteItem", "delete"),
+        ("सबमिट करें", "submit"),
     ],
 )
 def test_risky_labels_are_caught(label, kind):
@@ -314,6 +341,48 @@ def test_risky_labels_are_caught(label, kind):
 )
 def test_harmless_labels_pass(label):
     assert safety.risky_label([label]) is None
+
+
+@pytest.mark.parametrize(
+    "facts",
+    [
+        safety.ClickFacts(["Go"], is_submit=True),  # (a) submit control, harmless name
+        safety.ClickFacts(["Continue"], is_submit=True),
+        safety.ClickFacts([""]),  # (b) icon-only
+        safety.ClickFacts([]),  # (b) nothing known about the target
+        safety.ClickFacts(["  ", "\u200b", "-"]),  # (b) no letters at all
+        safety.ClickFacts(["Continue"], path="/gp/buy/spc/handlers/display.html"),  # (d) URL
+        safety.ClickFacts(["Next"], path="/checkout/step-2"),
+        safety.ClickFacts(["Yes"], path="/mail/compose"),
+        safety.ClickFacts(["Finish"], nearby_text="Total due ₹2,847"),  # (d) price near target
+        safety.ClickFacts(["Proceed"], nearby_text="Amount: Rs. 499"),
+        safety.ClickFacts(["Continue"], nearby_text="Pay $19.99 today"),
+        safety.ClickFacts(["Complete"], nearby_text="You will be charged 499 rupees"),
+    ],
+)
+def test_click_guard_fails_closed_on_context(facts):
+    assert safety.click_risk(facts) is not None
+
+
+@pytest.mark.parametrize(
+    "facts",
+    [
+        safety.ClickFacts(["Next"], path="/search", nearby_text="Results for headphones"),
+        safety.ClickFacts(["Add to cart"], path="/dp/B0CXYZ"),
+        safety.ClickFacts(["Filters"], path="/s"),
+        safety.ClickFacts(["Help"], path="/help/shipping"),
+    ],
+)
+def test_clicks_outside_every_risk_signal_stay_free(facts):
+    assert safety.click_risk(facts) is None
+
+
+@pytest.mark.parametrize(
+    ("snapshot", "name"),
+    [('- button "Place order"', "Place order"), ("- button", ""), ('- link "Help"', "Help")],
+)
+def test_accessible_name_from_aria_snapshot(snapshot, name):
+    assert safety.accessible_name(snapshot) == name
 
 
 def test_any_label_source_counts_and_purchase_wins():
@@ -372,6 +441,27 @@ def test_amount_matching_the_order_total_passes():
 @pytest.mark.parametrize("claimed", ["2799", "1", "48", "2846", "28470"])
 def test_amount_that_is_not_the_order_total_fails(claimed):
     assert not safety.amount_on_screen(Decimal(claimed), SCREEN)
+
+
+@pytest.mark.parametrize("claimed", ["1", "2847"])
+def test_two_disagreeing_order_totals_never_match(claimed):
+    """Coordinator repro 05: an injected second total next to the real one → mismatch, always."""
+    rows = [*SCREEN, "Order total 1"]
+
+    assert not safety.amount_on_screen(Decimal(claimed), rows)
+
+
+def test_one_total_row_with_a_breakdown_still_matches():
+    assert safety.amount_on_screen(Decimal("2847"), ["Order total ₹2,847 (incl. ₹48 delivery)"])
+
+
+def test_emi_line_is_not_a_total():
+    assert safety.amount_on_screen(Decimal("2847"), [*SCREEN, "Pay in 3 EMIs of ₹949"])
+
+
+def test_plain_totals_use_the_largest():
+    assert safety.amount_on_screen(Decimal("2847"), ["Items total 2,799", "Total 2,847"])
+    assert not safety.amount_on_screen(Decimal("1"), ["Total 1", "Total 2,847"])
 
 
 def test_no_total_on_screen_fails_closed():
@@ -592,6 +682,18 @@ def test_every_tool_has_an_explicit_risk_class():
     assert [name for name in names if name not in safety.TOOL_RISK] == []
 
 
+ACTING_TOOL_NAME = re.compile(r"click|type|press|key|submit|send|delete|remove|pay|order|buy|post")
+
+
+def test_tools_that_can_click_type_or_submit_are_never_free():
+    """Phase 4+: a new click/keyboard/submit-capable tool must be registered guarded or confirm."""
+    free_actors = [
+        n for n, risk in safety.TOOL_RISK.items() if risk == "free" and ACTING_TOOL_NAME.search(n)
+    ]
+
+    assert free_actors == []
+
+
 @pytest.mark.parametrize("name", ["place_order", "send_message", "mcp_gmail_send", ""])
 def test_unregistered_tools_fail_closed(name):
     assert safety.risk_of(name) == "confirm"
@@ -738,14 +840,16 @@ def test_every_agent_with_tools_has_the_gate():
 
 @pytest.fixture
 def fake_page(monkeypatch):
-    """browser_click with a fake page: labels, screen rows and clicks are recorded, no Chrome."""
-    page = {"labels": ["Place your order"], "rows": SCREEN, "clicks": 0}
+    """browser_click with a fake page: facts, screen rows and clicks are recorded, no Chrome."""
+    page = {
+        "labels": ["Place your order"],
+        "path": "/",
+        "rows": SCREEN,
+        "clicks": 0,
+        "submit": False,
+        "nearby": "",
+    }
     monkeypatch.setattr(browser_tools, "_on_browser", lambda call: call())
-    monkeypatch.setattr(
-        browser_tools,
-        "_probe",
-        lambda text: browser_tools.Target("button", page["labels"], "t", "shop.test"),
-    )
     monkeypatch.setattr(browser_tools, "_screen_rows", lambda target: page["rows"])
     monkeypatch.setattr(
         browser_tools, "_click", lambda handle: page.update(clicks=page["clicks"] + 1)
@@ -756,11 +860,11 @@ def fake_page(monkeypatch):
         def evaluate(_script, _other):
             return True
 
-    monkeypatch.setattr(
-        browser_tools,
-        "_probe",
-        lambda text: browser_tools.Target(Same, page["labels"], "t", "shop.test"),
-    )
+    def probe(_text):
+        facts = safety.ClickFacts(page["labels"], page["submit"], page["path"], page["nearby"])
+        return browser_tools.Target(Same, facts, "t", "shop.test")
+
+    monkeypatch.setattr(browser_tools, "_probe", probe)
     return page
 
 
@@ -774,12 +878,48 @@ def test_screenshot_of_a_different_page_is_rejected(monkeypatch):
     ]
     monkeypatch.setattr(browser_tools.screen, "detect_text", lambda jpeg: lines)
     monkeypatch.setattr(safety, "log_safety_timing", lambda **_: None)
-    other = browser_tools.Target(None, [], "t", "shop.example")
-    same = browser_tools.Target(None, [], "t", "127.0.0.1:8765")
+    other = browser_tools.Target(None, safety.ClickFacts([]), "t", "shop.example")
+    same = browser_tools.Target(None, safety.ClickFacts([]), "t", "127.0.0.1:8765")
 
     with pytest.raises(ToolError):
         browser_tools._screen_rows(other)
     assert "Order total 2,847" in browser_tools._screen_rows(same)
+
+
+@pytest.mark.parametrize(
+    "page_change",
+    [
+        {"labels": ["Checkout"]},
+        {"labels": [""]},
+        {"labels": ["Go"], "submit": True},
+        {"labels": ["Continue"], "path": "/checkout"},
+        {"labels": ["Continue"], "nearby": "Order total ₹2,847"},
+    ],
+)
+def test_contextual_risky_click_without_the_voice_loop_clicks_nothing(fake_page, page_change):
+    """Coordinator repro 03/06: "Checkout" etc. were clicked with no confirmation at all."""
+    fake_page.update(page_change)
+
+    with pytest.raises(ToolError):
+        browser_tools.browser_click(text="Checkout")
+
+    assert fake_page["clicks"] == 0
+
+
+def test_contextual_click_is_confirmed_without_amount_and_named_by_host(fake_page, gate):
+    fake_page.update(labels=["Continue"], path="/checkout")
+    channel = safety.claim_voice_channel()
+    outcome: dict = {}
+    thread = threading.Thread(
+        target=lambda: outcome.update(r=browser_tools.browser_click(text="Continue")), daemon=True
+    )
+    thread.start()
+
+    _answer(channel, "confirm")
+    thread.join(REPLY_WAIT_S)
+
+    assert fake_page["clicks"] == 1
+    assert gate["prompts"][0].startswith("I'm about to click continue on shop.test.")
 
 
 def test_harmless_click_needs_no_confirmation(fake_page):
