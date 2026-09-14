@@ -36,18 +36,20 @@ create table waitlist (email text primary key, created_at timestamptz not null d
 create table visitors (id text primary key, first_seen timestamptz not null default now());
 ```
 
-## The "Hear Zoya" clip
+## The "Say hi to Zoya" greeting
 
-`public/audio/hear-zoya.mp3` is Zoya's real voice: Amazon Polly, voice Kajal, neural, en-IN, ap-south-1.
-The word timings in `app/copy.ts` are Polly speech marks for the same text. To regenerate:
+Clicking the line art plays `public/audio/say-hi.mp3`, Zoya's real voice (Amazon Polly, voice Kajal,
+neural, en-IN, ap-south-1), and shows the same words in a speech bubble. The words live in
+`SAY_HI.said` in `app/copy.ts`; if you change them, regenerate the clip so the two match:
 
 ```bash
-TEXT="I've added eggs, milk and bread. Your total is 243 rupees. Shall I place the order? Say confirm."
 aws polly synthesize-speech --profile zoya --region ap-south-1 --engine neural --voice-id Kajal \
-  --language-code en-IN --output-format mp3 --sample-rate 24000 --text "$TEXT" public/audio/hear-zoya.mp3
-aws polly synthesize-speech --profile zoya --region ap-south-1 --engine neural --voice-id Kajal \
-  --language-code en-IN --output-format json --speech-mark-types word --text "$TEXT" marks.jsonl
+  --language-code en-IN --output-format mp3 --sample-rate 24000 \
+  --text "Hi, I'm Zoya. Just tell me what you'd like done." public/audio/say-hi.mp3
 ```
+
+The line art is a hand-authored SVG in `app/components/SayHi.tsx` (single-colour strokes with
+`stroke="currentColor"`), so replacement art can drop straight in.
 
 ## Deploy (Vercel)
 
