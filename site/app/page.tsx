@@ -83,7 +83,6 @@ export default async function Home() {
         <p>
           {FOOTER.contactLead} <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
         </p>
-        <p>{FOOTER.credit}</p>
         <p>
           {FOOTER.iconsLead} <a href={FOOTER.iconsHref}>{FOOTER.iconsName}</a>
         </p>

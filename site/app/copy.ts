@@ -63,11 +63,6 @@ export const PROMISES = {
       title: "your passwords stay yours",
       line: "zoya pauses, you type them, you say “done”.",
     },
-    {
-      say: "zoya, stop",
-      title: "stop means stop",
-      line: "say it any time, and zoya stops.",
-    },
   ],
 };
 
@@ -98,7 +93,6 @@ export const FAQ = {
 export const FOOTER = {
   disclaimer: "zoya looks at your screen only when a task needs it.",
   contactLead: "questions?",
-  credit: "built for the vision os hackathon",
   iconsLead: "icons by",
   iconsName: "rune icons",
   iconsHref: "https://www.runeicons.com",
