@@ -436,7 +436,7 @@ ffmpeg -i zen/processing.ogg -af "loudnorm=I=-38:TP=-12"                    soun
 │  ┌────────────────────┐  ┌──────────────────────┐ ┌──────────────┐  ┌────────────────────────────────┐    │
 │  │ FAST-PATH TOOLS     │  │ SAFETY LAYER          │ │ AUDIO ENGINE │  │ SUBAGENTS (agents-as-tools)    │    │
 │  │ open_app, open_url, │  │ confirmation hook,    │ │ earcon queue,│  │ ├ computer_agent (Sonnet 5)    │    │
-│  │ run_applescript,    │  │ click guard,          │ │ narrate()    │  │ │   screenshot/click/type/scroll│    │
+│  │ media_control,      │  │ click guard,          │ │ narrate()    │  │ │   screenshot/click/type/scroll│    │
 │  │ ax_read (AX API)    │  │ confirmation tokens   │ └──────────────┘  │ ├ browser_agent  (Sonnet 5)    │    │
 │  └────────────────────┘  └──────────────────────┘                   │ │   Playwright, Zoya profile  │    │
 │                                                                      │ ├ ppt_agent      (Sonnet 5)    │    │
@@ -517,7 +517,7 @@ ffmpeg -i zen/processing.ogg -af "loudnorm=I=-38:TP=-12"                    soun
 | **T2 — Browser DOM** | Playwright on persistent Chrome | 0.3–2 s per action | ⭐⭐⭐⭐ | search, add to cart, read page text |
 | **T3 — Pixel computer use** | screenshot → Sonnet 5 → click/type | 3–6 s per step | ⭐⭐⭐ | inaccessible apps, canvas UIs, anything else |
 
-**`run_applescript` allow-list (Phase 1):** Notes, Music and Spotify only, and every `app`/`application` reference must be a quoted allow-listed name; `do shell script`, `run script`, `open location`, file read/write and dialogs are refused. System Events, Finder and browsers stay off the list until the safety gate (§9.9) guards them — owner to confirm.
+**No free-form AppleScript tool (Phase 1 review):** a text allow-list for `run_applescript` was bypassed with AppleScript's `¬` line continuation (`do shell ¬ script …`), and the brain passes untrusted text, so `run_applescript` was removed. Every AppleScript Zoya runs is a fixed string with user text passed as argv: Notes tools, and `media_control(action, app)` for Spotify/Music. Add new fixed, parameterised tools rather than reintroducing script text.
 
 **Rule:** the model is instructed (and tools are ordered/described) to try the lowest tier that can work. T3 is the universal fallback — Zoya can do *anything*, but it only pays T3 cost when necessary.
 
@@ -1248,7 +1248,7 @@ You are Zoya, operating a Mac on behalf of a blind user who cannot see the scree
 
 How to work:
 - Achieve the user's goal end to end. Prefer tools in this order: direct commands
-  (open_app, open_url, run_applescript) → accessibility tools → browser DOM tools →
+  (open_app, open_url, media_control, notes tools) → accessibility tools → browser DOM tools →
   screenshot-based computer use. Use screenshots only when cheaper tiers can't work.
 - Before asking the user about a preference, address, contact, or "usual" item, call memory_search.
 - Call narrate() once when a task starts and only at meaningful milestones. Keep each
@@ -1283,7 +1283,7 @@ listing the slide titles.
 |---|---|---|---|
 | `open_app` | `(name: str)` | T0 | Low |
 | `open_url` | `(url: str)` | T0 | Low |
-| `run_applescript` | `(script: str)` | T0 | **Medium** (allow-listed apps only) |
+| `media_control` | `(action: str, app: str)` | T0 | Low (fixed scripts; free-form `run_applescript` removed, §9.4) |
 | `notes_create` / `notes_search` / `notes_append` | `(title, body)` / `(query)` / `(id, text)` | T0 | Low |
 | `ax_read` | `(app: str) -> tree summary` | T1 | Low |
 | `ax_press` | `(app: str, label: str)` | T1 | Click-guarded |

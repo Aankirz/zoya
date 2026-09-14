@@ -1,4 +1,4 @@
-"""T0 direct-command tools (§9.4): open apps/URLs, allow-listed AppleScript, volume, time.
+"""T0 direct-command tools (§9.4): open apps/URLs, media keys, volume, time.
 
 No model calls, no shell strings: every process gets an argv list.
 `open -a` needs no macOS permission (AUDIT §3).
@@ -13,18 +13,11 @@ from urllib.parse import urlparse
 
 from strands import tool
 
-from zoya.config import APP_LOOKUP_TIMEOUT_S, APPLESCRIPT_ALLOWED_APPS, OSASCRIPT_TIMEOUT_S
+from zoya.config import APP_LOOKUP_TIMEOUT_S, OSASCRIPT_TIMEOUT_S
 from zoya.tools import ToolError
 
 VOLUME_STEP = 15
 MAX_VOLUME = 100
-APP_REFERENCE = re.compile(r"\b(?:application|app)\b", re.I)
-APP_NAMED = re.compile(r'\b(?:application|app)\s+"([^"]+)"', re.I)
-FORBIDDEN_APPLESCRIPT = re.compile(
-    r"\bdo\s+shell\s+script\b|\b(?:run|load|store)\s+script\b|\bopen\s+location\b"
-    r"|\b(?:read|write)\b|\bdisplay\s+(?:dialog|alert)\b|\bchoose\b|«",
-    re.I,
-)
 UNSAFE_LOOKUP_CHARS = re.compile(r"['\"\\*]")
 
 
@@ -102,30 +95,29 @@ def open_url(url: str) -> str:
     return f"Opening {urlparse(address).netloc}."
 
 
-def check_applescript_allowed(script: str) -> None:
-    """Refuse scripts that run code outside the allow-listed apps.
-
-    Every `app`/`application` reference must be a literal quoted name on the
-    allow-list, so `application id "…"`, `app someVariable` and
-    `app "Terminal"` are all refused. Model output is untrusted (§12.2).
-    """
-    if FORBIDDEN_APPLESCRIPT.search(script):
-        raise ToolError("I'm not allowed to run that kind of script.")
-    references = APP_REFERENCE.findall(script)
-    named = [name.lower() for name in APP_NAMED.findall(script)]
-    if not named or len(named) != len(references):
-        raise ToolError("I'm not allowed to control that app with AppleScript.")
-    if not set(named) <= APPLESCRIPT_ALLOWED_APPS:
-        raise ToolError("I'm not allowed to control that app with AppleScript.")
+# No free-form AppleScript tool (coordinator review, §12.2): text-based allow-lists are
+# bypassable (e.g. the ¬ line continuation), and the brain passes untrusted text. Every
+# script Zoya runs is a fixed string below; the model only picks keys.
+MEDIA_APPS = {"music": "Music", "spotify": "Spotify"}
+MEDIA_COMMANDS = {
+    "play": "play",
+    "pause": "pause",
+    "playpause": "playpause",
+    "next": "next track",
+    "previous": "previous track",
+}
 
 
 @tool
-def run_applescript(script: str) -> str:
-    """Run AppleScript that controls only Notes, Music or Spotify (e.g. play/pause music).
-    Use only when no dedicated tool fits."""
-    check_applescript_allowed(script)
-    output = osascript(script)
-    return output or "Done."
+def media_control(action: str, app: str = "spotify") -> str:
+    """Control music playback. action: play | pause | playpause | next | previous.
+    app: spotify | music."""
+    app_name = MEDIA_APPS.get(app.strip().lower())
+    command = MEDIA_COMMANDS.get(action.strip().lower())
+    if app_name is None or command is None:
+        raise ToolError("I can only play, pause or skip songs in Spotify or Music.")
+    osascript(f'tell application "{app_name}" to {command}')
+    return "Done."
 
 
 @tool
@@ -169,4 +161,4 @@ def get_time() -> str:
     return f"It's {now:%-I:%M %p} on {now:%A, %-d %B}."
 
 
-TOOLS = [open_app, open_url, run_applescript, set_volume, volume_up, volume_down, mute, get_time]
+TOOLS = [open_app, open_url, media_control, set_volume, volume_up, volume_down, mute, get_time]

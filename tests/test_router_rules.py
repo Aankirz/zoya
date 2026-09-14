@@ -6,8 +6,8 @@ No network: match_rules() never calls a model or AWS.
 import pytest
 
 from zoya.router import RouteChoice, decision_from_choice, match_rules
-from zoya.tools import ToolError
-from zoya.tools.fast import check_applescript_allowed, normalise_url
+from zoya.tools import ToolError, collect_tools
+from zoya.tools.fast import media_control, normalise_url
 
 
 @pytest.mark.parametrize(
@@ -38,6 +38,9 @@ from zoya.tools.fast import check_applescript_allowed, normalise_url
         ("set volume to 40", "set_volume", {"level": 40}),
         ("turn the volume up", "volume_up", {}),
         ("mute", "mute", {}),
+        ("pause spotify", "media_control", {"action": "pause", "app": "spotify"}),
+        ("stop the music", "media_control", {"action": "pause", "app": "spotify"}),
+        ("next song on music", "media_control", {"action": "next", "app": "music"}),
     ],
 )
 def test_fast_commands_match_without_a_model(command, tool, args):
@@ -62,6 +65,18 @@ def test_stop_phrases_route_to_stop(command):
         "Plan a trip and book a hotel",
         "Open Amazon and search for running shoes",
         "open Spotify then play my playlist",
+        "Amazon kholo aur shoes dhundo",
+    ],
+)
+def test_multi_step_commands_go_straight_to_orchestrator(command):
+    decision = match_rules(command)
+
+    assert decision is not None and decision.route == "orchestrator"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
         "open my latest email from Karthik",
         "What's the weather in Delhi",
         "notes",
@@ -91,24 +106,31 @@ def test_model_fast_answer_keeps_only_that_tools_args():
     )
 
 
-@pytest.mark.parametrize(
-    "script",
-    [
-        'tell application "Terminal" to activate',
-        'tell app "Notes" to activate\ntell application id "com.apple.Terminal" to activate',
-        'tell application "Notes" to do shell script "rm -rf ~"',
-        'set x to "Terminal"\ntell application x to activate',
-        'tell application "Music" to open location "file:///etc/passwd"',
-        "beep",
-    ],
-)
-def test_applescript_outside_the_allow_list_is_refused(script):
+SHELL_PAYLOADS = [
+    'tell application "Notes"\n  do shell ¬\n script "echo PWNED"\nend tell',
+    'tell application "Notes"\r\n  do shell ¬\r\n script "echo PWNED"\r\nend tell',
+    'tell application "Music" to Do Shell Script "echo PWNED"',
+]
+
+
+def test_no_tool_accepts_free_form_applescript():
+    """Regression for the ¬ bypass: the brain must have no tool that takes script text."""
+    for zoya_tool in collect_tools("zoya.tools", "zoya.agents"):
+        params = zoya_tool.tool_spec["inputSchema"]["json"].get("properties", {})
+        assert "script" not in params, zoya_tool.tool_name
+        assert zoya_tool.tool_name != "run_applescript"
+
+
+@pytest.mark.parametrize("payload", SHELL_PAYLOADS)
+@pytest.mark.parametrize("field", ["action", "app"])
+def test_media_control_rejects_script_text(payload, field, monkeypatch):
+    ran = []
+    monkeypatch.setattr("zoya.tools.fast.osascript", lambda *args: ran.append(args))
+    kwargs = {"action": "play", "app": "spotify", field: payload}
+
     with pytest.raises(ToolError):
-        check_applescript_allowed(script)
-
-
-def test_applescript_for_allowed_app_passes():
-    check_applescript_allowed('tell application "Music" to playpause')
+        media_control(**kwargs)
+    assert ran == []
 
 
 @pytest.mark.parametrize("url", ["file:///etc/passwd", "javascript:alert(1)", "localhost"])

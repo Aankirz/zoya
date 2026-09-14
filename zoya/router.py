@@ -31,13 +31,14 @@ FAST_TOOL_ARGS: dict[str, tuple[str, ...]] = {
     "notes_create": ("body", "title"),
     "notes_search": ("query",),
     "notes_append": ("note_name", "text"),
+    "media_control": ("action", "app"),
     "set_volume": ("level",),
     "volume_up": (),
     "volume_down": (),
     "mute": (),
     "get_time": (),
 }
-REQUIRED_ARGS = {"notes_create": ("body",)}
+REQUIRED_ARGS = {"notes_create": ("body",), "media_control": ("action",)}
 
 
 @dataclass(frozen=True)
@@ -62,7 +63,8 @@ TRAILING_FILLER = re.compile(
     r"[\s,]+(?:please|zoya|for me|now|right now|zara|na)$|[\s.!?]+$",
     _I,
 )
-MULTI_STEP = re.compile(r"\b(?:and|then|after that|aur|phir|fir)\b|[,;]", _I)
+MULTI_STEP_WORDS = re.compile(r"\b(?:and|then|after that|aur|phir|fir)\b", _I)
+MULTI_STEP = re.compile(rf"{MULTI_STEP_WORDS.pattern}|[,;]", _I)
 DOMAIN = re.compile(r"^(?:https?://)?(?:[a-z0-9-]+\.)+[a-z]{2,}(?:[/?#]\S*)?$", _I)
 
 STOP = re.compile(
@@ -88,6 +90,13 @@ VOLUME_DOWN = re.compile(
     r"|softer|decrease(?: the)? volume|lower(?: the)? volume|awaaz\s+kam\s+karo)$",
     _I,
 )
+MEDIA = re.compile(
+    r"^(?P<action>play|pause|resume|stop|next|skip|previous)"
+    r"(?:\s+(?:the\s+)?(?:music|song|track|playback))?"
+    r"(?:\s+(?:on|in)?\s*(?P<app>spotify|music))?$",
+    _I,
+)
+MEDIA_ACTIONS = {"resume": "play", "stop": "pause", "skip": "next"}
 MUTE = re.compile(r"^(?:mute|mute(?: the)? (?:sound|volume|mac)|awaaz\s+band\s+karo)$", _I)
 NOTE_APPEND = re.compile(
     r"^add\s+['\"]?(?P<text>.+?)['\"]?\s+to\s+(?:my|the)\s+(?P<note>.+?)\s+note$", _I
@@ -153,6 +162,13 @@ def match_rules(text: str) -> RouteDecision | None:
         return None
     if STOP.match(command):
         return RouteDecision("stop")
+    if match := MEDIA.match(command):
+        action = match["action"].lower()
+        args = {
+            "action": MEDIA_ACTIONS.get(action, action),
+            "app": (match["app"] or "spotify").lower(),
+        }
+        return RouteDecision("fast", "media_control", args)
     if TIME.match(command):
         return RouteDecision("fast", "get_time")
     if match := VOLUME_SET.match(command):
@@ -166,8 +182,13 @@ def match_rules(text: str) -> RouteDecision | None:
             return RouteDecision("fast", tool_name)
     if note := _note_decision(command):  # before OPEN: note text may contain "open"
         return note
-    if match := OPEN.match(command) or OPEN_HINGLISH.match(command):
-        return _open_decision(match["target"])
+    if (match := OPEN.match(command) or OPEN_HINGLISH.match(command)) and (
+        decision := _open_decision(match["target"])
+    ):
+        return decision
+    if MULTI_STEP_WORDS.search(command):
+        # Clearly several steps: skip the ~2 s router call (D44) and its cost.
+        return RouteDecision("orchestrator")
     return None
 
 
@@ -189,6 +210,8 @@ class RouteChoice(BaseModel):
     note_name: str | None = None
     text: str | None = None
     level: int | None = None
+    action: str | None = None
+    app: str | None = None
 
 
 @cache

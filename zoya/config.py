@@ -61,15 +61,15 @@ SPEECH_SAMPLE_RATE_HZ = 16000
 ELEVENLABS_MODEL_ID = "eleven_flash_v2_5"
 MACOS_FALLBACK_VOICE = "Rishi"  # en_IN voice installed on the demo Mac
 
+# OpenAI SDK defaults are a 600 s timeout with 2 retries (openai/_constants.py), so one stuck
+# request could block ~30 min. Router calls are short structured answers; brain calls stream.
+MODEL_TIMEOUT_S = {"router": 10.0, "brain": 60.0, "vision": 60.0}
+MODEL_MAX_RETRIES = 1
+
 # Fast-path tools.
 AWS_CALL_TIMEOUT_S = 2
 OSASCRIPT_TIMEOUT_S = 5
 APP_LOOKUP_TIMEOUT_S = 2
-
-# Apps run_applescript may address (§9.4 "allow-listed apps").
-# ponytail: media + Notes only. System Events (keystrokes), Finder (files) and browsers
-# (`do JavaScript` on logged-in pages) stay out until the safety gate (Phase 3) guards them.
-APPLESCRIPT_ALLOWED_APPS = frozenset({"notes", "music", "spotify"})
 
 
 def load_env() -> None:
