@@ -5,7 +5,14 @@ A miss means Zoya can't be stopped; a false hit means she wakes or stops on her 
 
 import pytest
 
-from zoya.voice import after_wake, is_stop, is_stop_command, is_usable_command, is_wake
+from zoya.voice import (
+    after_wake,
+    is_stop,
+    is_stop_command,
+    is_usable_command,
+    is_wake,
+    vetoes_wake,
+)
 
 
 @pytest.mark.parametrize(
@@ -21,6 +28,7 @@ from zoya.voice import after_wake, is_stop, is_stop_command, is_usable_command, 
         "He's Zoya",
         "Zoya, what's the weather?",
         "ज़ोया, स्पॉटिफ़ाई खोल दो",  # turbo writes Hinglish in Devanagari (D42)
+        "Hey Zoëa!",  # turbo's accent on the owner's real "Hey Zoya"
     ],
 )
 def test_wake_on_zoya_like_name_in_first_three_words(heard):
@@ -98,3 +106,18 @@ def test_hallucinations_and_empty_commands_are_dropped(heard):
 )
 def test_real_commands_are_kept(heard):
     assert is_usable_command(heard)
+
+
+@pytest.mark.parametrize(
+    "turbo_heard", ["Zoe is coming", "Hey, so yeah.", "Joya!", "हे सोनिया", "Hey Sonia"]
+)
+def test_turbo_vetoes_sound_alike_names(turbo_heard):
+    assert vetoes_wake(turbo_heard)
+
+
+@pytest.mark.parametrize(
+    "turbo_heard",
+    ["Hey Zoya!", "He's aware.", "He is doya.", "Hey Zoëa!", "Hey Zoya, open Spotify", ""],
+)
+def test_turbo_does_not_veto_real_wakes(turbo_heard):
+    assert not vetoes_wake(turbo_heard)

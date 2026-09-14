@@ -23,6 +23,7 @@ import queue
 import re
 import threading
 import time
+import unicodedata
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -77,10 +78,10 @@ FOLLOW_UP_WINDOW_S = 8.0
 
 # --- Parsers (tested: tests/test_voice_spotter.py) ------------------------------------
 
-# Lenient "Zoya" (§7.1): zoya, zoia, zooeya, zoa, zoyah — not soya, sonia, zoe.
-NAME = re.compile(r"^z(?:oo?e?y|oi|o)ah?$")
+# Lenient "Zoya" (§7.1): zoya, zoia, zooeya, zoa, zoea, zoyah — not soya, sonia, zoe.
+NAME = re.compile(r"^z(?:oo?e?y|oi|oe|o)ah?$")
 # Whisper sometimes merges the greeting: "Hizoya", "Hezoya".
-MERGED_WAKE = re.compile(r"^(?:hey|hi|he|hay|ok|okay)z(?:oo?e?y|oi|o)ah?$")
+MERGED_WAKE = re.compile(r"^(?:hey|hi|he|hay|ok|okay)z(?:oo?e?y|oi|oe|o)ah?$")
 WORD = re.compile(r"[a-z]+|[\u0900-\u097F]+")
 # large-v3-turbo writes Hinglish in Devanagari (D42): "ज़ोया, स्पॉटिफ़ाई खोल दो".
 DEVANAGARI_NAME = re.compile(r"^(?:ज़|ज़|ज)ोया$")
@@ -95,13 +96,27 @@ HALLUCINATIONS = {
     *("um", "uh", "hmm", "mm", "ah", "er"),  # fillers: owner's live run sent "um" to the brain
 }
 SUPPORTED_SCRIPT = re.compile(r"[A-Za-z\u0900-\u097F]")  # Latin or Devanagari (D42)
+LATIN_ACCENT = re.compile(r"[\u0300-\u036f]")
+SOUND_ALIKES = {"zoe", "joya", "sonia", "sonya", "so", "soya", "siri", "सोनिया", "सोया", "ज़ो"}
 STOP_WORDS = {"stop", "cancel", "quiet", "ruko", "ruk", "bas", "chup"}
 MAX_STOP_PHRASE_WORDS = 6
 STATUS = re.compile(r"\bwhat(?:'s| is| are you)\s+(?:running|doing|working on)\b", re.I)
 
 
 def words(text: str) -> list[str]:
-    return WORD.findall(text.lower())
+    # Strip Latin accents only ("Zoëa" → "zoea"); Devanagari marks are letters, keep them.
+    plain = "".join(c for c in unicodedata.normalize("NFKD", text) if not LATIN_ACCENT.match(c))
+    return WORD.findall(plain.lower())
+
+
+def vetoes_wake(turbo_text: str) -> bool:
+    """large-v3-turbo heard a different name where "Zoya" was: "Zoe is coming", "Joya!", "हे सोनिया".
+
+    base.en with the "Zoya" prompt turned those into wakes (owner's run: 4/12 false). Requiring
+    turbo to hear "Zoya" too would drop real wakes 13 → 6 (it hears "He's aware"), so turbo may
+    only veto. ponytail: a list fitted to 4 real negatives; extend it from new false wakes.
+    """
+    return any(word in SOUND_ALIKES for word in words(turbo_text)[:WAKE_NAME_WORDS])
 
 
 def is_name(word: str) -> bool:
@@ -401,11 +416,14 @@ class VoiceLoop:
         if is_stop(text):
             self._stop(segment.last_voice_at, text, partial=False)
         elif is_wake(text):
-            self._wake(segment, text)
-            if self.test_wake:
+            self._wake(segment, text)  # chime now (< 500 ms); turbo can still veto
+            full, _ = self._transcribe(segment)
+            if vetoes_wake(full):
+                self._veto(full)
+            elif self.test_wake:
                 return  # score every utterance on its own
-            if after_wake(text):
-                self._command(segment)  # "Hey Zoya, open Spotify" in one breath
+            elif after_wake(text) or after_wake(full):
+                self._command(segment, transcript=full)  # "Hey Zoya, open Spotify" in one breath
             else:
                 self._await_command()  # "Hey Zoya" … pause … command
         elif segment.seconds >= ONE_BREATH_MIN_S and is_wake(full := self._transcribe(segment)[0]):
@@ -416,6 +434,12 @@ class VoiceLoop:
                 self._command(segment, transcript=full)
         elif self.test_wake:
             print(f"#{self.utterances} no wake — heard {text!r}")
+
+    def _veto(self, heard: str) -> None:
+        self.awaiting_command_until = 0.0
+        audio.restore()
+        print(f"#{self.utterances} VETO — turbo heard {heard!r}, not Zoya")
+        _log_voice({"event": "wake_veto"})
 
     def _open_follow_up(self) -> None:
         """Zoya finished answering: the next sentence needs no wake word for a few seconds."""
