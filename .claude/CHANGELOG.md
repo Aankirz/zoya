@@ -165,3 +165,6 @@
 
 ## 2026-09-14 — Open fallback + fast-turn context (D59)
 - open_app miss → orchestrator; fuzzy app lookup ≥ 3 chars; fast turns in conversation; skills-directory idea logged for Phase 4.
+
+## 2026-09-14 — Harness research
+- docs/research/harness.md: Strands feature audit, 3-layer harness design, caching plan, Phase 3–6 rollout (research only).
