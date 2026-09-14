@@ -4,6 +4,7 @@ Usage:
   python -m zoya.main                         # "Hey Zoya" + push-to-talk (Control + Option)
   python -m zoya.main --no-wake               # push-to-talk only (Done-when #5)
   python -m zoya.main --test-wake             # print wake/stop detections + timings, run nothing
+  python -m zoya.main --test-wake --record-clips  # also save each utterance to logs/wake_clips/
   python -m zoya.main --disable-tts polly     # Polly off → ElevenLabs → macOS voice (#7)
 Every stage's timing is printed and appended to logs/timing.log. Ctrl+C quits.
 """
@@ -26,6 +27,9 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="python -m zoya.main", description=__doc__)
     parser.add_argument("--no-wake", action="store_true", help="push-to-talk only")
     parser.add_argument("--test-wake", action="store_true", help="detect and time; run nothing")
+    parser.add_argument(
+        "--record-clips", action="store_true", help="with --test-wake: save logs/wake_clips/*.wav"
+    )
     parser.add_argument("--disable-tts", default="", help="comma list: polly,elevenlabs")
     return parser.parse_args(argv)
 
@@ -41,7 +45,9 @@ def _start(args: argparse.Namespace):  # noqa: ANN202 — returns VoiceLoop, imp
     print(f"tracing: {setup_tracing()}")
     audio.engine()
     _warm_up()
-    loop = VoiceLoop(wake_enabled=not args.no_wake, test_wake=args.test_wake)
+    loop = VoiceLoop(
+        wake_enabled=not args.no_wake, test_wake=args.test_wake, record_clips=args.record_clips
+    )
     print(f"ready in {time.monotonic() - started:.1f} s — timing log: {TIMING_LOG}")
     return loop
 

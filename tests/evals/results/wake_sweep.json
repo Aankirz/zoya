@@ -1,0 +1,527 @@
+[
+ {
+  "config": "faster-whisper base.en beam5 prompt (D19 original)",
+  "gate": 0.0,
+  "wakes": "10/11",
+  "false": [],
+  "median_ms": 259,
+  "missed": {
+   "2": "He's Doya."
+  }
+ },
+ {
+  "config": "mlx tiny.en prompt",
+  "gate": 0.0,
+  "wakes": "8/11",
+  "false": [
+   16,
+   18,
+   28
+  ],
+  "median_ms": 31,
+  "missed": {
+   "2": "He's Doya",
+   "4": "He's Ryo",
+   "6": "He's a way out"
+  }
+ },
+ {
+  "config": "mlx tiny.en prompt",
+  "gate": 0.3,
+  "wakes": "3/11",
+  "false": [],
+  "median_ms": 31,
+  "missed": {
+   "1": "Here's Zoya",
+   "2": "He's Doya",
+   "4": "He's Ryo",
+   "5": "He's Zoya",
+   "6": "He's a way out",
+   "8": "He's Zoya",
+   "9": "He's Zoya",
+   "12": "Here Zoya"
+  }
+ },
+ {
+  "config": "mlx tiny.en prompt",
+  "gate": 0.5,
+  "wakes": "0/11",
+  "false": [],
+  "median_ms": 31,
+  "missed": {
+   "1": "Here's Zoya",
+   "2": "He's Doya",
+   "3": "He's Zoya",
+   "4": "He's Ryo",
+   "5": "He's Zoya",
+   "6": "He's a way out",
+   "8": "He's Zoya",
+   "9": "He's Zoya",
+   "11": "Zoya",
+   "12": "Here Zoya",
+   "13": "Hey Zoya!"
+  }
+ },
+ {
+  "config": "mlx tiny.en prompt",
+  "gate": 0.7,
+  "wakes": "0/11",
+  "false": [],
+  "median_ms": 31,
+  "missed": {
+   "1": "Here's Zoya",
+   "2": "He's Doya",
+   "3": "He's Zoya",
+   "4": "He's Ryo",
+   "5": "He's Zoya",
+   "6": "He's a way out",
+   "8": "He's Zoya",
+   "9": "He's Zoya",
+   "11": "Zoya",
+   "12": "Here Zoya",
+   "13": "Hey Zoya!"
+  }
+ },
+ {
+  "config": "faster-whisper tiny.en prompt",
+  "gate": 0.0,
+  "wakes": "7/11",
+  "false": [
+   16,
+   17,
+   18,
+   21,
+   27,
+   28
+  ],
+  "median_ms": 102,
+  "missed": {
+   "2": "He's doing it.",
+   "4": "He's Ryo",
+   "6": "He's a way out",
+   "8": "He's a way out"
+  }
+ },
+ {
+  "config": "mlx tiny.en no-prompt",
+  "gate": 0.0,
+  "wakes": "1/11",
+  "false": [],
+  "median_ms": 29,
+  "missed": {
+   "1": "Here's the way out.",
+   "2": "He's doing it.",
+   "3": "He's the way out.",
+   "4": "He's real.",
+   "5": "He's the way out.",
+   "6": "He's aware",
+   "8": "He's aware.",
+   "9": "He's there.",
+   "11": "Zuya.",
+   "12": "Here's where."
+  }
+ },
+ {
+  "config": "mlx tiny.en no-prompt",
+  "gate": 0.3,
+  "wakes": "1/11",
+  "false": [],
+  "median_ms": 29,
+  "missed": {
+   "1": "Here's the way out.",
+   "2": "He's doing it.",
+   "3": "He's the way out.",
+   "4": "He's real.",
+   "5": "He's the way out.",
+   "6": "He's aware",
+   "8": "He's aware.",
+   "9": "He's there.",
+   "11": "Zuya.",
+   "12": "Here's where."
+  }
+ },
+ {
+  "config": "mlx tiny.en no-prompt",
+  "gate": 0.5,
+  "wakes": "0/11",
+  "false": [],
+  "median_ms": 29,
+  "missed": {
+   "1": "Here's the way out.",
+   "2": "He's doing it.",
+   "3": "He's the way out.",
+   "4": "He's real.",
+   "5": "He's the way out.",
+   "6": "He's aware",
+   "8": "He's aware.",
+   "9": "He's there.",
+   "11": "Zuya.",
+   "12": "Here's where.",
+   "13": "Hey Zoya."
+  }
+ },
+ {
+  "config": "mlx tiny.en no-prompt",
+  "gate": 0.7,
+  "wakes": "0/11",
+  "false": [],
+  "median_ms": 29,
+  "missed": {
+   "1": "Here's the way out.",
+   "2": "He's doing it.",
+   "3": "He's the way out.",
+   "4": "He's real.",
+   "5": "He's the way out.",
+   "6": "He's aware",
+   "8": "He's aware.",
+   "9": "He's there.",
+   "11": "Zuya.",
+   "12": "Here's where.",
+   "13": "Hey Zoya."
+  }
+ },
+ {
+  "config": "faster-whisper tiny.en no-prompt",
+  "gate": 0.0,
+  "wakes": "1/11",
+  "false": [],
+  "median_ms": 107,
+  "missed": {
+   "1": "Here's where you are.",
+   "2": "He's doing it.",
+   "3": "He's over.",
+   "4": "He's real.",
+   "5": "He's the way out.",
+   "6": "He's aware",
+   "8": "He's way up.",
+   "9": "He's there.",
+   "11": "Zuya.",
+   "12": "Here's where."
+  }
+ },
+ {
+  "config": "mlx base.en prompt",
+  "gate": 0.0,
+  "wakes": "11/11",
+  "false": [],
+  "median_ms": 55,
+  "missed": {}
+ },
+ {
+  "config": "mlx base.en prompt",
+  "gate": 0.3,
+  "wakes": "9/11",
+  "false": [],
+  "median_ms": 55,
+  "missed": {
+   "3": "Hizoya Yeah.",
+   "12": "Here Zoya!"
+  }
+ },
+ {
+  "config": "mlx base.en prompt",
+  "gate": 0.5,
+  "wakes": "3/11",
+  "false": [],
+  "median_ms": 55,
+  "missed": {
+   "1": "He's Zoya.",
+   "2": "He's Zoya.",
+   "3": "Hizoya Yeah.",
+   "4": "Here's Zoya.",
+   "5": "Here Zoya.",
+   "6": "Here Zoya!",
+   "8": "Here Zoya!",
+   "12": "Here Zoya!"
+  }
+ },
+ {
+  "config": "mlx base.en prompt",
+  "gate": 0.7,
+  "wakes": "0/11",
+  "false": [],
+  "median_ms": 55,
+  "missed": {
+   "1": "He's Zoya.",
+   "2": "He's Zoya.",
+   "3": "Hizoya Yeah.",
+   "4": "Here's Zoya.",
+   "5": "Here Zoya.",
+   "6": "Here Zoya!",
+   "8": "Here Zoya!",
+   "9": "Here Zoya!",
+   "11": "Zoya Yeah.",
+   "12": "Here Zoya!",
+   "13": "Hey Zoya!"
+  }
+ },
+ {
+  "config": "faster-whisper base.en prompt",
+  "gate": 0.0,
+  "wakes": "11/11",
+  "false": [],
+  "median_ms": 245,
+  "missed": {}
+ },
+ {
+  "config": "mlx base.en no-prompt",
+  "gate": 0.0,
+  "wakes": "2/11",
+  "false": [],
+  "median_ms": 52,
+  "missed": {
+   "1": "He's a way up.",
+   "2": "He's doing it.",
+   "3": "Here's the way up.",
+   "4": "Here's where you're...",
+   "5": "Here's who ya",
+   "6": "Here's where",
+   "8": "Here's where...",
+   "9": "Here's where.",
+   "12": "Here's where."
+  }
+ },
+ {
+  "config": "mlx base.en no-prompt",
+  "gate": 0.3,
+  "wakes": "2/11",
+  "false": [],
+  "median_ms": 52,
+  "missed": {
+   "1": "He's a way up.",
+   "2": "He's doing it.",
+   "3": "Here's the way up.",
+   "4": "Here's where you're...",
+   "5": "Here's who ya",
+   "6": "Here's where",
+   "8": "Here's where...",
+   "9": "Here's where.",
+   "12": "Here's where."
+  }
+ },
+ {
+  "config": "mlx base.en no-prompt",
+  "gate": 0.5,
+  "wakes": "2/11",
+  "false": [],
+  "median_ms": 52,
+  "missed": {
+   "1": "He's a way up.",
+   "2": "He's doing it.",
+   "3": "Here's the way up.",
+   "4": "Here's where you're...",
+   "5": "Here's who ya",
+   "6": "Here's where",
+   "8": "Here's where...",
+   "9": "Here's where.",
+   "12": "Here's where."
+  }
+ },
+ {
+  "config": "mlx base.en no-prompt",
+  "gate": 0.7,
+  "wakes": "1/11",
+  "false": [],
+  "median_ms": 52,
+  "missed": {
+   "1": "He's a way up.",
+   "2": "He's doing it.",
+   "3": "Here's the way up.",
+   "4": "Here's where you're...",
+   "5": "Here's who ya",
+   "6": "Here's where",
+   "8": "Here's where...",
+   "9": "Here's where.",
+   "11": "Zoya.",
+   "12": "Here's where."
+  }
+ },
+ {
+  "config": "faster-whisper base.en no-prompt",
+  "gate": 0.0,
+  "wakes": "2/11",
+  "false": [],
+  "median_ms": 245,
+  "missed": {
+   "1": "Here's where.",
+   "2": "He's doing it.",
+   "3": "Here's the way up.",
+   "4": "Here's where you're at.",
+   "5": "Here's who ya",
+   "6": "Here's where I am.",
+   "8": "Here's where.",
+   "9": "Here's where.",
+   "12": "Here's where."
+  }
+ },
+ {
+  "config": "mlx small.en prompt",
+  "gate": 0.0,
+  "wakes": "11/11",
+  "false": [
+   18,
+   28
+  ],
+  "median_ms": 157,
+  "missed": {}
+ },
+ {
+  "config": "mlx small.en prompt",
+  "gate": 0.3,
+  "wakes": "7/11",
+  "false": [
+   28
+  ],
+  "median_ms": 157,
+  "missed": {
+   "2": "Zoya is here",
+   "3": "Zoya is here",
+   "6": "Zoya",
+   "8": "Zoya is here"
+  }
+ },
+ {
+  "config": "mlx small.en prompt",
+  "gate": 0.5,
+  "wakes": "2/11",
+  "false": [],
+  "median_ms": 157,
+  "missed": {
+   "1": "Here's Zoya!",
+   "2": "Zoya is here",
+   "3": "Zoya is here",
+   "4": "Zoya",
+   "5": "Zoya is here",
+   "6": "Zoya",
+   "8": "Zoya is here",
+   "9": "Here's Zoya",
+   "12": "Zoya"
+  }
+ },
+ {
+  "config": "mlx small.en prompt",
+  "gate": 0.7,
+  "wakes": "0/11",
+  "false": [],
+  "median_ms": 157,
+  "missed": {
+   "1": "Here's Zoya!",
+   "2": "Zoya is here",
+   "3": "Zoya is here",
+   "4": "Zoya",
+   "5": "Zoya is here",
+   "6": "Zoya",
+   "8": "Zoya is here",
+   "9": "Here's Zoya",
+   "11": "Zoya",
+   "12": "Zoya",
+   "13": "Hey Zoya"
+  }
+ },
+ {
+  "config": "faster-whisper small.en prompt",
+  "gate": 0.0,
+  "wakes": "11/11",
+  "false": [
+   18,
+   28
+  ],
+  "median_ms": 862,
+  "missed": {}
+ },
+ {
+  "config": "mlx small.en no-prompt",
+  "gate": 0.0,
+  "wakes": "1/11",
+  "false": [],
+  "median_ms": 150,
+  "missed": {
+   "1": "Here's where!",
+   "2": "Here's the way",
+   "3": "Here's where.",
+   "4": "Here's where.",
+   "5": "Here's where.",
+   "6": "Here's where.",
+   "8": "Here's where.",
+   "9": "Here's where.",
+   "12": "Here's where.",
+   "13": "HEE ZOO YAH!"
+  }
+ },
+ {
+  "config": "mlx small.en no-prompt",
+  "gate": 0.3,
+  "wakes": "1/11",
+  "false": [],
+  "median_ms": 150,
+  "missed": {
+   "1": "Here's where!",
+   "2": "Here's the way",
+   "3": "Here's where.",
+   "4": "Here's where.",
+   "5": "Here's where.",
+   "6": "Here's where.",
+   "8": "Here's where.",
+   "9": "Here's where.",
+   "12": "Here's where.",
+   "13": "HEE ZOO YAH!"
+  }
+ },
+ {
+  "config": "mlx small.en no-prompt",
+  "gate": 0.5,
+  "wakes": "1/11",
+  "false": [],
+  "median_ms": 150,
+  "missed": {
+   "1": "Here's where!",
+   "2": "Here's the way",
+   "3": "Here's where.",
+   "4": "Here's where.",
+   "5": "Here's where.",
+   "6": "Here's where.",
+   "8": "Here's where.",
+   "9": "Here's where.",
+   "12": "Here's where.",
+   "13": "HEE ZOO YAH!"
+  }
+ },
+ {
+  "config": "mlx small.en no-prompt",
+  "gate": 0.7,
+  "wakes": "0/11",
+  "false": [],
+  "median_ms": 150,
+  "missed": {
+   "1": "Here's where!",
+   "2": "Here's the way",
+   "3": "Here's where.",
+   "4": "Here's where.",
+   "5": "Here's where.",
+   "6": "Here's where.",
+   "8": "Here's where.",
+   "9": "Here's where.",
+   "11": "Zoya!",
+   "12": "Here's where.",
+   "13": "HEE ZOO YAH!"
+  }
+ },
+ {
+  "config": "faster-whisper small.en no-prompt",
+  "gate": 0.0,
+  "wakes": "2/11",
+  "false": [],
+  "median_ms": 851,
+  "missed": {
+   "1": "Here's where!",
+   "2": "Here's the video!",
+   "3": "Here's where.",
+   "4": "Here's where.",
+   "5": "Here's the way",
+   "6": "Here's where.",
+   "8": "Here's where.",
+   "9": "Here's where.",
+   "12": "Here's where."
+  }
+ }
+]

@@ -61,6 +61,7 @@ VAD_CONTEXT = 64
 VAD_STATE_SHAPE = (1, 1, 128)
 STOP_WINDOW_S = 2.0  # spot "stop" in the last 2 s of mic audio, across utterance boundaries
 WARM_UP_S = 1.0
+CLIPS_DIR = LOG_DIR / "wake_clips"
 FIRST_WORD_WAIT_S = 5.0
 FIRST_WORD_POLL_S = 0.02
 NAME_MEMORY_S = 2.5  # "Zoya … stop" may land in two different 2 s windows
@@ -222,9 +223,12 @@ class Segment:
 
 
 class VoiceLoop:
-    def __init__(self, wake_enabled: bool = True, test_wake: bool = False) -> None:
+    def __init__(
+        self, wake_enabled: bool = True, test_wake: bool = False, record_clips: bool = False
+    ) -> None:
         self.wake_enabled = wake_enabled
         self.test_wake = test_wake
+        self.record_clips = record_clips
         self.vad = StreamingVad()
         self.spot = (
             load_cpu_spotter()
@@ -335,6 +339,8 @@ class VoiceLoop:
         # Whole utterance only: partial audio makes Whisper hallucinate the "Zoya" prompt.
         text = self._spot(segment.samples(WAKE_WINDOW_S))
         self.utterances += 1
+        if self.record_clips:
+            _save_clip(self.utterances, segment.samples())
         if is_stop(text):
             self._stop(segment.last_voice_at, text, partial=False)
         elif is_wake(text):
@@ -466,6 +472,14 @@ def _report(result: orchestrator.CommandResult, speech_end_at: float, pre: dict[
             **pre,
         }
     )
+
+
+def _save_clip(number: int, samples: np.ndarray) -> None:
+    """Owner-approved tuning clips; logs/ is git-ignored and nothing is uploaded."""
+    import soundfile as sf
+
+    CLIPS_DIR.mkdir(parents=True, exist_ok=True)
+    sf.write(CLIPS_DIR / f"{number:03d}.wav", samples, MIC_SAMPLE_RATE_HZ)
 
 
 def _log_voice(record: dict) -> None:
