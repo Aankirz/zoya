@@ -75,7 +75,15 @@ DOMAIN = re.compile(r"^(?:https?://)?(?:[a-z0-9-]+\.)+[a-z]{2,}(?:[/?#]\S*)?$", 
 
 STOP = re.compile(
     r"^(?:stop|cancel|ruk\s*jao|ruko|rukiye|bas|chup)"
-    r"(?:[\s,]+(?:it|that|now|everything|mat\s+kijiye|karo|what you'?re doing))*$",
+    r"(?:[\s,]+(?:it|that|now|everything|mat\s+kijiye|karo|what you'?re doing|the|this|my|current"
+    r"|task|tasks))*$",
+    _I,
+)
+# "Go back" is the browser's back, never the previous track (owner's run: a learned pick replayed
+# media_control "previous" during an Amazon task). "previous song" stays MEDIA.
+GO_BACK = re.compile(
+    r"^(?:go|take me|navigate)\s+back(?:\s+(?:to\s+)?(?:the\s+)?(?:previous|last)\s+page)?$"
+    r"|^go\s+to\s+the\s+(?:previous|last)\s+page$",
     _I,
 )
 # "What's on my screen?" goes straight to describe_screen (free, read-only): ~4 s less than a
@@ -202,6 +210,8 @@ def match_rules(text: str) -> RouteDecision | None:
         return None
     if STOP.match(command):
         return RouteDecision("stop")
+    if GO_BACK.match(command):
+        return RouteDecision("orchestrator")
     if DONE.match(command) and pending_handoff():
         return RouteDecision("orchestrator")  # route() swaps in the task to resume
     if match := MEDIA.match(command):
@@ -351,8 +361,10 @@ def route(text: str, use_rules: bool = True) -> RouteDecision:
         decision = match_rules(routed_text)
         if decision and DONE.match(clean_command(routed_text)):
             routed_text = resume_command() or routed_text
-        elif (not decision or _skill_may_win(decision)) and (
-            pick := _pick_without_model(clean_command(routed_text))
+        elif (
+            (not decision or _skill_may_win(decision))
+            and not GO_BACK.match(clean_command(routed_text))
+            and (pick := _pick_without_model(clean_command(routed_text)))
         ):
             decision = pick
         timings["rules_ms"] = _ms(started)

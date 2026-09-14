@@ -64,7 +64,17 @@ def test_fast_commands_match_without_a_model(command, tool, args):
 
 
 @pytest.mark.parametrize(
-    "command", ["Zoya stop", "stop", "cancel that", "Ruk jao Zoya", "Rukiye, mat kijiye"]
+    "command",
+    [
+        "Zoya stop",
+        "stop",
+        "cancel that",
+        "Ruk jao Zoya",
+        "Rukiye, mat kijiye",
+        "stop the task.",  # owner's run 2026-09-15: heard, nothing stopped
+        "cancel this task",
+        "stop the current task",
+    ],
 )
 def test_stop_phrases_route_to_stop(command):
     decision = match_rules(command)
@@ -233,3 +243,24 @@ def test_fast_path_runs_describe_screen_but_no_other_agent_tool(monkeypatch):
         orchestrator.run_fast_tool(RouteDecision("fast", "describe_screen"))
     with pytest.raises(ToolError):
         orchestrator.run_fast_tool(RouteDecision("fast", "computer_task", {"goal": "x"}))
+
+
+@pytest.mark.parametrize(
+    "command",
+    ["Can you please go back?", "go back", "go back to the previous page", "take me back"],
+)
+def test_go_back_is_a_browser_task_never_media(command, monkeypatch):
+    # Owner's run: "Can you please go back?" during an Amazon task pressed the previous-track key.
+    from zoya import harness, router
+
+    monkeypatch.setattr(
+        harness,
+        "learned_pick",
+        lambda _c: harness.SkillMatch("media", "media_control", {"action": "previous"}),
+    )
+    decision = router.route(command)
+    assert (decision.route, decision.tool) == ("orchestrator", None)
+
+
+def test_previous_song_is_still_media():
+    assert match_rules("previous song").tool == "media_control"
