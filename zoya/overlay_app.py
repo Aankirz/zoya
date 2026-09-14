@@ -51,7 +51,7 @@ RING_ENTER_SCALE = 1.08
 RING_ENTER_S = 0.2
 EXIT_S = 0.15  # exits are shorter and softer than enters
 EASE = (0.22, 1.0, 0.36, 1.0)  # ease-out quint
-USER_PREFIX = "You: "
+GLASS_TINT_ALPHA = 0.5  # tinted glass keeps captions legible over video and bright pages
 SPEED_ENV = "ZOYA_OVERLAY_SPEED"
 
 LABELS = {
@@ -196,6 +196,10 @@ class Presence:
             content = view
         elif hasattr(AppKit, "NSGlassEffectView"):  # Liquid Glass, macOS 26: the one glass surface
             view = AppKit.NSGlassEffectView.alloc().initWithFrame_(frame)
+            view.setStyle_(AppKit.NSGlassEffectViewStyleRegular)
+            view.setTintColor_(
+                AppKit.NSColor.windowBackgroundColor().colorWithAlphaComponent_(GLASS_TINT_ALPHA)
+            )
             content = AppKit.NSView.alloc().initWithFrame_(frame)
             view.setContentView_(content)
         else:
@@ -229,7 +233,7 @@ class Presence:
             self.speaking = True
             self._set_caption(message["text"], user=False)
         elif kind == "user":
-            self._set_caption(USER_PREFIX + message["text"], user=True)
+            self._set_caption(message["text"], user=True)
         elif kind == "speech_done":
             self.speaking = False
         elif kind == "ring":
@@ -239,15 +243,17 @@ class Presence:
             self.latencies_ms.append((time.time() - message["t"]) * 1000)
 
     def _set_caption(self, text: str, user: bool) -> None:
-        self.caption.setStringValue_(text)  # captions change often: never animated
-        colour = self._secondary() if user else AppKit.NSColor.labelColor()
-        self.caption.setTextColor_(colour)
+        self.caption.setStringValue_(f"“{text}”" if user and text else text)  # never animated
+        weight = AppKit.NSFontWeightRegular if user else AppKit.NSFontWeightMedium
+        self.caption.setFont_(
+            AppKit.NSFont.monospacedDigitSystemFontOfSize_weight_(CAPTION_PT, weight)
+        )
 
     def show(self) -> None:
         state, step, task = ("speaking", "", self.base[2]) if self.speaking else self.base
         label = LABELS.get(state, LABELS["idle"])
         if step and state in ("thinking", "acting"):
-            label = f"{label} · {step}"
+            label = step  # already a plain verb ("Clicking", "Recalling")
         self.label.setStringValue_(f"{task} · {label}" if task else label)
         self.pet.set_state(state)
         self._layout_bubble()
@@ -285,7 +291,9 @@ class Presence:
         gap = LABEL_GAP_PT if has_caption else 0.0
         height = math.ceil(label_size.height + gap + caption_size.height + 2 * BUBBLE_PAD_Y_PT)
         right = WINDOW_W_PT - SHADOW_ROOM_PT - PET_PT - BUBBLE_GAP_PT
-        self.bubble.setFrame_(((right - width, SHADOW_ROOM_PT), (width, height)))
+        # Shorter than the pet: centred on it. Taller: bottom-aligned with it.
+        bottom = SHADOW_ROOM_PT + max(0.0, math.floor((PET_PT - height) / 2))
+        self.bubble.setFrame_(((right - width, bottom), (width, height)))
         self.bubble_content.setFrame_(((0, 0), (width, height)))
         self.caption.setFrame_(((BUBBLE_PAD_X_PT, BUBBLE_PAD_Y_PT), (text_w, caption_size.height)))
         self.label.setFrame_(

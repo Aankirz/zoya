@@ -24,7 +24,6 @@ import numpy as np
 from zoya import events, overlay, screen
 
 STATE_HOLD_S = 3.0
-PANEL_W, PANEL_H, PANEL_MARGIN = 480, 148, 24
 RING = (120, 60)
 
 
@@ -116,11 +115,13 @@ def _diff(a: np.ndarray, b: np.ndarray) -> float:
 def _panel_rect() -> tuple[float, float, float, float]:
     import AppKit
 
+    from zoya.overlay_app import SCREEN_INSET_PT, WINDOW_H_PT, WINDOW_W_PT
+
     visible = AppKit.NSScreen.mainScreen().visibleFrame()
     height = _main_size()[1]
-    x = visible.origin.x + visible.size.width - PANEL_W - PANEL_MARGIN
-    y = height - (visible.origin.y + PANEL_MARGIN) - PANEL_H
-    return (x, y, PANEL_W, PANEL_H)
+    x = visible.origin.x + visible.size.width - WINDOW_W_PT - SCREEN_INSET_PT
+    y = height - (visible.origin.y + SCREEN_INSET_PT) - WINDOW_H_PT
+    return (x, y, WINDOW_W_PT, WINDOW_H_PT)
 
 
 def _window_under(point: tuple[float, float]) -> Any:
@@ -175,7 +176,7 @@ def capture() -> None:
         print(_ring_blue(window_base), "→", _ring_blue(after))
     print(
         "capture_region_jpeg over the panel:",
-        len(screen.capture_region_jpeg(panel[0] + 240, panel[1] + 74, 100, 40)),
+        len(screen.capture_region_jpeg(panel[0] + panel[2] - 48, panel[1] + panel[3] - 48, 40, 40)),
         "bytes",
     )
     cpu = subprocess.run(

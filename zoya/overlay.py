@@ -45,7 +45,43 @@ RING_LEAD_S = 0.25  # the ring is on screen this long before the click lands
 RING_PAD_PT = 8.0
 POINT_RING_PT = 44.0  # a pixel click has no element frame: a ring this big around the point
 CAPTION_MAX_CHARS = 160
-HIDDEN_CAPTION = "(private — hidden)"
+HIDDEN_CAPTION = "Hidden for privacy"
+# Tool names → what a judge reads on the stage label; anything unlisted is sentence-cased.
+TOOL_VERBS = {
+    "amazon add to cart": "Adding to cart",
+    "amazon cart": "Checking the cart",
+    "amazon checkout": "Checking out",
+    "amazon place order": "Placing the order",
+    "amazon search": "Searching Amazon",
+    "ax press": "Pressing a button",
+    "ax read": "Reading the app",
+    "browser click": "Clicking",
+    "browser open": "Opening a page",
+    "browser read": "Reading the page",
+    "browser screenshot": "Looking at the page",
+    "browser type": "Typing",
+    "click": "Clicking",
+    "computer task": "Using the Mac",
+    "create document": "Writing a document",
+    "describe screen": "Looking at the screen",
+    "document agent": "Working on a document",
+    "key": "Pressing keys",
+    "memory add": "Remembering",
+    "memory search": "Recalling",
+    "open app": "Opening an app",
+    "read document": "Reading a document",
+    "read screen text": "Reading the screen",
+    "screenshot": "Looking at the screen",
+    "scroll": "Scrolling",
+    "set reminder": "Setting a reminder",
+    "share file": "Sharing a file",
+    "spotify play song": "Playing music",
+    "type text": "Typing",
+    "web fetch": "Reading a website",
+    "web search": "Searching the web",
+    "youtube play video": "Playing a video",
+    "youtube search": "Searching YouTube",
+}
 ERROR_KINDS = {"error", "blocked"}
 STOP_KINDS = {"stop", "cancel"}
 
@@ -130,8 +166,14 @@ def _overlay_message(event: events.OverlayEvent) -> dict[str, Any] | None:
     if extra.get("speech") == "done":
         return {"k": "speech_done"}
     state = "acting" if extra.get("tool") else "thinking"
-    step = caption_text(extra.get("tool") or event.text)
+    step = caption_text(step_label(extra.get("tool") or event.text))
     return {"k": "state", "state": state, "step": step, "task": extra.get("task", "")}
+
+
+def step_label(step: str) -> str:
+    """ "using memory search" or "memory_search" → "Recalling"; unknown tools → "Get weather"."""
+    name = step.removeprefix("using ").replace("_", " ").strip()
+    return TOOL_VERBS.get(name, name[:1].upper() + name[1:])
 
 
 def show_ring(x: float, y: float, width: float = 0.0, height: float = 0.0) -> None:

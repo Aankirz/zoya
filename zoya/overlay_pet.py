@@ -22,9 +22,15 @@ PET_RADIUS_PT = 24.0
 EYE_W, EYE_H, EYE_R = 8.0, 12.0, 3.0
 EYE_GAP = 18.0  # centre to centre
 EYE_Y = 33.0  # a little below the middle, like a face
-CLOUD_PT = 64.0
-CLOUD_ORBIT_PT = 14.0
-CLOUD_PERIODS_S = (13.0, 19.0, -27.0)
+CLOUD_PT = 84.0
+CLOUD_ORBIT_PT = 16.0
+CLOUD_PERIODS_S = (14.0, -21.0)
+CLOUD_STOPS = (0.30, 0.10, 0.0)  # highlight alpha at centre, midway, edge: smooth, no banding
+CLOUD_LOCATIONS = (0.0, 0.45, 1.0)
+SHEEN_ALPHA = 0.18  # a soft top light: the body reads as a lit object on any background
+ERROR_TILT_RAD = math.radians(
+    28
+)  # error eyes tilt into a frown: distinct from "stopped" without colour
 POSE_S = 0.32
 EASE_OUT_QUINT = (0.22, 1.0, 0.36, 1.0)
 CROSSFADE_S = 0.2
@@ -127,6 +133,11 @@ class Pet:
             self.body.setBorderWidth_(1.5)
             self.body.setBorderColor_(AppKit.NSColor.labelColor().CGColor())
         self.clouds = [self._cloud(period, index) for index, period in enumerate(CLOUD_PERIODS_S)]
+        sheen = Quartz.CAGradientLayer.layer()
+        self._place(sheen, self.body)
+        sheen.setColors_([_cg(EYE_COLOUR, SHEEN_ALPHA), _cg(EYE_COLOUR, 0.0)])
+        sheen.setStartPoint_((0.5, 1.0))  # layer y is up: top edge
+        sheen.setEndPoint_((0.5, 0.45))
         self.face = self._sublayer(self.body)  # eyes move and orbit together
         self.eyes = [self._eye(), self._eye()]
 
@@ -146,9 +157,8 @@ class Pet:
         arm = self._sublayer(self.body)
         cloud = Quartz.CAGradientLayer.layer()
         cloud.setType_(Quartz.kCAGradientLayerRadial)
-        shade = index == 2
-        tint = (30, 24, 70) if shade else EYE_COLOUR
-        cloud.setColors_([_cg(tint, 0.22 if shade else 0.38), _cg(tint, 0.0)])
+        cloud.setColors_([_cg(EYE_COLOUR, alpha) for alpha in CLOUD_STOPS])
+        cloud.setLocations_(list(CLOUD_LOCATIONS))
         cloud.setStartPoint_((0.5, 0.5))
         cloud.setEndPoint_((1.0, 1.0))
         cloud.setBounds_(((0, 0), (CLOUD_PT, CLOUD_PT)))
@@ -224,8 +234,11 @@ class Pet:
             eye.setBounds_(((0, 0), (width, height)))
             eye.setPosition_((cx, cy))
             eye.setCornerRadius_(radius)
-        for layer in (*self.eyes, self.face, self.body):
+        for layer in (self.face, self.body):
             layer.setTransform_(Quartz.CATransform3DIdentity)
+        tilt = ERROR_TILT_RAD if state == "error" else 0.0
+        for eye, sign in zip(self.eyes, (-1, 1), strict=True):  # left eye "\", right eye "/"
+            eye.setTransform_(Quartz.CATransform3DMakeRotation(sign * tilt, 0, 0, 1))
         Quartz.CATransaction.commit()
 
     def _loops(self, state: str) -> None:
