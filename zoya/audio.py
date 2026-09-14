@@ -21,8 +21,9 @@ from functools import cache
 
 import numpy as np
 
-from zoya import events
+from zoya import aec, events
 from zoya.config import (
+    AEC_ENABLED,
     AUDIO_BLOCK_SIZE,
     AUDIO_SAMPLE_RATE_HZ,
     DUCK_FRACTION,
@@ -79,6 +80,7 @@ class Engine:
         self._loop_on = False
         self._loop_pos = 0
         self.last_earcon = ""
+        self._far_end = aec.reference() if AEC_ENABLED else None  # starts the tap outside callbacks
         self._stream = sd.OutputStream(
             samplerate=AUDIO_SAMPLE_RATE_HZ,
             channels=1,
@@ -132,6 +134,8 @@ class Engine:
                 self._mix_loop(out, LOOP_DUCK_GAIN if speaking else 1.0)
         np.clip(out, -1.0, 1.0, out=out)
         outdata[:, 0] = out
+        if self._far_end:
+            self._far_end.feed(aec.PLAYBACK, out, AUDIO_SAMPLE_RATE_HZ)
 
     def _fill_speech(self, out: np.ndarray) -> bool:
         filled = 0

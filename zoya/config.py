@@ -153,6 +153,18 @@ BROWSER_PROFILE_DIR = Path.home() / ".zoya" / "chrome-profile"  # D11 dedicated 
 BROWSER_ACTION_TIMEOUT_S = 15.0  # every Playwright call (navigation, click, read)
 BROWSER_TEXT_MAX_CHARS = 6000  # page text handed to the brain
 
+# --- Echo cancellation for laptop speakers ------------------------------------------------------
+
+# D62, zoya/aec.py: WebRTC AEC3 with Zoya's playback + a tap of other apps as
+# the reference, so "Hey Zoya" / "Zoya, stop" work over music and her own voice on laptop speakers.
+AEC_ENABLED = False  # never in front of Whisper (replay: it lowered wakes); barge-in detector only
+AEC_NOISE_SUPPRESSION = False
+AEC_TAP_START_TIMEOUT_S = 3.0
+REFERENCE_LOCK_TIMEOUT_S = 0.002  # audio callbacks never wait longer than this
+REFERENCE_MAX_S = 2.0  # reference kept per source; the loop thread may lag behind a turbo call
+AEC_MIC_DELAY_BLOCKS = 1  # the tap trails the mic by up to ~30 ms: mic waits one 32 ms block
+AEC_REANCHOR_S = 0.03  # a source's offset moving more than this (clock drift) re-anchors it
+
 
 def load_env() -> None:
     """Load .env from the repo root without overriding real environment variables."""

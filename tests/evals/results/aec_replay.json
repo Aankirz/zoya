@@ -1,0 +1,61 @@
+{
+ "wake": {
+  "music 0.10 aec=off": "19/21",
+  "music 0.10 aec=on": "16/21",
+  "music 0.29 aec=off": "17/21",
+  "music 0.29 aec=on": "14/21",
+  "music 0.58 aec=off": "15/21",
+  "music 0.58 aec=on": "13/21",
+  "music 1.16 aec=off": "9/21",
+  "music 1.16 aec=on": "10/21",
+  "tts 0.10 aec=off": "19/21",
+  "tts 0.10 aec=on": "16/21",
+  "tts 0.29 aec=off": "18/21",
+  "tts 0.29 aec=on": "13/21",
+  "tts 0.58 aec=off": "16/21",
+  "tts 0.58 aec=on": "14/21",
+  "tts 1.16 aec=off": "12/21",
+  "tts 1.16 aec=on": "12/21"
+ },
+ "false_wake": {
+  "music 0.10 aec=off": [],
+  "music 0.10 aec=on": [],
+  "music 0.29 aec=off": [
+   "wake_clips/018"
+  ],
+  "music 0.29 aec=on": [],
+  "music 0.58 aec=off": [
+   "wake_clips/018"
+  ],
+  "music 0.58 aec=on": [
+   "wake_clips_session2/021"
+  ],
+  "music 1.16 aec=off": [],
+  "music 1.16 aec=on": [],
+  "tts 0.10 aec=off": [],
+  "tts 0.10 aec=on": [],
+  "tts 0.29 aec=off": [
+   "wake_clips/018"
+  ],
+  "tts 0.29 aec=on": [
+   "wake_clips/018"
+  ],
+  "tts 0.58 aec=off": [
+   "wake_clips/018"
+  ],
+  "tts 0.58 aec=on": [],
+  "tts 1.16 aec=off": [],
+  "tts 1.16 aec=on": [
+   "wake_clips_session2/018",
+   "wake_clips_session2/027"
+  ]
+ },
+ "stop": {
+  "aec=off": "3/10",
+  "aec=on": "6/10"
+ },
+ "echo_alone_false_wakes": {
+  "aec=off": 0,
+  "aec=on": 11
+ }
+}
