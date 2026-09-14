@@ -109,7 +109,7 @@ def test_real_commands_are_kept(heard):
 
 
 @pytest.mark.parametrize(
-    "turbo_heard", ["Zoe is coming", "Hey, so yeah.", "Joya!", "हे सोनिया", "Hey Sonia"]
+    "turbo_heard", ["Zoe is coming", "Hey, so yeah.", "Joya!", "हे सोनिया", "Hey Sonia", "Hey Zoe"]
 )
 def test_turbo_vetoes_sound_alike_names(turbo_heard):
     assert vetoes_wake(turbo_heard)
@@ -117,7 +117,17 @@ def test_turbo_vetoes_sound_alike_names(turbo_heard):
 
 @pytest.mark.parametrize(
     "turbo_heard",
-    ["Hey Zoya!", "He's aware.", "He is doya.", "Hey Zoëa!", "Hey Zoya, open Spotify", ""],
+    [
+        "Hey Zoya!",
+        "He's aware.",
+        "He is doya.",
+        "Hey Zoëa!",
+        "Hey Zoya, open Spotify",
+        "Hey Zoya, so what's the weather",  # "so" after the name is a real command
+        "Zoya so play music",
+        "Hey, Soya.",  # turbo on a real "Hey Zoya"
+        "",
+    ],
 )
 def test_turbo_does_not_veto_real_wakes(turbo_heard):
     assert not vetoes_wake(turbo_heard)

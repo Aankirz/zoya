@@ -15,6 +15,7 @@ from __future__ import annotations
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -81,7 +82,8 @@ def main() -> int:
         dispatched.append((time.monotonic(), text))
         if on_done:  # Zoya "answered": opens the follow-up window
             decision = orchestrator.RouteDecision("orchestrator", text=text)
-            on_done(orchestrator.CommandResult("replay", decision, "Which note?", True, {}))
+            result = orchestrator.CommandResult("replay", decision, "Which note?", True, {})
+            threading.Thread(target=on_done, args=(result,), daemon=True).start()  # as in the app
 
     orchestrator.start_task = start_task
     rng = np.random.default_rng(1)

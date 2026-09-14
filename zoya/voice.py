@@ -36,6 +36,7 @@ from zoya.config import (
     AFTER_WAKE_WAIT_S,
     COMMAND_END_SILENCE_S,
     ECHO_TAIL_S,
+    ENDPOINT_MODE,
     LOG_DIR,
     MAX_UTTERANCE_S,
     MIC_READ_TIMEOUT_S,
@@ -44,9 +45,16 @@ from zoya.config import (
     PARTIAL_MIN_S,
     PRE_ROLL_S,
     PUSH_TO_TALK_KEYS,
+    SMART_TURN_FILE,
+    SMART_TURN_REPO,
+    SMART_TURN_REVISION,
+    SMART_TURN_SHA256,
     SPOTTER_ENGINE,
     STT_MODEL_REPO,
     TIMING_LOG,
+    TURN_CHECK_SILENCE_S,
+    TURN_COMPLETE_PROBABILITY,
+    TURN_WINDOW_S,
     VAD_BLOCK,
     VAD_THRESHOLD,
     WAKE_END_SILENCE_S,
@@ -63,6 +71,7 @@ VAD_CONTEXT = 64
 VAD_STATE_SHAPE = (1, 1, 128)
 STOP_WINDOW_S = 2.0  # spot "stop" in the last 2 s of mic audio, across utterance boundaries
 WARM_UP_S = 1.0
+TURN_NORM_EPS = 1e-7
 CLIPS_DIR = LOG_DIR / "wake_clips"
 BACKGROUND_WINDOW_S = 10.0
 BACKGROUND_MIN_S = 3.0  # too little history: the utterance itself would count as background
@@ -97,7 +106,8 @@ HALLUCINATIONS = {
 }
 SUPPORTED_SCRIPT = re.compile(r"[A-Za-z\u0900-\u097F]")  # Latin or Devanagari (D42)
 LATIN_ACCENT = re.compile(r"[\u0300-\u036f]")
-SOUND_ALIKES = {"zoe", "joya", "sonia", "sonya", "so", "soya", "siri", "सोनिया", "सोया", "ज़ो"}
+# Not "soya": turbo wrote real "Hey Zoya" as "Hey, Soya." (replay) and "Soya!" (owner live run).
+SOUND_ALIKES = {"zoe", "joya", "sonia", "sonya", "so", "siri", "सोनिया", "ज़ो"}
 STOP_WORDS = {"stop", "cancel", "quiet", "ruko", "ruk", "bas", "chup"}
 MAX_STOP_PHRASE_WORDS = 6
 STATUS = re.compile(r"\bwhat(?:'s| is| are you)\s+(?:running|doing|working on)\b", re.I)
@@ -116,7 +126,10 @@ def vetoes_wake(turbo_text: str) -> bool:
     turbo to hear "Zoya" too would drop real wakes 13 → 6 (it hears "He's aware"), so turbo may
     only veto. ponytail: a list fitted to 4 real negatives; extend it from new false wakes.
     """
-    return any(word in SOUND_ALIKES for word in words(turbo_text)[:WAKE_NAME_WORDS])
+    first = words(turbo_text)[:WAKE_NAME_WORDS]
+    if any(is_name(word) or MERGED_WAKE.match(word) for word in first):
+        return False  # turbo heard the name too: "Hey Zoya, so what's the weather" stays a wake
+    return any(word in SOUND_ALIKES for word in first)
 
 
 def is_name(word: str) -> bool:
@@ -214,6 +227,47 @@ def load_whisper(repo: str, **options: str) -> Callable[[np.ndarray], str]:
     return transcribe
 
 
+def load_smart_turn() -> Callable[[np.ndarray], bool] | None:
+    """Smart Turn v3.2: is this pause the end of the user's turn? ~31 ms on CPU (owner's clips).
+
+    Features: faster-whisper's Whisper log-mel extractor with padding=0 matches pipecat's
+    vendored one exactly (max diff 0.0), after zero-mean unit-variance waveform normalisation as
+    in pipecat local_smart_turn_v3.py. Returns None (fixed-silence endpointing) if unavailable.
+    """
+    import hashlib
+
+    import onnxruntime as ort
+    from faster_whisper.feature_extractor import FeatureExtractor
+    from huggingface_hub import hf_hub_download
+
+    try:
+        path = hf_hub_download(SMART_TURN_REPO, SMART_TURN_FILE, revision=SMART_TURN_REVISION)
+        with open(path, "rb") as model_file:
+            if hashlib.sha256(model_file.read()).hexdigest() != SMART_TURN_SHA256:
+                raise ValueError("Smart Turn model checksum mismatch")
+    except Exception as error:  # noqa: BLE001 — endpointing still works on the silence rule
+        log.warning(
+            "Smart Turn unavailable (%s) — using %.1f s silence", error, COMMAND_END_SILENCE_S
+        )
+        return None
+    options = ort.SessionOptions()
+    options.intra_op_num_threads = options.inter_op_num_threads = 1
+    session = ort.InferenceSession(path, sess_options=options)
+    features = FeatureExtractor(feature_size=80, chunk_length=TURN_WINDOW_S)
+    window = TURN_WINDOW_S * MIC_SAMPLE_RATE_HZ
+
+    def is_complete(samples: np.ndarray) -> bool:
+        audio8 = np.pad(samples[-window:], (max(0, window - len(samples)), 0)).astype(np.float32)
+        audio8 = (audio8 - audio8.mean()) / np.sqrt(audio8.var() + TURN_NORM_EPS)
+        mel = features(audio8, padding=0)[None]
+        probability = float(session.run(None, {"input_features": mel})[0][0][0])
+        log.debug("smart turn p=%.2f", probability)
+        return probability > TURN_COMPLETE_PROBABILITY
+
+    is_complete(np.zeros(MIC_SAMPLE_RATE_HZ, dtype=np.float32))  # warm up
+    return is_complete
+
+
 def load_cpu_spotter() -> Callable[[np.ndarray], str]:
     """D19's original spotter: faster-whisper base.en int8 on CPU (~250 ms/call). Stage fallback."""
     from faster_whisper import WhisperModel
@@ -258,6 +312,7 @@ def push_to_talk_held() -> bool:
 class Segment:
     blocks: list[np.ndarray]
     last_voice_at: float
+    turn_complete: bool | None = None  # Smart Turn verdict for the current pause
     woke_at: float | None = None  # set once "Zoya" was heard in this segment
     awaited: bool = False  # captured in the "Hey Zoya" … pause … command window
     began_while_busy: bool = False  # started during Zoya's speech: likely her own echo
@@ -268,6 +323,9 @@ class Segment:
 
     def samples(self, head_s: float = MAX_UTTERANCE_S) -> np.ndarray:
         return np.concatenate(self.blocks[: max(1, int(head_s / BLOCK_S))])
+
+    def tail(self, seconds: float) -> np.ndarray:
+        return np.concatenate(self.blocks[-max(1, int(seconds / BLOCK_S)) :])
 
 
 class VoiceLoop:
@@ -284,6 +342,7 @@ class VoiceLoop:
             else load_whisper(WAKE_MODEL, language="en", initial_prompt="Zoya")
         )
         self.stt = load_whisper(STT_MODEL_REPO)  # multilingual: Hinglish → Devanagari (D42)
+        self.turn = load_smart_turn() if ENDPOINT_MODE == "smart_turn" else None
         self.mic: queue.Queue[tuple[float, np.ndarray]] = queue.Queue()
         self.pre_roll: deque[np.ndarray] = deque(maxlen=int(PRE_ROLL_S / BLOCK_S))
         self.recent: deque[np.ndarray] = deque(maxlen=int(STOP_WINDOW_S / BLOCK_S))
@@ -347,6 +406,7 @@ class VoiceLoop:
         self.segment.blocks.append(block)
         if voiced:
             self.segment.last_voice_at = arrival
+            self.segment.turn_complete = None  # speaking again: a new pause gets a new verdict
         if self._segment_ended(self.segment, arrival):
             ended, self.segment = self.segment, None
             self.pre_roll.clear()
@@ -368,8 +428,15 @@ class VoiceLoop:
         return loud_enough and self.vad(block) >= VAD_THRESHOLD
 
     def _segment_ended(self, segment: Segment, arrival: float) -> bool:
-        silence = COMMAND_END_SILENCE_S if segment.woke_at is not None else WAKE_END_SILENCE_S
-        return arrival - segment.last_voice_at >= silence or segment.seconds >= MAX_UTTERANCE_S
+        silence = arrival - segment.last_voice_at
+        if segment.seconds >= MAX_UTTERANCE_S:
+            return True
+        if segment.woke_at is None:
+            return silence >= WAKE_END_SILENCE_S
+        if self.turn and silence >= TURN_CHECK_SILENCE_S and segment.turn_complete is None:
+            segment.turn_complete = self.turn(segment.tail(TURN_WINDOW_S))
+        # Smart Turn can only end a command sooner; "incomplete" falls back to the 0.5 s rule.
+        return bool(segment.turn_complete) or silence >= COMMAND_END_SILENCE_S
 
     # --- spotting: "stop" always, the wake word only when Zoya is quiet ----------------------
 

@@ -15,6 +15,8 @@ dependencies = [
   "botocore[crt]==1.43.93",  # the `zoya` AWS profile's login credential provider needs the crt extra
   "python-dotenv==1.2.3",
   "faster-whisper==1.2.1",
+  "onnxruntime==1.30.0",  # Silero VAD + Smart Turn v3.2 (was transitive via faster-whisper)
+  "huggingface-hub==1.31.0",  # downloads the pinned Smart Turn model (was transitive via mlx-whisper)
   "sounddevice==0.5.6",
   "soundfile==0.14.0",
   "numpy==2.5.3",

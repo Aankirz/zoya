@@ -92,7 +92,18 @@ VAD_BLOCK = 512
 VAD_THRESHOLD = 0.5
 PRE_ROLL_S = 0.3
 WAKE_END_SILENCE_S = 0.3  # a wake-only phrase ends after this
-COMMAND_END_SILENCE_S = 0.5  # STACK §2: a turn ends after ~0.5 s silence
+COMMAND_END_SILENCE_S = 0.5  # STACK §2: a turn ends after ~0.5 s silence (fallback rule)
+# Smart Turn v3.2 end-of-turn model (pipecat, BSD-2: third_party/LICENSE-smart-turn.txt), 8 MB
+# ONNX downloaded at startup, never committed: https://huggingface.co/pipecat-ai/smart-turn-v3
+# "complete" after TURN_CHECK_SILENCE_S ends the turn early; otherwise the 0.5 s rule applies.
+ENDPOINT_MODE = "smart_turn"  # "silence" = the fixed COMMAND_END_SILENCE_S rule only
+SMART_TURN_REPO = "pipecat-ai/smart-turn-v3"
+SMART_TURN_FILE = "smart-turn-v3.2-cpu.onnx"
+SMART_TURN_REVISION = "f766f81d3cfdf7737ac64aad813d91bbfd56bf93"
+SMART_TURN_SHA256 = "2bb026316b14a660486a75b1733cd3fbab8c2fd0314dc9af7be49f8cca967e4f"
+TURN_CHECK_SILENCE_S = 0.2
+TURN_COMPLETE_PROBABILITY = 0.5
+TURN_WINDOW_S = 8  # the model reads the last 8 s
 PARTIAL_EVERY_S = 0.15  # re-check for "Zoya, stop" this often while Zoya talks or works
 PARTIAL_MIN_S = 0.35
 WAKE_WINDOW_S = 2.5  # the name must come in the first 3 words: spot only this much audio
