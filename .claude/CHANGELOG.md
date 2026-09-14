@@ -120,3 +120,6 @@
 
 ## 2026-09-14 — Close Phase 0: STT decision, IAM user, benchmark bucket
 - D48 Whisper primary/Transcribe fallback from owner recordings; D49 zoya-app least-privilege IAM (infra/iam/zoya-app-policy.json); stt_benchmark.py reads Transcribe output via S3 client; owner .wav recordings git-ignored.
+
+## 2026-09-14 — Phase 7 overlay design direction
+- Phase 7 brief + §9.11: AgentPet-style agent presence states and Apple HIG look (materials, motion, SF type, Reduce Motion/Transparency), 3 new Done-when items.

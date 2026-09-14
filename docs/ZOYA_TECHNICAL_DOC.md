@@ -623,6 +623,7 @@ The user never needs it; judges, sighted helpers, and low-vision users benefit f
   - Bottom-right corner, ~220 px; the computer-use prompt says *"ignore the Zoya overlay in the bottom-right corner"*.
 - **Action highlight (pattern from Clicky):** a second transparent, click-through, full-screen panel draws a soft ring at the point Zoya is about to click or type, labelled with the action ("Add to Cart"). The audience sees *what* the agent is doing before it happens. It's drawn **after** the screenshot is taken, so the model never sees it.
 - **Captions double as a debug view** during rehearsals.
+- **Look and feel:** Apple Human Interface Guidelines — Liquid Glass / standard material panel, SF Pro + SF Symbols, brief purposeful motion, Reduce Motion / Reduce Transparency / Increase Contrast honoured. The avatar behaves like an ambient agent "presence" (inspired by AgentPet) showing idle · listening · thinking (with the current step) · acting · speaking · waiting for yes · stopped · error — calm, no gamification. Details in the Phase 7 brief.
 - **Cost:** ~1–2 hours. First item on the cut list.
 
 ### 9.12 Shopping patterns borrowed from `anthropics/commerce-agents`
