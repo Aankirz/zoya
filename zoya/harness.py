@@ -218,8 +218,15 @@ def _load_learned() -> dict[str, dict[str, Any]]:
         return {}
 
 
+def _learn_key(command: str) -> str:
+    """The cleaned command, as the router looks it up ("could you … for me" → "…")."""
+    from zoya.router import clean_command
+
+    return clean_command(command).casefold()
+
+
 def learned_pick(command: str) -> SkillMatch | None:
-    entry = _load_learned().get(command.casefold())
+    entry = _load_learned().get(_learn_key(command))
     if not entry or time.time() - entry["at"] > LEARNED_PICK_TTL_S:
         return None
     if entry["action"] not in all_tools():
@@ -233,7 +240,7 @@ def learn_pick(command: str, pick: SkillMatch) -> None:
         return
     with _learned_lock:
         learned = _load_learned()
-        learned[command.casefold()] = {
+        learned[_learn_key(command)] = {
             "skill": pick.skill,
             "action": pick.action,
             "args": pick.args,

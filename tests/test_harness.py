@@ -253,6 +253,14 @@ def test_publishing_picks_are_never_learned(monkeypatch, tmp_path):
     assert harness.learned_pick("MrBeast pls").args == {"name": "MrBeast"}
 
 
+def test_a_learned_pick_matches_the_cleaned_command(monkeypatch, tmp_path):
+    monkeypatch.setattr(harness, "LEARNED_PICKS_FILE", tmp_path / "picks.json")
+    pick = harness.SkillMatch("youtube", "youtube_open_channel", {"name": "MrBeast"})
+    harness.learn_pick("could you bring up Mr Beast's page on youtube for me", pick)
+
+    assert harness.learned_pick("bring up Mr Beast's page on youtube") == pick
+
+
 # --- Flow 10: "done" ------------------------------------------------------------------------
 
 
