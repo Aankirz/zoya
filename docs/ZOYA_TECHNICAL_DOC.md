@@ -517,6 +517,8 @@ ffmpeg -i zen/processing.ogg -af "loudnorm=I=-38:TP=-12"                    soun
 | **T2 — Browser DOM** | Playwright on persistent Chrome | 0.3–2 s per action | ⭐⭐⭐⭐ | search, add to cart, read page text |
 | **T3 — Pixel computer use** | screenshot → Sonnet 5 → click/type | 3–6 s per step | ⭐⭐⭐ | inaccessible apps, canvas UIs, anything else |
 
+**`run_applescript` allow-list (Phase 1):** Notes, Music and Spotify only, and every `app`/`application` reference must be a quoted allow-listed name; `do shell script`, `run script`, `open location`, file read/write and dialogs are refused. System Events, Finder and browsers stay off the list until the safety gate (§9.9) guards them — owner to confirm.
+
 **Rule:** the model is instructed (and tools are ordered/described) to try the lowest tier that can work. T3 is the universal fallback — Zoya can do *anything*, but it only pays T3 cost when necessary.
 
 ### 9.5 Subagents (Strands "agents as tools")
@@ -919,6 +921,10 @@ Flow splits 700 ms into ≤200 ms ASR, ≤200 ms LLM, ≤200 ms network. Zoya ad
 | **Speech end → action done + success earcon** | **≤ 1 s** |
 
 Every stage logs its duration; any regression shows up in rehearsal logs.
+
+**Measured in Phase 1 (2026-09-14, `logs/timing.log`, typed commands on the demo Mac):** rule-matched fast paths finish in **0–155 ms** router + tool (`open_app` ~50 ms, `open_url` ~40 ms, `notes_create` ~155 ms, unknown app ~140 ms incl. Spotlight lookup; Devanagari → Amazon Translate adds ~40–210 ms). `ROUTER_MODEL` (gpt-5.6-luna) takes **~2.1 s median, ~2.5 s p90** per structured call, so the ≤ 1 s budget holds only for commands the rules catch (D44). Router eval (`tests/evals/router_eval.py`, 40 utterances): full router 40/40; model alone 37/38 with "stop" excluded, because stop is a local kill switch that never reaches a model (§12.1). Raw: `tests/evals/results/router_eval_phase1_gpt-5.6-luna.json`.
+
+**Gotcha found in Phase 1:** `osascript` launched from a process whose stdin is a pipe can hang for > 5 s on Notes commands; tool subprocesses must use `stdin=DEVNULL` (`zoya/tools/fast.py`).
 
 **2. Stream while the user is still talking.**
 Flow never waits for the end of speech to start recognising. With push-to-talk, the audio stream to Nova Sonic opens on **key-down**, not key-up; with the wake word, it opens the instant "Hey Zoya" is detected. By the time the user stops, the transcript is essentially done.
