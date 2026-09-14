@@ -69,7 +69,46 @@ def client(service: str, region: str | None = None) -> Any:
         retries={"max_attempts": 1},
     )
     session = boto3.Session(profile_name=profile)
-    return session.client(service, region_name=region or aws_region(), config=config)
+    return traced(session.client(service, region_name=region or aws_region(), config=config))
+
+
+SPAN_KEY = "zoya_span"
+
+
+def traced(client: Any) -> Any:
+    """One OpenTelemetry span per AWS call, child of the running task's span, so the Phase 7
+    dashboard can list the AWS services each task used. A no-op tracer when tracing is off.
+
+    botocore client events (botocore/client.py `_make_api_call`): before-call / after-call /
+    after-call-error, sharing `context`. Semantic conventions: https://opentelemetry.io/docs/specs/semconv/cloud-providers/aws-sdk/
+    """
+    from opentelemetry import trace
+
+    tracer = trace.get_tracer("zoya.aws")
+    service = client.meta.service_model.service_id.hyphenize()
+
+    def before(model: Any, context: dict, **_: Any) -> None:
+        context[SPAN_KEY] = tracer.start_span(
+            f"aws.{service}.{model.name}",
+            kind=trace.SpanKind.CLIENT,
+            attributes={"rpc.system": "aws-api", "rpc.service": service, "rpc.method": model.name},
+        )
+
+    def after(context: dict, http_response: Any = None, exception: Any = None, **_: Any) -> None:
+        span = context.pop(SPAN_KEY, None)
+        if span is None:
+            return
+        if exception is not None or (
+            http_response is not None and http_response.status_code >= 300
+        ):
+            span.set_status(trace.StatusCode.ERROR)
+        span.end()
+
+    events = client.meta.events
+    events.register(f"before-call.{service}", before)
+    events.register(f"after-call.{service}", after)
+    events.register(f"after-call-error.{service}", after)
+    return client
 
 
 def load_provider_secrets() -> str:

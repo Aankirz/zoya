@@ -24,6 +24,7 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+from zoya import aws
 from zoya.config import (
     REKOGNITION_TIMEOUT_S,
     SCREEN_CAPTURE_TIMEOUT_S,
@@ -172,7 +173,8 @@ def aws_client(service: str, timeout_s: float) -> Any:
                 connect_timeout=timeout_s, read_timeout=timeout_s, retries={"max_attempts": 1}
             )
             session = boto3.Session(profile_name=profile)
-            _clients[service] = session.client(service, region_name=aws_region(), config=config)
+            client = session.client(service, region_name=aws_region(), config=config)
+            _clients[service] = aws.traced(client)
         return _clients[service]
 
 

@@ -75,7 +75,8 @@ def _s3() -> object:
         read_timeout=S3_UPLOAD_TIMEOUT_S,
         retries={"max_attempts": 1},
     )
-    return boto3.Session(profile_name=profile).client("s3", region_name=aws_region(), config=config)
+    session = boto3.Session(profile_name=profile)
+    return aws.traced(session.client("s3", region_name=aws_region(), config=config))
 
 
 @tool
