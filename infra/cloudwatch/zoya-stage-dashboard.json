@@ -1,0 +1,92 @@
+{
+  "widgets": [
+    {
+      "type": "text",
+      "x": 0,
+      "y": 0,
+      "width": 24,
+      "height": 2,
+      "properties": {
+        "markdown": "# Zoya \u2014 live agent traces\nEvery voice command is one trace (`zoya.command`) with Strands agent, model and tool spans and one span per AWS call. Open **CloudWatch \u2192 Application Signals \u2192 Transaction Search** and click a trace ID for the full X-Ray trace."
+      }
+    },
+    {
+      "type": "log",
+      "x": 0,
+      "y": 2,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "query": "SOURCE 'aws/spans' | filter name = \"zoya.command\" | stats avg(`attributes.zoya.total_ms`) as avg_ms, pct(`attributes.zoya.total_ms`, 90) as p90_ms, count(*) as tasks by bin(1m)",
+        "region": "ap-south-1",
+        "title": "Task latency (ms) \u2014 voice command to done",
+        "view": "timeSeries"
+      }
+    },
+    {
+      "type": "log",
+      "x": 12,
+      "y": 2,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "query": "SOURCE 'aws/spans' | filter name = \"zoya.command\" | fields @timestamp, `attributes.zoya.route` as route, `attributes.zoya.tool` as fast_tool, `attributes.zoya.total_ms` as total_ms, traceId | sort @timestamp desc | limit 20",
+        "region": "ap-south-1",
+        "title": "Recent tasks",
+        "view": "table"
+      }
+    },
+    {
+      "type": "log",
+      "x": 0,
+      "y": 8,
+      "width": 12,
+      "height": 7,
+      "properties": {
+        "query": "SOURCE 'aws/spans' | filter name like /^execute_tool / | stats count(*) as calls, avg(durationNano) / 1000000 as avg_ms by `attributes.gen_ai.tool.name` as tool | sort calls desc | limit 25",
+        "region": "ap-south-1",
+        "title": "Tool calls",
+        "view": "table"
+      }
+    },
+    {
+      "type": "log",
+      "x": 12,
+      "y": 8,
+      "width": 12,
+      "height": 7,
+      "properties": {
+        "query": "SOURCE 'aws/spans' | filter `attributes.rpc.system` = \"aws-api\" | stats count(*) as calls, avg(durationNano) / 1000000 as avg_ms by traceId, `attributes.rpc.service` as service | sort traceId desc | limit 50",
+        "region": "ap-south-1",
+        "title": "AWS services per task",
+        "view": "table"
+      }
+    },
+    {
+      "type": "log",
+      "x": 0,
+      "y": 15,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "query": "SOURCE 'aws/spans' | filter name = \"chat\" | stats count(*) as calls, sum(`attributes.gen_ai.usage.input_tokens`) as input_tokens, sum(`attributes.gen_ai.usage.output_tokens`) as output_tokens by `attributes.gen_ai.request.model` as model",
+        "region": "ap-south-1",
+        "title": "Model calls and tokens",
+        "view": "table"
+      }
+    },
+    {
+      "type": "log",
+      "x": 12,
+      "y": 15,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "query": "SOURCE 'aws/spans' | filter `status.code` = \"ERROR\" | stats count(*) as errors by name | sort errors desc",
+        "region": "ap-south-1",
+        "title": "Errors",
+        "view": "table"
+      }
+    }
+  ]
+}

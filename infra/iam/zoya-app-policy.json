@@ -17,7 +17,9 @@
         "textract:DetectDocumentText",
         "textract:AnalyzeDocument",
         "xray:PutTraceSegments",
-        "xray:PutTelemetryRecords"
+        "xray:PutTelemetryRecords",
+        "xray:PutSpans",
+        "xray:PutSpansForIndexing"
       ],
       "Resource": "*",
       "Condition": {
