@@ -187,6 +187,23 @@ def _write_pdf(doc: Doc, path: Path) -> None:
     canvas.save()
 
 
+FORMULA_START = ("=", "+", "-", "@", "\t", "\r")  # a spreadsheet app would evaluate these
+
+
+def is_formula_text(value: Any) -> bool:
+    """Parser (tested): text a spreadsheet would run as a formula (OWASP CSV injection)."""
+    return isinstance(value, str) and value.startswith(FORMULA_START)
+
+
+def _append_literal(sheet: Any, row: list[Any]) -> None:
+    """Append cell values as data: text that looks like a formula stays text (§12.2). The only
+    formulas in a sheet are the SUM totals this module builds itself."""
+    sheet.append(row)
+    for cell in sheet[sheet.max_row]:
+        if is_formula_text(cell.value):
+            cell.data_type = "s"
+
+
 def write_table(table: Table, path: Path) -> None:
     (_write_xlsx if _kind(path) == "xlsx" else _write_csv)(table, path)
 
@@ -199,11 +216,11 @@ def _write_xlsx(table: Table, path: Path) -> None:
     book = Workbook()
     sheet = book.active
     sheet.title = table.title[:31] or "Sheet1"  # Excel's sheet-name limit
-    sheet.append(table.columns)
+    _append_literal(sheet, table.columns)
     for cell in sheet[1]:
         cell.font = Font(bold=True)
     for row in table.rows:
-        sheet.append(row)
+        _append_literal(sheet, row)
     if table.total_columns:
         last = len(table.rows) + 1
         totals = [TOTAL_LABEL] + [""] * (len(table.columns) - 1)
@@ -219,14 +236,18 @@ def _write_xlsx(table: Table, path: Path) -> None:
 def _write_csv(table: Table, path: Path) -> None:
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
-        writer.writerow(table.columns)
-        writer.writerows(table.rows)
+        writer.writerow([_csv_literal(value) for value in table.columns])
+        writer.writerows([_csv_literal(value) for value in row] for row in table.rows)
         if table.total_columns:
             sums = column_totals(table)
             writer.writerow(
                 [TOTAL_LABEL]
                 + [_number_text(sums[c]) if c in sums else "" for c in table.columns[1:]]
             )
+
+
+def _csv_literal(value: Any) -> Any:
+    return f"'{value}" if is_formula_text(value) else value
 
 
 # --- Readers --------------------------------------------------------------------------------------
