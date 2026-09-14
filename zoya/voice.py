@@ -31,9 +31,12 @@ from datetime import UTC, datetime
 
 import numpy as np
 
-from zoya import audio, orchestrator, safety, speech
+from zoya import aec, audio, orchestrator, safety, speech
 from zoya.config import (
+    AEC_ENABLED,
     AFTER_WAKE_WAIT_S,
+    BARGE_IN_HOLD_S,
+    BARGE_IN_SPEECH_GAIN,
     COMMAND_END_SILENCE_S,
     ECHO_TAIL_S,
     ENDPOINT_MODE,
@@ -412,14 +415,25 @@ class VoiceLoop:
         self.task: threading.Thread | None = None
         self.confirmations = safety.claim_voice_channel()  # Phase 3: only this loop mints tokens
         self.last_spoke_at = 0.0
+        self.canceller: aec.LiveCanceller | None = None
+        self.onset: aec.OnsetDetector | None = None
+        self.barge_in_until = 0.0  # while set, other apps stay ducked and Zoya stays quiet
 
     # --- main loop ---------------------------------------------------------------------
 
     def run(self, stop_event: threading.Event) -> None:
         import sounddevice as sd
 
+        # D62: how much reference each source had fed travels with its mic block, so the loop
+        # thread falling behind (a turbo call) can't misalign the echo canceller.
+        far_end = aec.reference() if AEC_ENABLED else None
+        if far_end:
+            self.canceller = aec.LiveCanceller(far_end)
+            self.onset = aec.OnsetDetector(StreamingVad())
+
         def on_audio(indata: np.ndarray, _frames, _time, _status) -> None:  # noqa: ANN001
-            self.mic.put((time.monotonic(), indata[:, 0].copy()))
+            counts = far_end.counts() if far_end else None
+            self.mic.put((time.monotonic(), indata[:, 0].copy(), counts))
 
         with sd.InputStream(
             samplerate=MIC_SAMPLE_RATE_HZ,
@@ -430,10 +444,56 @@ class VoiceLoop:
         ):
             while not stop_event.is_set():
                 try:
-                    arrival, block = self.mic.get(timeout=MIC_READ_TIMEOUT_S)
+                    arrival, block, counts = self.mic.get(timeout=MIC_READ_TIMEOUT_S)
                 except queue.Empty:
                     continue
-                self._on_block(arrival, block)
+                if self.canceller:
+                    self._listen_for_barge_in(arrival, block, counts)
+                self._on_block(arrival, block)  # Whisper always hears the raw mic
+
+    # --- barge-in (D62): echo-cancelled onset → Zoya and other apps get quiet ---------------
+
+    def _listen_for_barge_in(self, arrival: float, block: np.ndarray, counts: dict) -> None:
+        try:
+            cleaned = self.canceller.process(block, counts)
+            started = self.onset(cleaned)
+        except Exception as error:  # noqa: BLE001 — fall back to the pre-D62 loop, never crash
+            log.warning("echo cancellation off after an error (%s)", error)
+            self.canceller = None
+            self._end_barge_in()
+            return
+        if self.onset.voiced:
+            self.last_voice_at = arrival  # the raw loudness gate can't hear the user over echo
+            if self.barge_in_until:
+                self.barge_in_until = time.monotonic() + BARGE_IN_HOLD_S
+        if started:
+            self._barge_in(arrival, self.canceller.other_audio_playing())
+        elif self.barge_in_until and time.monotonic() >= self.barge_in_until:
+            self._end_barge_in()
+
+    def _barge_in(self, arrival: float, other_audio: bool) -> None:
+        self.barge_in_until = time.monotonic() + BARGE_IN_HOLD_S
+        action = "none"
+        if speech.is_speaking():
+            audio.engine().set_speech_gain(BARGE_IN_SPEECH_GAIN)
+            action = "speech_gain"
+        elif other_audio:
+            audio.duck()  # kill-safe duck path; restored by the idle check once the hold ends
+            action = "duck"
+        # The voice began ~(BARGE_IN_ONSET_BLOCKS + mic delay) blocks before this block arrived.
+        drop_ms = round((time.monotonic() - arrival) * MS_PER_S)
+        _log_voice(
+            {
+                "event": "barge_in",
+                "action": action,
+                "arrival_to_action_ms": drop_ms,
+                "onsets": self.onset.onsets,
+            }
+        )
+
+    def _end_barge_in(self) -> None:
+        self.barge_in_until = 0.0
+        audio.engine().set_speech_gain(1.0)
 
     def _on_block(self, arrival: float, block: np.ndarray) -> None:
         voiced = self._user_voice(block)
@@ -580,7 +640,7 @@ class VoiceLoop:
         self.awaiting_command_until = time.monotonic() + AFTER_WAKE_WAIT_S
 
     def _idle_since_wake(self) -> bool:
-        waiting = time.monotonic() < self.awaiting_command_until
+        waiting = time.monotonic() < max(self.awaiting_command_until, self.barge_in_until)
         capturing = self.segment is not None and self.segment.woke_at is not None
         return not (waiting or capturing or self.ptt is not None)
 
@@ -597,6 +657,7 @@ class VoiceLoop:
         was_busy = self._zoya_busy()
         orchestrator.stop_task()
         audio.engine().silence_all()
+        self._end_barge_in()
         audio.earcon("stop")
         after_end = round((stopped_at - voice_end_at) * MS_PER_S)
         self.segment = None

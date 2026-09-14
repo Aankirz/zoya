@@ -79,6 +79,7 @@ class Engine:
         self._playing: list[list] = []  # [samples, position] one-shots
         self._loop_on = False
         self._loop_pos = 0
+        self._speech_gain = 1.0
         self.last_earcon = ""
         self._far_end = aec.reference() if AEC_ENABLED else None  # starts the tap outside callbacks
         self._stream = sd.OutputStream(
@@ -116,6 +117,11 @@ class Engine:
         with self._lock:
             self._speech.clear()
 
+    def set_speech_gain(self, gain: float) -> None:
+        """Takes effect at the next 10 ms mixer block."""
+        with self._lock:
+            self._speech_gain = gain
+
     def silence_all(self) -> None:
         """Stop: drop speech, one-shots and the loop at the next block."""
         with self._lock:
@@ -129,6 +135,7 @@ class Engine:
         out = np.zeros(frames, dtype=np.float32)
         with self._lock:
             speaking = self._fill_speech(out)
+            out *= self._speech_gain  # barge-in: the user started talking over Zoya (D62)
             self._mix_one_shots(out)
             if self._loop_on:
                 self._mix_loop(out, LOOP_DUCK_GAIN if speaking else 1.0)

@@ -10,7 +10,7 @@
    (synthetic voices over Zoya's recorded speech, checked like the stop spotter).
 
 Needs the GPU models, macOS `say` + ffmpeg and the speakers, so it is an eval, not a pytest.
-Usage: .venv/bin/python -u tests/evals/aec_replay.py record [volume] && ... aec_replay.py replay
+Usage: .venv/bin/python -u tests/evals/aec_replay.py record [volume] | replay | barge-in
 """
 
 from __future__ import annotations
@@ -29,8 +29,10 @@ from pathlib import Path  # noqa: E402
 import numpy as np  # noqa: E402
 import soundfile as sf  # noqa: E402
 
-from zoya import aec, voice  # noqa: E402
+from zoya import aec, config, voice  # noqa: E402
 from zoya.config import (  # noqa: E402
+    AEC_MIC_DELAY_BLOCKS,
+    DUCK_FRACTION,
     LOG_DIR,
     MIC_SAMPLE_RATE_HZ,
     STT_MODEL_REPO,
@@ -349,9 +351,137 @@ def echo_alone(judge: Judge, mic, ref, spans) -> dict:
     return out
 
 
+# --- barge-in replay (D62): AEC onset lowers the background; Whisper hears the raw mic ---
+
+SPEECH_DROP_DELAY_S = 0.05  # mixer block + output/acoustic path before the echo gets quieter
+DUCK_DELAY_S = 0.2  # osascript (~0.09–0.15 s measured) + acoustic path
+STOP_CHECKS_S = (0.0, 0.15, 0.3, 0.45, 0.6)  # the stop spotter re-reads every 150 ms
+TTS_LOUDNESS = (1.0, 2.0)  # recorded echo at 70% volume, and twice as loud
+BARGE_IN_LEVELS = (0.29, 0.58, 1.16)
+
+
+def barge_in_mic(user, echo, ref, gain: float, delay_s: float) -> tuple[np.ndarray, int | None]:
+    """Block by block, as live: AEC → OnsetDetector → background × gain after delay_s.
+
+    The live path cancels one mic block late (AEC_MIC_DELAY_BLOCKS); the recorded pair is already
+    aligned, so that block is added to the onset time instead.
+    """
+    block = voice.VAD_BLOCK
+    canceller, onset = aec.Canceller(), aec.OnsetDetector(voice.StreamingVad())
+    mic = np.zeros(len(user) // block * block, np.float32)
+    quiet_from = None
+    for k in range(len(mic) // block):
+        part = slice(k * block, (k + 1) * block)
+        quieter = quiet_from is not None and k * block >= quiet_from
+        g = gain if quieter else 1.0
+        mic[part] = user[part] + echo[part] * g
+        if onset(canceller.process(mic[part], ref[part] * g)) and quiet_from is None:
+            quiet_from = (k + 1 + AEC_MIC_DELAY_BLOCKS) * block + int(delay_s * RATE)
+    return mic, quiet_from
+
+
+def barge_in_replay() -> int:
+    mic, _ = sf.read(OUT / "mic.wav", dtype="float32")
+    ref, _ = sf.read(OUT / "reference.wav", dtype="float32")
+    spans = json.loads((OUT / "record.json").read_text())["spans_s"]
+    judge = Judge()
+    results = {
+        "stop_over_tts": barge_in_stops(judge, mic, ref, spans["tts"]),
+        "wake_over_music": barge_in_wakes(judge, mic, ref, spans["music"]),
+        "onsets_per_min_echo_alone": onsets_alone(mic, ref, spans),
+    }
+    path = RESULTS.with_name("aec_barge_in_replay.json")
+    path.write_text(json.dumps(results, indent=1))
+    print(json.dumps(results, indent=1))
+    return 0
+
+
+def barge_in_stops(judge: Judge, mic, ref, span) -> dict:
+    """ "Zoya, stop" over Zoya's recorded speech: off vs barge-in; latency after the phrase."""
+    with tempfile.TemporaryDirectory() as folder:
+        phrases = [say(p, v, Path(folder)) for v in STOP_VOICES for p in STOP_PHRASES]
+    target_rms = float(np.median([rms(c) for c in load_clips(WAKES).values()]))
+    out = {}
+    for loudness in TTS_LOUDNESS:
+        for barge_in in (False, True):
+            hits, latencies = 0, []
+            for i, phrase in enumerate(phrases):
+                phrase = phrase * target_rms / rms(phrase)
+                end = int(PRE_ROLL_S * RATE) + len(phrase)
+                seconds = PRE_ROLL_S + len(phrase) / RATE + max(STOP_CHECKS_S) + 0.1
+                echo, reference = background(mic, ref, span, i * 1.1, seconds)
+                user = np.pad(np.concatenate([np.zeros(int(PRE_ROLL_S * RATE)), phrase]), (0, 0))
+                user = np.pad(user, (0, len(echo) - len(user)))
+                gain = config.BARGE_IN_SPEECH_GAIN if barge_in else 1.0
+                heard, _ = barge_in_mic(
+                    user, echo * loudness, reference * loudness, gain, SPEECH_DROP_DELAY_S
+                )
+                for check in STOP_CHECKS_S:
+                    if judge.stops(heard[: end + int(check * RATE)]):
+                        hits += 1
+                        latencies.append(round(check * 1000))
+                        break
+            key = f"loudness x{loudness:g} barge_in={'on' if barge_in else 'off'}"
+            out[key] = {"stops": f"{hits}/{len(phrases)}", "phrase_end_to_detect_ms": latencies}
+            print(f"stop {key}: {out[key]}", flush=True)
+    return out
+
+
+def barge_in_wakes(judge: Judge, mic, ref, span) -> dict:
+    """The owner's "Hey Zoya" over music: off vs onset → system duck (+ osascript delay)."""
+    wakes, negatives = load_clips(WAKES), load_clips(NEGATIVES)
+    out = {}
+    for level in BARGE_IN_LEVELS:
+        for barge_in in (False, True):
+            gain = DUCK_FRACTION if barge_in else 1.0
+            hits = sum(
+                barge_in_wake(judge, clip, level, mic, ref, span, i * 1.7, gain)
+                for i, clip in enumerate(wakes.values())
+            )
+            false = [
+                name
+                for i, (name, clip) in enumerate(negatives.items())
+                if barge_in_wake(judge, clip, level, mic, ref, span, i * 1.3, gain)
+            ]
+            key = f"music {level:.2f} barge_in={'on' if barge_in else 'off'}"
+            out[key] = {"wakes": f"{hits}/{len(wakes)}", "false": false}
+            print(f"wake {key}: {out[key]}", flush=True)
+    return out
+
+
+def barge_in_wake(judge, clip, level, mic, ref, span, offset_s, gain) -> bool:  # noqa: ANN001
+    seconds = PRE_ROLL_S + TAIL_S + len(clip) / RATE
+    echo, reference = background(mic, ref, span, offset_s, seconds)
+    scale = level * rms(clip) / rms(echo)
+    user = np.concatenate([np.zeros(int(PRE_ROLL_S * RATE)), clip, np.zeros(int(TAIL_S * RATE))])
+    user = user[: len(echo)]
+    heard, _ = barge_in_mic(
+        user, echo[: len(user)] * scale, reference[: len(user)] * scale, gain, DUCK_DELAY_S
+    )
+    begin = int(PRE_ROLL_S * RATE)
+    return judge.wakes(heard[begin : begin + len(clip)])
+
+
+def onsets_alone(mic, ref, spans) -> dict:
+    """Pumping guard: onsets on echo alone (no user), per minute, per source and loudness."""
+    out = {}
+    for name, (begin, end) in spans.items():
+        part = slice(int(begin * RATE), int(end * RATE))
+        for loudness in TTS_LOUDNESS:
+            canceller, onset = aec.Canceller(), aec.OnsetDetector(voice.StreamingVad())
+            echo, reference = mic[part] * loudness, ref[part] * loudness
+            block = voice.VAD_BLOCK
+            for k in range(len(echo) // block):
+                window = slice(k * block, (k + 1) * block)
+                onset(canceller.process(echo[window].astype("f4"), reference[window]))
+            minutes = (end - begin) / 60
+            out[f"{name} x{loudness:g}"] = round(onset.onsets / minutes, 1)
+    return out
+
+
 if __name__ == "__main__":
     sys.exit(
         record(int(sys.argv[2]) if len(sys.argv) > 2 else VOLUME)
         if sys.argv[1:2] == ["record"]
-        else replay()
+        else barge_in_replay() if sys.argv[1:2] == ["barge-in"] else replay()
     )

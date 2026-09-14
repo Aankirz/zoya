@@ -164,6 +164,13 @@ REFERENCE_LOCK_TIMEOUT_S = 0.002  # audio callbacks never wait longer than this
 REFERENCE_MAX_S = 2.0  # reference kept per source; the loop thread may lag behind a turbo call
 AEC_MIC_DELAY_BLOCKS = 1  # the tap trails the mic by up to ~30 ms: mic waits one 32 ms block
 AEC_REANCHOR_S = 0.03  # a source's offset moving more than this (clock drift) re-anchors it
+# Barge-in (D62): user voice onset in the echo-cancelled mic → Zoya's voice drops within one 10 ms
+# mixer block and other apps duck, so Whisper hears "stop" / "Hey Zoya" on the raw mic.
+BARGE_IN_ONSET_BLOCKS = 2  # consecutive voiced 32 ms blocks = the user is talking
+ONSET_MIN_RMS = 0.005  # same floor as the voice loop's MIN_SPEECH_RMS
+OTHER_AUDIO_MIN_RMS = 0.003  # tap reference above this = another app is playing: duck it too
+BARGE_IN_SPEECH_GAIN = 10 ** (-20 / 20)  # Zoya keeps talking, 20 dB quieter
+BARGE_IN_HOLD_S = 2.5  # restore this long after the user's last voiced block, if no stop/wake
 
 
 def load_env() -> None:

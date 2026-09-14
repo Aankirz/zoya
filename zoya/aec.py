@@ -23,6 +23,7 @@ import os
 import threading
 import uuid
 from collections import deque
+from collections.abc import Callable
 from functools import cache
 
 import numpy as np
@@ -32,9 +33,13 @@ from zoya.config import (
     AEC_NOISE_SUPPRESSION,
     AEC_REANCHOR_S,
     AEC_TAP_START_TIMEOUT_S,
+    BARGE_IN_ONSET_BLOCKS,
     MIC_SAMPLE_RATE_HZ,
+    ONSET_MIN_RMS,
+    OTHER_AUDIO_MIN_RMS,
     REFERENCE_LOCK_TIMEOUT_S,
     REFERENCE_MAX_S,
+    VAD_THRESHOLD,
 )
 
 log = logging.getLogger(__name__)
@@ -121,6 +126,7 @@ class LiveCanceller:
         self._pending: deque[tuple[np.ndarray, int]] = deque()
         self._recent = {source: deque(maxlen=OFFSET_WINDOW_BLOCKS) for source in reference.fed}
         self.offsets: dict[str, int | None] = dict.fromkeys(reference.fed)
+        self._tap_rms = 0.0
 
     def process(self, mic: np.ndarray, counts: dict[str, int]) -> np.ndarray:
         self._mic_seen += len(mic)
@@ -139,15 +145,48 @@ class LiveCanceller:
             self.offsets[source] = on_time
             log.info("aec %s offset %+d ms", source, on_time * MS_PER_S // MIC_SAMPLE_RATE_HZ)
 
+    def other_audio_playing(self) -> bool:
+        """Another app (via the tap) was audible in the last block: worth ducking on barge-in."""
+        return self._tap_rms >= OTHER_AUDIO_MIN_RMS
+
     def _far_end(self, count: int, mic_end: int) -> np.ndarray:
         total = np.zeros(count, np.float32)
+        self._tap_rms = 0.0
         for source, offset in self.offsets.items():
             if offset is None:
                 continue
             piece = self._reference.read(source, mic_end + offset - count, count)
-            if piece is not None:
-                total += piece
+            if piece is None:
+                continue
+            total += piece
+            if source == TAP:
+                self._tap_rms = float(np.sqrt(np.mean(piece**2)))
         return total
+
+
+class OnsetDetector:
+    """The user starting to talk, judged on echo-cancelled audio: the barge-in trigger.
+
+    Never fed to Whisper: AEC3's double-talk suppression clips the user's first syllable, which
+    lowered wakes in replay (D62). As a detector it is what matters: false onsets on echo alone
+    fell from 10–44 per ~20 s on the raw mic to 0–1.
+    """
+
+    def __init__(self, vad: Callable[[np.ndarray], float]) -> None:
+        self._vad = vad
+        self._run = 0
+        self.voiced = False
+        self.onsets = 0
+
+    def __call__(self, block: np.ndarray) -> bool:
+        probability = self._vad(block)  # every block: Silero carries state
+        loud = float(np.sqrt(np.mean(block**2))) >= ONSET_MIN_RMS
+        self.voiced = loud and probability >= VAD_THRESHOLD
+        self._run = self._run + 1 if self.voiced else 0
+        if self._run != BARGE_IN_ONSET_BLOCKS:
+            return False
+        self.onsets += 1
+        return True
 
 
 class Canceller:
