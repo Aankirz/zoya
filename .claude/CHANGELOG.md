@@ -135,3 +135,6 @@
 
 ## 2026-09-14 — Phase 2 diagnose: junk after wake
 - Confirmed root cause by differential replay (tests/evals/wake_junk_replay.py); push-to-talk keys now fn + Shift (PUSH_TO_TALK_KEYS).
+
+## 2026-09-14 — Phase 2 diagnose: turn-taking and background music
+- Follow-up window, loudness-gated VAD, stop cooldown, filler filter, interrupted-turn context, media rule; replay eval extended; D53.
