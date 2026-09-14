@@ -66,6 +66,9 @@ def test_stop_phrases_route_to_stop(command):
         "Open Amazon and search for running shoes",
         "open Spotify then play my playlist",
         "Amazon kholo aur shoes dhundo",
+        "Hey Zoya, what's the capital of Japan?",
+        "and its population?",
+        "What's the weather in Delhi",
     ],
 )
 def test_multi_step_commands_go_straight_to_orchestrator(command):
@@ -78,7 +81,6 @@ def test_multi_step_commands_go_straight_to_orchestrator(command):
     "command",
     [
         "open my latest email from Karthik",
-        "What's the weather in Delhi",
         "notes",
         "cancel my Amazon order",
         "",

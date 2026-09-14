@@ -111,6 +111,11 @@ NOTE_CREATE = re.compile(
     _I,
 )
 NOTE_CREATE_HINGLISH = re.compile(r"^(?P<body>.+?)\s+note\s+(?:kar\s*lo|kar\s*do|karo|likho)$", _I)
+QUESTION = re.compile(
+    r"^(?:what|what's|whats|who|who's|whom|whose|when|where|where's|why|how|how's|which"
+    r"|is|are|was|were|do|does|did|should|tell me|explain|define)\b",
+    _I,
+)
 OPEN = re.compile(
     r"^(?:open|launch|start)\s+(?:up\s+)?(?:the\s+)?(?P<target>.+?)"
     r"(?:\s+(?:app|application|website|site|browser))?$",
@@ -186,8 +191,9 @@ def match_rules(text: str) -> RouteDecision | None:
         decision := _open_decision(match["target"])
     ):
         return decision
-    if MULTI_STEP_WORDS.search(command):
-        # Clearly several steps: skip the ~2 s router call (D44) and its cost.
+    if MULTI_STEP_WORDS.search(command) or QUESTION.match(command):
+        # Several steps, or a question the brain answers: skip the ~2 s router call (D44) —
+        # spoken questions must reach the first word in ≤ 2 s (Phase 2 Done-when #3b).
         return RouteDecision("orchestrator")
     return None
 

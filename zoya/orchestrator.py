@@ -15,8 +15,11 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
+import threading
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -46,6 +49,9 @@ LOG_COMMAND_MAX_CHARS = 60
 STOPPED_MESSAGE = "Okay, stopped."
 GENERIC_FAILURE = "Sorry, something went wrong. Please try again."
 LIMIT_MESSAGE = "I've stopped this task because it was taking too many steps."
+IDLE_MESSAGE = "Nothing is running."
+MAX_CONVERSATION_TURNS = 6  # follow-ups keep context; older turns drop to bound token cost
+SENTENCE_END = re.compile(r"(?<=[.!?।])\s+")
 
 
 @dataclass(frozen=True)
@@ -95,7 +101,32 @@ class TaskLimits(HookProvider):
             raise TaskLimitExceeded(f"{MAX_TOOL_CALLS_PER_TASK} tool calls reached")
 
 
+class TaskCancelled(Exception):
+    """The user said stop (§11.3)."""
+
+
+class SentenceStream:
+    """Split streamed model text into whole sentences so the first one is spoken at once."""
+
+    def __init__(self) -> None:
+        self._buffer = ""
+
+    def feed(self, text: str) -> list[str]:
+        parts = SENTENCE_END.split(self._buffer + text)
+        self._buffer = parts.pop()
+        return [part.strip() for part in parts if part.strip()]
+
+    def flush(self) -> str:
+        rest, self._buffer = self._buffer.strip(), ""
+        return rest
+
+
 # --- Orchestrator -----------------------------------------------------------------
+
+_cancel = threading.Event()  # ponytail: one task at a time; Phase 6 gives each task its own
+_conversation: list[list[Any]] = []  # recent turns, each the messages one run added
+_running: dict[str, str] = {}  # task_id → command
+_running_lock = threading.Lock()
 
 
 @tool(name="narrate")
@@ -105,8 +136,12 @@ def narrate_tool(text: str) -> str:
     return "Said."
 
 
-def build_orchestrator(cost_cap_usd: float = PER_TASK_COST_CAP_USD) -> Agent:
-    """A fresh Agent per task (AUDIT B6: one Agent can't run two calls at once)."""
+def build_orchestrator(
+    cost_cap_usd: float = PER_TASK_COST_CAP_USD,
+    messages: list[Any] | None = None,
+    callback_handler: Any = None,
+) -> Agent:
+    """A fresh Agent per task (AUDIT B6), seeded with recent conversation for follow-ups."""
     from zoya.models import get_model
 
     tools = [*collect_tools("zoya.tools", "zoya.agents"), narrate_tool]
@@ -115,18 +150,41 @@ def build_orchestrator(cost_cap_usd: float = PER_TASK_COST_CAP_USD) -> Agent:
         model=get_model("brain"),
         system_prompt=ORCHESTRATOR_PROMPT,
         tools=tools,
+        messages=messages,
         hooks=[limits],
+        callback_handler=callback_handler,
         trace_attributes={"zoya.component": "orchestrator"},
     )
 
 
+def _speak_stream(sentences: SentenceStream) -> Any:
+    def handler(**kwargs: Any) -> None:
+        if _cancel.is_set():
+            return  # stopped: Strands ends the stream at its next checkpoint; say nothing more
+        for sentence in sentences.feed(kwargs.get("data", "")):
+            speech.narrate(sentence)
+
+    return handler
+
+
 def run_orchestrator(command: str) -> str:
-    """Stream the brain's answer to stdout and return the sentence to speak."""
+    """Speak the brain's answer sentence by sentence as it streams; return the full text."""
+    history = [message for turn in _conversation for message in turn]
+    sentences = SentenceStream()
+    agent = build_orchestrator(messages=list(history), callback_handler=_speak_stream(sentences))
     try:
-        result = build_orchestrator()(command)
+        # Native cancellation (strands 1.55.1 Agent.__call__ cancel_signal): stops mid-stream,
+        # before tool execution and between steps, returning stop_reason="cancelled" (§11.3).
+        result = agent(command, cancel_signal=_cancel)
     except TaskLimitExceeded as limit:
         log.warning("task stopped: %s", limit)
+        speech.narrate(LIMIT_MESSAGE)
         return LIMIT_MESSAGE
+    if result.stop_reason == "cancelled" or _cancel.is_set():
+        raise TaskCancelled  # half-finished turn: not kept in the conversation
+    speech.narrate(sentences.flush())
+    _conversation.append(agent.messages[len(history) :])
+    del _conversation[:-MAX_CONVERSATION_TURNS]
     return str(result).strip() or "Done."
 
 
@@ -149,7 +207,7 @@ def _execute(decision: RouteDecision, timings: dict[str, int]) -> tuple[str, boo
         return run_orchestrator(decision.text), True
     except ToolError as error:
         return str(error), False
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, TaskCancelled):
         return STOPPED_MESSAGE, False
     except Exception:  # noqa: BLE001 — never crash on a command; say so politely
         log.exception("command failed")
@@ -158,23 +216,67 @@ def _execute(decision: RouteDecision, timings: dict[str, int]) -> tuple[str, boo
         timings[stage] = round((time.monotonic() - started) * MS_PER_S)
 
 
-def handle_command(text: str) -> CommandResult:
+def handle_command(text: str, pre_timings: dict[str, int] | None = None) -> CommandResult:
+    """Run one command. `pre_timings` (voice stages such as stt_ms) go into the timing log."""
     task_id = uuid.uuid4().hex[:12]
     started = time.monotonic()
+    _cancel.clear()
+    with _running_lock:
+        _running[task_id] = text
     with trace.get_tracer("zoya").start_as_current_span("zoya.command") as span:
         decision = route(text)
-        timings = dict(decision.timings_ms)
+        timings = {**(pre_timings or {}), **decision.timings_ms}
         events.emit(events.TaskEvent(task_id, "started", text, decision.route))
-        spoken, ok = _execute(decision, timings)
+        try:
+            spoken, ok = _execute(decision, timings)
+        finally:
+            with _running_lock:
+                _running.pop(task_id, None)
         # Fast path target is router + tool (Done-when #2); speech is queued, not waited on.
         timings["total_ms"] = round((time.monotonic() - started) * MS_PER_S)
         span.set_attributes({f"zoya.{k}": v for k, v in timings.items()})
         span.set_attributes({"zoya.route": decision.route, "zoya.tool": decision.tool or ""})
-    speech.narrate(spoken)
+    outcome = "stop" if decision.route == "stop" or spoken == STOPPED_MESSAGE else "success"
+    events.emit(events.EarconEvent(outcome if ok or outcome == "stop" else "error"))
+    if decision.route != "orchestrator" or not ok:  # the orchestrator already spoke as it streamed
+        speech.narrate(spoken)
     result = CommandResult(task_id, decision, spoken, ok, timings)
     _log_timing(text, result)
     events.emit(events.TaskEvent(task_id, "done" if ok else "failed", text, decision.route, spoken))
     return result
+
+
+# --- Voice-loop task functions (§9.2 semantics; one task at a time until Phase 6) ---------
+
+
+def start_task(
+    command: str,
+    pre_timings: dict[str, int] | None = None,
+    on_done: Callable[[CommandResult], None] | None = None,
+) -> threading.Thread:
+    """Run `command` in the background so the listener keeps hearing "Zoya, stop"."""
+
+    def run() -> None:
+        result = handle_command(command, pre_timings)
+        if on_done:
+            on_done(result)
+
+    worker = threading.Thread(target=run, name="zoya-task", daemon=True)
+    worker.start()
+    return worker
+
+
+def stop_task() -> str:
+    """Stop speech and the running task now (§11.3). Returns what to say."""
+    _cancel.set()
+    speech.cancel()
+    return STOPPED_MESSAGE
+
+
+def task_status() -> str:
+    with _running_lock:
+        commands = list(_running.values())
+    return f"I'm working on: {commands[0]}." if commands else IDLE_MESSAGE
 
 
 def _log_timing(text: str, result: CommandResult) -> None:
