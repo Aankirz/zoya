@@ -223,3 +223,6 @@
 
 ## 2026-09-14 — Phase 7 AWS + sister share subscription
 - zoya-app managed policy v2 (X-Ray spans), zoya-stage dashboard, Transaction Search (logs resource policy + X-Ray → CloudWatch Logs), sister email subscribed to zoya-shares with recipient filter (pending her confirm).
+
+## 2026-09-14 — Sharing to sister enabled
+- SHARE_CONTACTS=("sister",) after her zoya-shares email subscription was confirmed.

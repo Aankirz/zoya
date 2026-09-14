@@ -264,7 +264,7 @@ SHARE_BUCKET = "zoya-shared-567487920371-ap-south-1"
 SHARE_PREFIX = ""
 SHARE_LINK_TTL_S = 3600
 SHARE_TOPIC_ARN = "arn:aws:sns:ap-south-1:567487920371:zoya-shares"  # one filtered sub per contact
-SHARE_CONTACTS: tuple[str, ...] = ()  # names with a confirmed SNS subscription, e.g. ("sister",)
+SHARE_CONTACTS: tuple[str, ...] = ("sister",)  # confirmed zoya-shares subscriptions
 SHARE_TEST_ENV = "ZOYA_SHARE_TEST_TO_OWNER"  # =1: links go to the owner's zoya-alerts email
 S3_UPLOAD_TIMEOUT_S = 20.0
 # Reminders (STACK §8): a local timer speaks; EventBridge Scheduler emails via SNS.
