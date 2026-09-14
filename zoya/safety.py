@@ -485,6 +485,9 @@ def struck_prices(dom: dict[str, Any]) -> list[StruckPrice]:
 
 
 AMBIGUOUS = Decimal(-1)  # never equals an amount the agent can claim
+# A struck price is an old price only if the kept one is a plausible discount of it (≤ 80% off):
+# "Order total ₹1 ~~₹2,847~~" is a mismatch (coordinator re-attack of 0a83a3d).
+MIN_KEPT_FRACTION = Decimal("0.2")
 
 
 @dataclass(frozen=True)
@@ -495,7 +498,7 @@ class TotalCheck:
 
 def _row_total(row: OcrRow, struck: list[StruckPrice]) -> tuple[Decimal | None, Decimal | None]:
     """(total, dropped struck price). A struck price counts only if it overlaps this row, is one
-    of the row's numbers, is the only one, and is higher than what's left (an old price)."""
+    of the row's numbers, is the only one, and is higher than what's left but by at most 80%."""
     values = parse_amounts(row.text)
     if not values:
         return None, None
@@ -508,7 +511,7 @@ def _row_total(row: OcrRow, struck: list[StruckPrice]) -> tuple[Decimal | None, 
     price = old.pop()
     kept = list(values)
     kept.remove(price)
-    if not kept or price <= max(kept):
+    if not kept or price <= max(kept) or max(kept) < price * MIN_KEPT_FRACTION:
         return AMBIGUOUS, None
     return max(kept), price
 

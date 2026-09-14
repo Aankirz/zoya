@@ -211,7 +211,7 @@ def test_direct_skill_call_without_the_voice_loop_publishes_nothing(monkeypatch,
 
 def test_direct_call_after_a_decline_ends_the_task(monkeypatch, actions_agent):
     safety._reset_for_tests()
-    monkeypatch.setattr(safety, "_declined", True)
+    monkeypatch.setattr(safety, "task_declined", lambda: True)
 
     with pytest.raises(safety.ConfirmationDeclined):
         harness.run_action("get_time", {})

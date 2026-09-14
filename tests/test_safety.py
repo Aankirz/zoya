@@ -491,6 +491,13 @@ def test_struck_price_lower_than_the_pay_price_is_not_dropped():
     assert not safety.check_total(Decimal("243"), [row], [_struck("100")]).ok
 
 
+def test_struck_price_is_dropped_only_for_a_plausible_discount():
+    tiny = safety.OcrRow("Order total ₹1 ₹2,847", 0.80, 0.83)
+
+    assert not safety.check_total(Decimal("1"), [tiny], [_struck("2847")]).ok
+    assert safety.check_total(Decimal("243"), [TOTAL_ROW], [_struck("331")]).ok
+
+
 def test_two_struck_prices_on_one_row_are_ambiguous():
     row = safety.OcrRow("Order total ₹1 ₹900 ₹2,847", 0.80, 0.83)
 

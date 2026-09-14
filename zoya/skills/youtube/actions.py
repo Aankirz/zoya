@@ -165,9 +165,9 @@ def youtube_subscribe() -> str:
     target = browser.on_page(lambda page: browser._probe_locator(page, find(page)))
     channel = next(
         (
-            n.removeprefix(SUBSCRIBE_PREFIX)
-            for n in _names(target)
-            if n.startswith(SUBSCRIBE_PREFIX)
+            " ".join(label.split())[len(SUBSCRIBE_PREFIX) :].rstrip(".")
+            for label in target.facts.labels
+            if safety.normalise(label).startswith(SUBSCRIBE_PREFIX)
         ),
         "",
     )
@@ -175,7 +175,7 @@ def youtube_subscribe() -> str:
         raise ToolError("I can't find the subscribe button. You may already be subscribed.")
 
     def still(again: browser.Target) -> bool:
-        return f"{SUBSCRIBE_PREFIX}{channel}" in _names(again)
+        return f"{SUBSCRIBE_PREFIX}{safety.normalise(channel)}" in _names(again)
 
     browser.confirm_then_click(
         browser.probe_with(find), safety.Action("post", "subscribe to", target=channel), still

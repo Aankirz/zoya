@@ -16,6 +16,12 @@ metadata:
       pattern: '^(?:search|look up|find)\s+(?:for\s+)?(?P<query>.+?)\s+(?:on|in)\s+youtube$'
     - action: youtube_search
       pattern: '^(?:search\s+)?youtube\s+(?:for|search)\s+(?P<query>.+)$'
+    - action: youtube_comment
+      pattern: '^(?:post\s+(?:a\s+)?)?comment\s+[''"“]?(?P<text>.+?)[''"”]?(?:\s+on\s+(?:this|the)\s+video)?$'
+    - action: youtube_subscribe
+      pattern: '^subscribe(?:\s+to\s+(?:this|the)\s+channel)?$'
+    - action: youtube_like
+      pattern: '^like\s+(?:this|the)\s+video$'
 ---
 # YouTube
 
