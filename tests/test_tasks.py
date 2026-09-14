@@ -133,6 +133,16 @@ def test_a_decline_in_one_task_does_not_block_another():
     assert outcome["result"] is False
 
 
+def test_outside_any_task_with_one_task_running_nothing_is_asked(gate):
+    _task("grocery order", shared=False)
+    safety.claim_voice_channel()
+    gift = safety.Action("purchase", "Place order", "a gift card", "999 rupees")
+
+    with pytest.raises(ToolError):
+        safety.require_confirmation(gift)
+    assert gate["prompts"] == [] and safety.pending_task_id() is None
+
+
 def test_outside_any_task_with_several_running_nothing_is_asked(gate):
     _task("grocery order"), _task("presentation")
     safety.claim_voice_channel()

@@ -24,7 +24,7 @@ structure, not the prompt:
   ContextVar). One is pending at a time; a second task waits its turn (`waiting_confirmation`)
   instead of speaking over it. The prompt names the task when others run and waits until the user
   stops talking. A token only works for the task it was minted for; a cancel or stop is per task;
-  with several tasks running, a confirmation from outside any task is refused (fail closed).
+  while any task runs, a confirmation from outside a task is refused (fail closed).
 
 Strands docs: https://strandsagents.com/latest/documentation/docs/user-guide/concepts/agents/hooks/
 Source checked: strands/hooks/events.py BeforeToolCallEvent.cancel_tool; tools/_caller.py (direct
@@ -907,7 +907,7 @@ def require_confirmation(action: Action, current: Callable[[], Action] | None = 
         raise ConfirmationDeclined(ALREADY_DECLINED)
     if _channel is None:
         raise ToolError(NO_VOICE_MESSAGE)
-    if tasks.current() is None and len(tasks.running()) > 1:
+    if tasks.current() is None and tasks.running():
         raise ToolError(NO_TASK_MESSAGE)  # can't tell which task is asking: never guess
     pending = _open(action.summary())
     started = _now()
