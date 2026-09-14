@@ -65,3 +65,40 @@ Verdicts: ✅ verified · ⚠️ risky / needs a design change · ❌ wrong.
 **Owner decision needed — Claude path (A2):**
 1. **Claude with its own payment:** request *Pay By Invoice* on the AISPL account; Claude usage is billed separately from the credits. Best quality for computer use (OSWorld-Verified ~81% Sonnet 5 vs ~51% Haiku 4.5).
 2. **Nova-only on credits:** Nova 2 Lite / Nova Pro replace Claude for the orchestrator and screen description; computer use becomes much weaker, so rely on fast tools, Accessibility API and browser DOM instead of pixels.
+
+## 5. Echo cancellation for laptop speakers (Phase 2 findings, 2026-09-14) — for the AEC session
+
+**Problem (owner live runs, D52/D53):** on laptop speakers the mic hears the Mac's own playback as loud as the user. (1) With Spotify playing, "Hey Zoya" is misheard, so no wake and no duck. (2) "Zoya, stop" isn't heard while Zoya's TTS plays. Headset + fn + Shift work.
+
+**Measured** (replay loop: owner's real "Hey Zoya" clips + background vocals mixed at the mic; VAD, loudness gate, mlx base.en spotter; scripts in the Phase 2 builder scratchpad, method reproducible with `tests/evals/wake_junk_replay.py`):
+
+| Music RMS / voice RMS | 0.10 | 0.29 | 0.58 | 1.16 |
+|---|---|---|---|---|
+| Wakes (5 owner clips) | 4/5 | 2/5 | 2/5 | 1/5 |
+
+Segments end correctly (the D53 loudness gate works); the spotter mishears the name over music ("He is after me"). **Rejected cheap fix:** ducking other apps on *any* voice onset raised wakes but pumped — 48 volume changes in 20 s of music alone, and it left the Mac ducked. Reverted, not committed.
+
+| Option | Cancels our TTS | Cancels Spotify / other apps | Verdict |
+|---|---|---|---|
+| Apple voice processing I/O (`AVAudioEngine.inputNode.setVoiceProcessingEnabled`) | Only if the TTS plays through the same engine | ❌ Ducks other apps instead of cancelling them | Not enough. WWDC23 "Enhance your app's audio experience with AirPods / voice processing" https://developer.apple.com/videos/play/wwdc2023/10235/ ; measured ~0 dB removal of system audio: https://github.com/screenpipe/screenpipe/issues/3938 ; fragile setup + leaking tails: https://barock.dev/2026/04/22/why-your-ios-voice-agent-still-hears-itself ; dropouts on Spatial Audio Macs: https://www.forasoft.com/ship-log/spatial-audio-vpio |
+| **WebRTC AEC3** via `livekit` `rtc.AudioProcessingModule(echo_cancellation=True, noise_suppression=True)` | ✅ reverse stream = our TTS PCM | ✅ if the reverse stream also gets system audio | **Recommended.** 10 ms frames; `process_stream` (mic) / `process_reverse_stream` (playback) / `set_stream_delay_ms`. livekit python-sdks `livekit-rtc/livekit/rtc/apm.py`, `media_devices.py` (sounddevice wiring, delay from PortAudio `outputBufferDacTime`/`inputBufferAdcTime`) https://github.com/livekit/python-sdks |
+| Speex AEC (speexdsp) | Partly | Partly | Older and weaker. No direct comparison with AEC3 was found |
+| Duck other apps on voice onset | — | Removes the music, doesn't cancel it | Pumping (measured above); keep only as a backstop behind AEC |
+
+**Reference design (OpenWhispr meeting mode):**
+- A Core Audio **process tap** captures all processes except our own: `CATapDescription` (exclusive, mono mixdown, private) plus a private aggregate device (`resources/macos-audio-tap.swift`).
+- A native WebRTC AEC3 helper runs at 48 kHz in 10 ms frames, with noise suppression moderate and AGC off (`native/meeting-aec-helper/src/aec_processor.cc`). The tap feeds `ProcessReverseStream`; the mic feeds `ProcessStream`.
+- The helper runs as a separate binary over stdio. https://github.com/OpenWhispr/openwhispr
+- For Zoya: reverse stream = Polly PCM from our mixer + the tap of other apps. AEC runs before Silero VAD. Keep the post-TTS echo tail gate (a real device needed ~800 ms: barock.dev).
+
+**Dependencies (need owner approval, AGENTS §3):**
+- `livekit` (arm64 wheel ~9.3 MB; pin the version at build time).
+- `pyobjc-framework-CoreAudio==12.2.2`, matching the pinned pyobjc: exposes `AudioHardwareCreateProcessTap`, `CATapDescription`, `AudioDeviceCreateIOProcIDWithBlock`.
+- Process taps need macOS 14.2+ (unverified against Apple's page) and probably a new audio-capture permission prompt.
+- Fallback: a small Swift helper over stdio, as OpenWhispr does.
+
+**Risks / unverified:**
+- **Alignment (the main risk):** the delay between the tap or mixer reference and the mic must be estimated and kept stable, or AEC3 removes little.
+- AEC3 CPU at 16 kHz, and whether 16 kHz works at all (livekit defaults to 48 kHz, so resample if needed).
+- Tap-to-mic latency, and behaviour when the output device changes (headphones plugged in).
+- **Measure before committing:** dB of echo removed and wake rate at each music level above, plus stop latency while TTS plays on speakers.
