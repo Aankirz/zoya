@@ -153,3 +153,6 @@
 
 ## 2026-09-14 — Phase 4: web research and in-tab site control
 - Phase 4 brief: TinyFish Search/Fetch research tools, Spotify/YouTube in-tab control with the safety gate for subscribe/like/comment, 3 Done-when items.
+
+## 2026-09-14 — Phase 2 final-run triage fixes
+- D57: duck through wake wait, en/hi STT, junk/runaway filters, repeated-wake, filler prefixes, browser rule, prompt honesty; replays 6/6.
