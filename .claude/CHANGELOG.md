@@ -226,3 +226,6 @@
 
 ## 2026-09-14 — Sharing to sister enabled
 - SHARE_CONTACTS=("sister",) after her zoya-shares email subscription was confirmed.
+
+## 2026-09-15 — D62 live run recorded
+- Owner live laptop-speaker run results in D62; OnsetDetector skips the empty first block (numpy empty-mean warning)
