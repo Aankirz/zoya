@@ -1,8 +1,10 @@
-"""Intent router (§13.5.3): Translate (Devanagari only) → rule matcher → ROUTER_MODEL.
+"""Intent router (§13.5.3): Translate (Devanagari only) → rule matcher → skill trigger index →
+learned picks → ROUTER_MODEL.
 
 D44: ROUTER_MODEL takes ~2 s per call, so the ≤ 1 s fast path depends on the rule
 matcher catching every common command with no model call. The model only sees
-commands the rules miss, and its answer is a structured RouteChoice.
+commands the rules miss, and its answer is a structured RouteChoice, which may pick a skill
+(Phase 4 harness, zoya/harness.py).
 """
 
 from __future__ import annotations
@@ -16,10 +18,11 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from zoya import aws
+from zoya import aws, harness
 from zoya.events import Route
-from zoya.prompts import ROUTER_PROMPT
+from zoya.prompts import ROUTER_PROMPT, ROUTER_SKILLS
 from zoya.tools.fast import WEB_APPS
+from zoya.tools.handoff import pending_handoff, resume_command
 
 log = logging.getLogger(__name__)
 
@@ -47,9 +50,10 @@ class RouteDecision:
     route: Route
     tool: str | None = None
     args: dict[str, Any] = field(default_factory=dict)
-    source: Literal["rules", "model", "fallback"] = "rules"
+    source: Literal["rules", "model", "fallback", "trigger", "learned"] = "rules"
     text: str = ""
     timings_ms: dict[str, int] = field(default_factory=dict)
+    skill: str = ""  # route "skill": the skill; `tool` is its action when one was picked
 
 
 # --- Rule matcher ---------------------------------------------------------------
@@ -134,6 +138,12 @@ PAGE_ACTION = re.compile(
     r"|\bplace\s+(?:the\s+|my\s+|your\s+|an?\s+)?order\b|\bcheck\s*out\b|\bbuy\b|\bpay\b",
     _I,
 )
+# Flow 10: "done" after signing in resumes a pending handoff, and only then (coordinator).
+DONE = re.compile(
+    r"^(?:(?:i'?m|i am|i have|i'?ve|all|it'?s)\s+)?(?:done|finished|signed in|logged in|ho gaya"
+    r"|ho gya|kar liya)(?:\s+(?:now|signing in|logging in))?$",
+    _I,
+)
 OPEN_HINGLISH = re.compile(
     r"^(?P<target>.+?)\s+(?:khol(?:o|\s*do|\s*dijiye)?|open\s*kar(?:o|\s*do|do|\s*dijiye))$", _I
 )
@@ -183,6 +193,8 @@ def match_rules(text: str) -> RouteDecision | None:
         return None
     if STOP.match(command):
         return RouteDecision("stop")
+    if DONE.match(command) and pending_handoff():
+        return RouteDecision("orchestrator")  # route() swaps in the task to resume
     if match := MEDIA.match(command):
         action = match["action"].lower()
         args = {
@@ -234,7 +246,15 @@ def match_rules(text: str) -> RouteDecision | None:
 class RouteChoice(BaseModel):
     """Structured answer from ROUTER_MODEL."""
 
-    route: Literal["fast", "orchestrator"]
+    route: Literal["fast", "skill", "orchestrator"]
+    skill: str | None = Field(default=None, description="Skill name when route is skill")
+    skill_action: str | None = Field(
+        default=None, description="One of that skill's actions, when one call does the whole job"
+    )
+    name: str | None = None
+    song: str | None = None
+    artist: str | None = None
+    city: str | None = None
     tool: Literal[tuple(FAST_TOOL_ARGS)] | None = Field(  # type: ignore[valid-type]
         default=None, description="Fast tool name; null when route is orchestrator"
     )
@@ -257,17 +277,38 @@ def _router_model() -> Any:
     return get_model("router")
 
 
+@cache
+def router_prompt() -> str:
+    """Byte-stable: the static rules plus the skill catalogue (cached by OpenAI after one call)."""
+    return f"{ROUTER_PROMPT}\n\n{ROUTER_SKILLS.format(menu=harness.menu())}"
+
+
 def ask_router_model(text: str) -> RouteChoice:
     """One structured ROUTER_MODEL call. Built via get_model() → store=False (D36)."""
     from strands import Agent
 
-    agent = Agent(model=_router_model(), system_prompt=ROUTER_PROMPT, callback_handler=None)
+    agent = Agent(model=_router_model(), system_prompt=router_prompt(), callback_handler=None)
     result = agent(text, structured_output_model=RouteChoice)
     return result.structured_output
 
 
+def skill_decision(choice: RouteChoice) -> RouteDecision:
+    """A skill pick: its action when the args are complete, else the brain with that skill only."""
+    if choice.skill not in harness.catalog():
+        return RouteDecision("orchestrator", source="model")
+    action = choice.skill_action or ""
+    if action not in harness.skill_tool_names(choice.skill) or action not in harness.all_tools():
+        return RouteDecision("skill", source="model", skill=choice.skill)
+    args = harness.signature_args(action, choice.model_dump())
+    if any(name not in args for name in harness.required_args(action)):
+        return RouteDecision("skill", source="model", skill=choice.skill)
+    return RouteDecision("skill", action, args, source="model", skill=choice.skill)
+
+
 def decision_from_choice(choice: RouteChoice) -> RouteDecision:
     """Turn the model's answer into a decision; incomplete fast answers go to the orchestrator."""
+    if choice.route == "skill":
+        return skill_decision(choice)
     if choice.route != "fast" or choice.tool not in FAST_TOOL_ARGS:
         return RouteDecision("orchestrator", source="model")
     args = {
@@ -297,6 +338,12 @@ def route(text: str, use_rules: bool = True) -> RouteDecision:
     if use_rules:
         started = time.monotonic()
         decision = match_rules(routed_text)
+        if decision and DONE.match(clean_command(routed_text)):
+            routed_text = resume_command() or routed_text
+        elif (not decision or _skill_may_win(decision)) and (
+            pick := _pick_without_model(clean_command(routed_text))
+        ):
+            decision = pick
         timings["rules_ms"] = _ms(started)
         if decision:
             return _with(decision, routed_text, timings)
@@ -311,7 +358,26 @@ def route(text: str, use_rules: bool = True) -> RouteDecision:
     return _with(decision, routed_text, timings)
 
 
+def _skill_may_win(decision: RouteDecision) -> bool:
+    """Stop and the fast Mac tools keep priority; "open X" and brain catch-alls try skills first
+    ("open the MrBeast channel on YouTube" is not an app)."""
+    return decision.route == "orchestrator" or decision.tool == "open_app"
+
+
+def _pick_without_model(command: str) -> RouteDecision | None:
+    for source, pick in (("trigger", harness.match_trigger), ("learned", harness.learned_pick)):
+        if found := pick(command):
+            return RouteDecision("skill", found.action, found.args, source, skill=found.skill)
+    return None
+
+
 def _with(decision: RouteDecision, text: str, timings: dict[str, int]) -> RouteDecision:
     return RouteDecision(
-        decision.route, decision.tool, decision.args, decision.source, text, timings
+        decision.route,
+        decision.tool,
+        decision.args,
+        decision.source,
+        text,
+        timings,
+        decision.skill,
     )

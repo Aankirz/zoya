@@ -30,7 +30,7 @@ from strands.hooks import AfterToolCallEvent, BeforeModelCallEvent, HookProvider
 from strands.tools.executors import SequentialToolExecutor
 from strands.types.exceptions import EventLoopException
 
-from zoya import aws, events, safety, speech
+from zoya import aws, events, harness, safety, speech
 from zoya.config import (
     LOG_DIR,
     MAX_TOOL_CALLS_PER_TASK,
@@ -42,6 +42,7 @@ from zoya.config import (
 from zoya.prompts import ORCHESTRATOR_PROMPT
 from zoya.router import RouteDecision, route
 from zoya.tools import ToolError, collect_tools
+from zoya.tools.memory import recent_corrections
 
 log = logging.getLogger(__name__)
 
@@ -54,6 +55,8 @@ LIMIT_MESSAGE = "I've stopped this task because it was taking too many steps."
 IDLE_MESSAGE = "Nothing is running."
 OPEN_APP_FALLBACK = "open_app_fallback"
 DECLINED = "confirmation_declined"  # the safety gate already played cancel and spoke
+STREAMED = "brain"  # the brain ran and spoke as it streamed
+SKILL_FALLBACK = "skill_fallback"  # a skill action failed; the brain retried with that skill
 MAX_CONVERSATION_TURNS = 6  # follow-ups keep context; older turns drop to bound token cost
 SENTENCE_END = re.compile(r"(?<=[.!?।])\s+")
 
@@ -140,20 +143,42 @@ def narrate_tool(text: str) -> str:
     return "Said."
 
 
+def brain_inputs(skill: str = "") -> tuple[str, list[Any], list[Any]]:
+    """(system prompt, tools, plugins), byte-stable per skill so OpenAI caches the prefix.
+
+    A picked skill gets its body in the prompt (no `skills` round trip) and only its tools. No pick:
+    every tool plus Strands `AgentSkills`, which lists the catalogue and loads a body on demand.
+    """
+    tools = harness.all_tools() | {narrate_tool.tool_name: narrate_tool}
+    if skill:
+        names = harness.skill_tool_names(skill)
+        return (
+            harness.skill_prompt(ORCHESTRATOR_PROMPT, skill),
+            [tools[name] for name in names if name in tools],
+            [],
+        )
+    from strands.vended_plugins.skills import AgentSkills
+
+    ordered = [tools[name] for name in sorted(tools)]
+    return ORCHESTRATOR_PROMPT, ordered, [AgentSkills(skills=list(harness.catalog().values()))]
+
+
 def build_orchestrator(
     cost_cap_usd: float = PER_TASK_COST_CAP_USD,
     messages: list[Any] | None = None,
     callback_handler: Any = None,
+    skill: str = "",
 ) -> Agent:
     """A fresh Agent per task (AUDIT B6), seeded with recent conversation for follow-ups."""
     from zoya.models import get_model
 
-    tools = [*collect_tools("zoya.tools", "zoya.agents"), narrate_tool]
+    prompt, tools, plugins = brain_inputs(skill)
     limits = TaskLimits(os.environ.get("BRAIN_MODEL", ""), cost_cap_usd)
     return Agent(
-        model=get_model("brain"),
-        system_prompt=ORCHESTRATOR_PROMPT,
+        model=get_model("brain", cache_key=harness.cache_key(skill)),
+        system_prompt=prompt,
         tools=tools,
+        plugins=plugins,
         messages=messages,
         # The gate goes last so it sees the final tool call (safety.ConfirmationGate). Tools run one
         # at a time: nothing else speaks or clicks while a confirmation waits for the user.
@@ -182,19 +207,30 @@ def _record_usage(agent: Agent, timings: dict[str, int]) -> None:
     timings["input_tokens"] = usage.get("inputTokens", 0)
     timings["output_tokens"] = usage.get("outputTokens", 0)
     timings["cached_tokens"] = usage.get("cacheReadInputTokens", 0)
+    timings["brain_calls"] = getattr(agent.event_loop_metrics, "cycle_count", 0)
 
 
-def run_orchestrator(command: str, timings: dict[str, int] | None = None) -> str:
+def with_corrections(command: str) -> str:
+    """§13.5.6: recent corrections ride with the request (dynamic part), never in the prefix."""
+    corrections = recent_corrections()
+    if not corrections:
+        return command
+    return f"{command}\n[Recent corrections from the user: {'; '.join(corrections)}]"
+
+
+def run_orchestrator(command: str, timings: dict[str, int] | None = None, skill: str = "") -> str:
     """Speak the brain's answer sentence by sentence as it streams; return the full text."""
     history = [message for turn in _conversation for message in turn]
     sentences, spoken = SentenceStream(), []
     agent = build_orchestrator(
-        messages=list(history), callback_handler=_speak_stream(sentences, spoken)
+        messages=list(history), callback_handler=_speak_stream(sentences, spoken), skill=skill
     )
+    if timings is not None:
+        timings[STREAMED] = 1
     try:
         # Native cancellation (strands 1.55.1 Agent.__call__ cancel_signal): stops mid-stream,
         # before tool execution and between steps, returning stop_reason="cancelled" (§11.3).
-        result = _invoke(agent, command)
+        result = _invoke(agent, with_corrections(command))
     except TaskLimitExceeded as limit:
         _record_usage(agent, timings if timings is not None else {})
         log.warning("task stopped: %s", limit)
@@ -254,6 +290,24 @@ def remember_turn(command: str, reply: str) -> None:
 # --- Fast path and entry point ----------------------------------------------------
 
 
+def run_skill(decision: RouteDecision, timings: dict[str, int]) -> str:
+    """Layer 1 action (0 model calls) when one was picked; on failure or no action, the brain with
+    only that skill's tools. A declined confirmation is never retried."""
+    if not decision.tool:
+        return run_orchestrator(decision.text, timings, decision.skill)
+    try:
+        spoken = harness.run_action(decision.tool, decision.args)
+    except ToolError as error:
+        log.warning("skill action %s failed (%s): brain retries", decision.tool, error)
+        timings[SKILL_FALLBACK] = 1
+        return run_orchestrator(decision.text, timings, decision.skill)
+    if decision.source == "model":
+        harness.learn_pick(
+            decision.text, harness.SkillMatch(decision.skill, decision.tool, decision.args)
+        )
+    return spoken
+
+
 def run_fast_tool(decision: RouteDecision) -> str:
     # No Agent, so no hooks on this path: only free tools may run here (safety registry).
     if not safety.fast_tool_allowed(decision.tool or ""):
@@ -268,6 +322,8 @@ def _execute(decision: RouteDecision, timings: dict[str, int]) -> tuple[str, boo
     try:
         if decision.route == "stop":
             return STOPPED_MESSAGE, True
+        if decision.route == "skill":
+            return run_skill(decision, timings), True
         if decision.route == "fast":
             try:
                 return run_fast_tool(decision), True
@@ -320,10 +376,10 @@ def handle_command(text: str, pre_timings: dict[str, int] | None = None) -> Comm
     declined = DECLINED in timings
     if not declined:
         events.emit(events.EarconEvent(outcome if ok or outcome == "stop" else "error"))
-    streamed = decision.route == "orchestrator" or OPEN_APP_FALLBACK in timings
+    streamed = STREAMED in timings
     if (not streamed or not ok) and not declined:  # the orchestrator already spoke as it streamed
         speech.narrate(spoken)
-    if decision.route == "fast" and not streamed:
+    if decision.route in ("fast", "skill") and not streamed:
         remember_turn(text, spoken)
     result = CommandResult(task_id, decision, spoken, ok, timings)
     _log_timing(text, result)
@@ -365,13 +421,27 @@ def task_status() -> str:
     return f"I'm working on: {commands[0]}." if commands else IDLE_MESSAGE
 
 
+def current_command() -> str:
+    """The command being worked on (one task at a time until Phase 6), for Flow 10 resume."""
+    with _running_lock:
+        return next(iter(_running.values()), "")
+
+
+def model_calls(result: CommandResult) -> int:
+    """Done-when #11/#12 evidence: router-model calls plus brain cycles for this command."""
+    router = 1 if "model_ms" in result.timings_ms else 0
+    return router + result.timings_ms.get("brain_calls", 0)
+
+
 def _log_timing(text: str, result: CommandResult) -> None:
     record = {
         "at": datetime.now(UTC).isoformat(timespec="milliseconds"),
         "task_id": result.task_id,
         "route": result.decision.route,
         "source": result.decision.source,
+        "skill": result.decision.skill or None,
         "tool": result.decision.tool,
+        "model_calls": model_calls(result),
         "ok": result.ok,
         **result.timings_ms,
         "command": text[:LOG_COMMAND_MAX_CHARS],

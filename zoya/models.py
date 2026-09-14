@@ -24,7 +24,7 @@ import os
 from strands.models import BedrockModel, Model
 from strands.models.openai import OpenAIModel
 
-from zoya.config import FIREWORKS_BASE_URL, MODEL_MAX_RETRIES, MODEL_TIMEOUT_S
+from zoya.config import FIREWORKS_BASE_URL, MODEL_MAX_RETRIES, MODEL_TIMEOUT_S, PROMPT_CACHE_TTL
 
 Role = str  # "brain" | "vision" | "router"
 
@@ -43,17 +43,25 @@ def _model_id(role: Role) -> str:
     return model_id
 
 
-def get_model(role: Role = "brain", provider: str | None = None) -> Model:
+def get_model(role: Role = "brain", provider: str | None = None, cache_key: str = "") -> Model:
     """Return the Strands model for `role` on `provider` (default: MODEL_PROVIDER).
 
     Args:
         role: "brain" (planning/tools), "vision" (screen understanding), or "router".
         provider: "openai" | "fireworks" | "bedrock". Defaults to the MODEL_PROVIDER env var.
+        cache_key: OpenAI `prompt_cache_key` for a byte-stable prompt prefix (Phase 4 harness). Sent
+            through `params`, which strands/models/openai.py merges into the request last; verified
+            live: the repeat call read 1,836 of 1,839 prompt tokens from cache.
     """
     provider = provider or os.environ.get("MODEL_PROVIDER", "openai")
     model_id = _model_id(role)
 
     if provider == "openai":
+        cache_params = (
+            {"prompt_cache_key": cache_key, "prompt_cache_options": {"ttl": PROMPT_CACHE_TTL}}
+            if cache_key
+            else {}
+        )
         return OpenAIModel(
             client_args={
                 "api_key": os.environ["OPENAI_API_KEY"],
@@ -64,6 +72,7 @@ def get_model(role: Role = "brain", provider: str | None = None) -> Model:
             params={
                 "store": False,  # D36 — never relax this.
                 "reasoning_effort": "none",  # D43 — required for function tools on gpt-5.6.*
+                **cache_params,
             },
         )
 

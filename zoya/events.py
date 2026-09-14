@@ -23,10 +23,24 @@ CONFIRMATION = "confirmation"
 OVERLAY = "overlay"
 
 EarconKind = Literal[
-    "listening", "heard", "working", "success", "error", "attention", "stop", "warning", "cancel"
+    "listening",
+    "heard",
+    "working",
+    "success",
+    "error",
+    "attention",
+    "stop",
+    "warning",
+    "cancel",
+    # Phase 4 (§7.3): shopping ticks, order placed, memory saved, blocked by a login/CAPTCHA.
+    "progress-step",
+    "add-to-cart",
+    "purchase",
+    "checkpoint",
+    "blocked",
 ]
 TaskStatus = Literal["started", "running", "done", "failed", "cancelled"]
-Route = Literal["fast", "orchestrator", "stop"]
+Route = Literal["fast", "orchestrator", "stop", "skill"]
 
 
 @dataclass(frozen=True)
