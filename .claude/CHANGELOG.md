@@ -247,3 +247,22 @@
 - Next.js 16 App Router site per docs/website/BRIEF.md: hero (h1, value line, real Polly Kajal "Hear Zoya" clip with word-synced transcript, waitlist), promises, transformation, things you can say, FAQ, closing waitlist, footer with contact and visitor count.
 - Waitlist + unique visitor count on Neon via DATABASE_URL (lib/waitlist.ts, lib/visitors.ts), jsonl fallback in local dev, honeypot + best-effort in-memory rate limit, Vercel Analytics only on Vercel.
 - Verified: axe 0 violations (AA + AAA contrast, both themes), Lighthouse mobile 99/100/100/100, no overflow at 320/375/768/1440 or 200% zoom, reduced motion stops the orb.
+
+## 2026-09-15 — Vercel ignored-build step fixed
+- The first Git deploy (a10ab09) was cancelled: the ignore step compared only HEAD^..HEAD, and the last pushed commit touched docs only. Now it compares against VERCEL_GIT_PREVIOUS_SHA and always builds when there is none. Re-triggered production from main via the Vercel API.
+
+## 2026-09-15 — Website redesign brief v2
+- docs/website/BRIEF-v2.md: owner rejected the split layout, the gradient orb and the scripted examples. The new direction is centered and heyliki.com-inspired (near-black, cream line art, script greeting, mono meta, a real Zoya voice greeting), sent to the builder.
+
+## 2026-09-15 — Zoya website v2 redesign (BRIEF-v2)
+- Rebuilt site/ as one centered column with heyliki's components: pill nav, script "Zoya" h1, outlined chip, intro, mono line, clickable cream line-art of Zoya that speaks a real Polly Kajal greeting with a speech bubble, cream waitlist button, numbered ruled promise rows, hairline mono footer with the visitor counter.
+- Removed the orb and every radial gradient/blur, the grocery clip and transcript, the transformation band, "things you can say", the FAQ and the duplicate form.
+- Verified: axe 0 violations (AA and AAA contrast, dark and light), Lighthouse mobile 98/100/100/100, no overflow at 320/375/768/1440 or 200% zoom, character fits the first screen at 1280×800, bubble clear of every stroke.
+
+## 2026-09-15 — Website brief v3 (heyclicky, light)
+- docs/website/BRIEF-v3.md: owner confirmed heyclicky.com as the reference, in a light theme only, centered, with illustrated props (no videos), no founder note, and glossy pills allowed; sent to the builder.
+
+## 2026-09-15 — Zoya website v3 (heyclicky style, BRIEF-v3)
+- Rebuilt site/ in heyclicky's DNA with our own drawn assets, light only and centered: macOS menu bar with an animated Zoya mark, dotted desktop hero with SVG props (notes and Finder windows, folders, trash, "hello my name is" sticker, kaomoji) around "zoya", the subline and the waitlist, a big "hello" Mac window that plays Zoya's real Polly Kajal greeting with waveform dots and a typing glossy bubble, three stacked promise rows with typing bubbles (confirm / done / zoya, stop), white FAQ rows, and a footer "zoya" built from drawn folders with the visitor counter and contact.
+- Inter replaces Atkinson (owner: exactly like heyclicky); greys darkened to >= 7:1. Removed the v2 script name, chip, line art and dark theme.
+- Verified: axe 0 violations incl. AAA contrast, Lighthouse mobile 99/100/100/100, no overflow at 320/375/390/768/1440 or 200% zoom, reduced motion honoured, clean-clone build.
