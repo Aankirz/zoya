@@ -230,9 +230,8 @@ def _offer_button(page: Any, asin: str) -> Any:
     page.wait_for_timeout(PANEL_SETTLE_MS)  # the offers render after the panel frame
     panel = page.locator(SELECTORS["offers_panel"]).first
     if closed := STORE_CLOSED.search(panel.inner_text()):
-        raise FinalAnswer(
-            f"Amazon Now sells this, and its {closed.group(0).strip()} Nothing was added."
-        )
+        notice = closed.group(0).strip().rstrip(".")
+        raise FinalAnswer(f"Amazon Now sells this, and its {notice}. Nothing was added.")
     button = page.locator(SELECTORS["offer_add_to_cart"]).filter(visible=True)
     return button.first if button.count() else None
 
