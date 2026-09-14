@@ -7,6 +7,7 @@ import pytest
 
 from zoya.voice import (
     after_wake,
+    is_runaway,
     is_stop,
     is_stop_command,
     is_usable_command,
@@ -95,14 +96,23 @@ def test_words_after_wake_name_are_the_command():
 
 
 @pytest.mark.parametrize(
-    "heard", ["you", "Thank you.", "ん", "예소야", "", "Hey Zoya!", "um", "Uh."]
+    "heard",
+    [
+        *("you", "Thank you.", "ん", "예소야", "", "Hey Zoya!", "um", "Uh."),
+        *("Good.", "No.", "Tadam!", "Lehmadbur."),  # one-word fragments from the owner's run
+        "Zoya no " + "no " * 200,
+    ],
 )
 def test_hallucinations_and_empty_commands_are_dropped(heard):
     assert not is_usable_command(heard)
 
 
 @pytest.mark.parametrize(
-    "heard", ["Hey Zoya, open Spotify", "स्पॉटिफ़ाई खोल दो", "and its population?"]
+    "heard",
+    [
+        *("Hey Zoya, open Spotify", "स्पॉटिफ़ाई खोल दो", "and its population?"),
+        *("pause", "Mute.", "Just hello"),  # known one-word commands; fillers still count
+    ],
 )
 def test_real_commands_are_kept(heard):
     assert is_usable_command(heard)
@@ -131,3 +141,9 @@ def test_turbo_vetoes_sound_alike_names(turbo_heard):
 )
 def test_turbo_does_not_veto_real_wakes(turbo_heard):
     assert not vetoes_wake(turbo_heard)
+
+
+def test_runaway_repeats_and_overlong_transcripts_are_detected():
+    assert is_runaway("Zoya no no no no no")
+    assert is_runaway("word " * 61)
+    assert not is_runaway("no, no, I meant Rahul Verma")

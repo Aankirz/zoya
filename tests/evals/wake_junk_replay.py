@@ -30,6 +30,10 @@ from zoya import audio, orchestrator, speech, voice  # noqa: E402
 from zoya.config import MIC_SAMPLE_RATE_HZ, SOUNDS_DIR  # noqa: E402
 
 SUBPROCESS_TIMEOUT_S = 30
+REAL_DUCK, REAL_RESTORE = audio.duck, audio.restore
+FAKE_VOLUME = 60
+OSASCRIPT_DELAY_S = 0.09  # measured osascript cost
+WAIT_BEFORE_COMMAND_S = 3.0  # owner: volume came back before they spoke
 RADIO_GAIN = 0.15  # background vocals quieter than the user at the mic (louder defeats the gate)
 MAX_DISPATCH_DELAY_S = 2.0  # endpoint 0.5 s + turbo ~0.7 s + slack
 RATE = MIC_SAMPLE_RATE_HZ
@@ -75,6 +79,33 @@ def replay(loop: voice.VoiceLoop, stream: np.ndarray) -> None:
 def fresh(loop: voice.VoiceLoop) -> None:
     loop.segment, loop.awaiting_command_until, loop.follow_up_pending = None, 0.0, False
     loop.loudness.clear()
+
+
+def replay_ducked(loop: voice.VoiceLoop, user: np.ndarray, background: np.ndarray) -> list[int]:
+    """Background at the mic follows a fake system volume, so ducking really quiets it."""
+    volume = {"level": FAKE_VOLUME, "history": []}
+
+    def fake_volume(script: str) -> str:
+        time.sleep(OSASCRIPT_DELAY_S)
+        if script.startswith("output volume"):
+            return str(volume["level"])
+        volume["level"] = int(script.rsplit(" ", 1)[-1])
+        volume["history"].append(volume["level"])
+        return ""
+
+    audio._volume = fake_volume
+    audio.duck, audio.restore = REAL_DUCK, REAL_RESTORE
+    started = time.monotonic()
+    for index in range(len(user) // voice.VAD_BLOCK):
+        due = started + (index + 1) * voice.BLOCK_S
+        if (lag := due - time.monotonic()) > 0:
+            time.sleep(lag)
+        piece = slice(index * voice.VAD_BLOCK, (index + 1) * voice.VAD_BLOCK)
+        gain = volume["level"] / FAKE_VOLUME
+        loop._on_block(due, (user[piece] + background[piece] * gain).astype("f4"))
+    time.sleep(1.0)
+    audio.duck = audio.restore = lambda: None
+    return volume["history"]
 
 
 def main() -> int:
@@ -139,6 +170,31 @@ def main() -> int:
     texts = [text for _, text in dispatched]
     results.append(len(texts) == 2 and "hello" in texts[1].lower())
     print(f"follow-up: {texts} → {'PASS' if results[-1] else 'FAIL'}")
+
+    # 4. "Hey Zoya", a 3 s pause over music, then the command: stay ducked through the wait.
+    dispatched.clear()
+    fresh(loop)
+    user = np.concatenate(
+        [silence(4.0), wake, silence(WAIT_BEFORE_COMMAND_S), command, silence(3.0)]
+    )
+    history = replay_ducked(loop, user, np.resize(radio, len(user)) * RADIO_GAIN)
+    texts = [text for _, text in dispatched]
+    one_duck = history[:1] == [round(FAKE_VOLUME * 0.3)] and history[-1:] == [FAKE_VOLUME]
+    results.append(any("japan" in t.lower() for t in texts) and one_duck and len(history) == 2)
+    print(f"wait-over-music: {texts}, volume {history} → {'PASS' if results[-1] else 'FAIL'}")
+
+    # 5. "Hey Zoya" said again inside the wait window is not a command.
+    dispatched.clear()
+    fresh(loop)
+    replay(
+        loop,
+        np.concatenate(
+            [silence(3.5), wake, silence(1.2), wake, silence(1.2), command, silence(2.0)]
+        ),
+    )
+    texts = [text for _, text in dispatched]
+    results.append(len(texts) == 1 and "japan" in texts[0].lower())
+    print(f"repeated-wake: {texts} → {'PASS' if results[-1] else 'FAIL'}")
     return 0 if all(results) else 1
 
 

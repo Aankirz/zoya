@@ -56,7 +56,8 @@ class RouteDecision:
 _I = re.IGNORECASE
 LEADING_FILLER = re.compile(
     r"^(?:(?:hey|hi|ok|okay)\s+zoya|zoya|uh+|um+|hmm+|please|so|can you|could you|would you"
-    r"|will you|zara)[\s,.!?]+",
+    r"|will you|zara|now|hey|ok|okay|just|also|i want you to|i'?d like you to"
+    r"|go ahead and)[\s,.!?]+",
     _I,
 )
 TRAILING_FILLER = re.compile(
@@ -91,7 +92,7 @@ VOLUME_DOWN = re.compile(
     _I,
 )
 MEDIA = re.compile(
-    r"^(?P<action>play|pause|resume|stop|next|skip|previous)"
+    r"^(?P<action>play|pause|resume|stop|next|skip|previous)(?:\s+playing)?"
     r"(?:\s+(?:the\s+)?(?:music|song|track|playback))?"
     r"(?:\s+(?:on|in|from)?\s*(?P<app>spotify|music))?$",
     _I,
@@ -119,6 +120,12 @@ QUESTION = re.compile(
 OPEN = re.compile(
     r"^(?:open|launch|start)\s+(?:up\s+)?(?:the\s+)?(?P<target>.+?)"
     r"(?:\s+(?:app|application|website|site|browser))?$",
+    _I,
+)
+# "Open Spotify in a browser" is a web task, not the app "Spotify in a" (owner's live run).
+IN_BROWSER = re.compile(
+    r"\b(?:in|on|using|with)\s+(?:a\s+|the\s+)?(?:web\s+)?(?:browser|google chrome|chrome|safari"
+    r"|firefox|the web|web)\b",
     _I,
 )
 OPEN_HINGLISH = re.compile(
@@ -187,6 +194,8 @@ def match_rules(text: str) -> RouteDecision | None:
             return RouteDecision("fast", tool_name)
     if note := _note_decision(command):  # before OPEN: note text may contain "open"
         return note
+    if OPEN.match(command) and IN_BROWSER.search(command):
+        return RouteDecision("orchestrator")
     if (match := OPEN.match(command) or OPEN_HINGLISH.match(command)) and (
         decision := _open_decision(match["target"])
     ):

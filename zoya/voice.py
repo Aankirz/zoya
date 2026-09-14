@@ -60,7 +60,7 @@ from zoya.config import (
     WAKE_MODEL,
     WAKE_WINDOW_S,
 )
-from zoya.router import STOP, clean_command
+from zoya.router import STOP, clean_command, match_rules
 
 log = logging.getLogger(__name__)
 
@@ -77,6 +77,13 @@ BACKGROUND_MIN_S = 3.0  # too little history: the utterance itself would count a
 SPEECH_OVER_BACKGROUND = 2.0  # the user's voice must be ≥ 2× (+6 dB) the background loudness
 MIN_SPEECH_RMS = 0.005
 ONE_BREATH_MIN_S = 1.2  # longer utterances get a turbo wake check if base.en misses the name
+MAX_COMPRESSION_RATIO = 2.4  # Whisper's own threshold for repetitive output
+MIN_AVG_LOGPROB = -0.7
+STT_LANGUAGES = frozenset({"en", "hi"})
+MAX_TRANSCRIPT_WORDS = 60  # 15 s of speech at most (MAX_UTTERANCE_S)
+RUNAWAY_REPEATS = 4
+MIN_COMMAND_WORDS = 2
+MIN_VOICED_FRACTION = 0.2  # a captured "command" that is mostly background is music, not the user
 FIRST_WORD_WAIT_S = 5.0
 FIRST_WORD_POLL_S = 0.02
 STOP_COOLDOWN_S = 2.0
@@ -153,12 +160,30 @@ def after_wake(text: str) -> str:
     return ""
 
 
+def is_runaway(text: str) -> bool:
+    """Whisper looping ("Zoya no no no …" ×200) or far longer than any spoken command."""
+    spoken = words(text)
+    if len(spoken) > MAX_TRANSCRIPT_WORDS:
+        return True
+    return any(
+        len(set(spoken[i : i + RUNAWAY_REPEATS])) == 1
+        for i in range(len(spoken) - RUNAWAY_REPEATS + 1)
+    )
+
+
 def is_usable_command(text: str) -> bool:
-    """Drop Whisper hallucinations and scripts Zoya can't route (Japanese/Korean on noise)."""
+    """Drop hallucinations, runaways and one-word fragments ("Good.", "Tadam!") that no rule knows.
+
+    Owner's live run sent "Lehmadbur.", "No.", "Tadam!" to the brain. One word only counts when it
+    is a known command ("pause", "mute", "louder").
+    """
     command = clean_command(text)
-    if not command or not SUPPORTED_SCRIPT.search(command):
+    if not command or not SUPPORTED_SCRIPT.search(command) or is_runaway(command):
         return False
-    return " ".join(words(command)) not in HALLUCINATIONS
+    if " ".join(words(command)) in HALLUCINATIONS:
+        return False
+    # Count what was said, before fillers are stripped: "Just hello" is two words.
+    return len(words(text)) >= MIN_COMMAND_WORDS or match_rules(command) is not None
 
 
 def is_stop(text: str) -> bool:
@@ -200,8 +225,18 @@ class StreamingVad:
         return float(np.asarray(out).reshape(-1)[0])
 
 
-def load_whisper(repo: str, **options: str) -> Callable[[np.ndarray], str]:
-    """An mlx-whisper transcriber, loaded and warmed now (the first call is slow, D48)."""
+def load_whisper(
+    repo: str,
+    allowed_languages: frozenset[str] | None = None,
+    min_avg_logprob: float | None = None,
+    **options: str,
+) -> Callable[[np.ndarray], str]:
+    """An mlx-whisper transcriber, loaded and warmed now (the first call is slow, D48).
+
+    Returns "" for junk: a language Zoya doesn't speak ("Chế gió là" on music), runaway repeats
+    ("no no no" ×200: compression ratio), or low confidence (chime/music −0.74…−1.06 vs the
+    owner's real commands ≥ −0.44, measured on tests/evals/fixtures/commands).
+    """
     import mlx.core as mx
     import mlx_whisper
     from mlx_whisper.load_models import load_model
@@ -223,6 +258,14 @@ def load_whisper(repo: str, **options: str) -> Callable[[np.ndarray], str]:
             condition_on_previous_text=False,
             **options,
         )
+        segments = result.get("segments") or []
+        if allowed_languages and result.get("language") not in allowed_languages:
+            return ""
+        if any(segment["compression_ratio"] > MAX_COMPRESSION_RATIO for segment in segments):
+            return ""
+        confidence = np.mean([segment["avg_logprob"] for segment in segments]) if segments else 0.0
+        if min_avg_logprob is not None and confidence < min_avg_logprob:
+            return ""
         return str(result.get("text", "")).strip()
 
     transcribe(np.zeros(int(WARM_UP_S * MIC_SAMPLE_RATE_HZ), dtype=np.float32))
@@ -316,6 +359,7 @@ class Segment:
     blocks: list[np.ndarray]
     last_voice_at: float
     turn_complete: bool | None = None  # Smart Turn verdict for the current pause
+    voiced_blocks: int = 1
     woke_at: float | None = None  # set once "Zoya" was heard in this segment
     awaited: bool = False  # captured in the "Hey Zoya" … pause … command window
     began_while_busy: bool = False  # started during Zoya's speech: likely her own echo
@@ -323,6 +367,10 @@ class Segment:
     @property
     def seconds(self) -> float:
         return len(self.blocks) * BLOCK_S
+
+    @property
+    def voiced_fraction(self) -> float:
+        return self.voiced_blocks / max(1, len(self.blocks))
 
     def samples(self, head_s: float = MAX_UTTERANCE_S) -> np.ndarray:
         return np.concatenate(self.blocks[: max(1, int(head_s / BLOCK_S))])
@@ -344,7 +392,10 @@ class VoiceLoop:
             if SPOTTER_ENGINE == "faster-whisper"
             else load_whisper(WAKE_MODEL, language="en", initial_prompt="Zoya")
         )
-        self.stt = load_whisper(STT_MODEL_REPO)  # multilingual: Hinglish → Devanagari (D42)
+        # Multilingual (Hinglish → Devanagari, D42), but only English/Hindi are accepted.
+        self.stt = load_whisper(
+            STT_MODEL_REPO, allowed_languages=STT_LANGUAGES, min_avg_logprob=MIN_AVG_LOGPROB
+        )
         self.turn = load_smart_turn() if ENDPOINT_MODE == "smart_turn" else None
         self.mic: queue.Queue[tuple[float, np.ndarray]] = queue.Queue()
         self.pre_roll: deque[np.ndarray] = deque(maxlen=int(PRE_ROLL_S / BLOCK_S))
@@ -409,6 +460,7 @@ class VoiceLoop:
         self.segment.blocks.append(block)
         if voiced:
             self.segment.last_voice_at = arrival
+            self.segment.voiced_blocks += 1
             self.segment.turn_complete = None  # speaking again: a new pause gets a new verdict
         if self._segment_ended(self.segment, arrival):
             ended, self.segment = self.segment, None
@@ -519,7 +571,9 @@ class VoiceLoop:
 
     def _on_task_done(self, result: orchestrator.CommandResult) -> None:
         stopped = result.decision.route == "stop" or result.spoken == orchestrator.STOPPED_MESSAGE
-        self.follow_up_pending = not stopped
+        # After "play …" the window would only capture the music ("Tadam!", "Lose out").
+        started_playback = "play" in words(result.decision.text)
+        self.follow_up_pending = not (stopped or started_playback)
 
     def _await_command(self) -> None:
         self.awaiting_command_until = time.monotonic() + AFTER_WAKE_WAIT_S
@@ -598,21 +652,32 @@ class VoiceLoop:
 
     def _command(self, segment: Segment, transcript: str | None = None) -> None:
         endpoint_ms = round((time.monotonic() - segment.last_voice_at) * MS_PER_S)
-        audio.restore()
+        if segment.awaited and self._is_repeated_wake(segment):
+            self._await_command()  # "Hey Zoya" again while listening: not a command
+            return
         audio.earcon("heard")
         audio.earcon("working")
         speech.reset_timing()
         text, stt_ms = (transcript, 0) if transcript is not None else self._transcribe(segment)
+        background = segment.awaited and segment.voiced_fraction < MIN_VOICED_FRACTION
         print(f"HEARD {text!r} (endpoint {endpoint_ms} ms, stt {stt_ms} ms)")
-        if not is_usable_command(text):
+        if background or not is_usable_command(text):
             audio.engine().silence_all()  # end the working loop
             if not segment.awaited:
                 self._await_command()  # woke (or keys pressed) but no words yet: keep listening
-                audio.duck()
-            # Junk inside the wait window (music, the chime) must not use up the wake.
+            # Junk in the wait window (music, the chime) keeps the wake, and the music stays ducked.
             return
         self.awaiting_command_until = 0.0
+        audio.restore()  # the command is in: other audio comes back before Zoya answers
         self._dispatch(text, segment.last_voice_at, {"endpoint_ms": endpoint_ms, "stt_ms": stt_ms})
+
+    def _is_repeated_wake(self, segment: Segment) -> bool:
+        """Turbo writes a repeated "Hey Zoya" as "He's real." / "He is aware." (owner's run)."""
+        heard = self._spot(segment.samples(WAKE_WINDOW_S))
+        if not is_wake(heard) or after_wake(heard):
+            return False
+        print(f"#{self.utterances} still listening — heard {heard!r} again")
+        return True
 
     def _dispatch(self, text: str, speech_end_at: float, pre: dict[str, int]) -> None:
         if not is_usable_command(text):
