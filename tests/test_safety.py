@@ -1435,3 +1435,58 @@ def test_x_post_confirm_clicks_post_once(fake_x, gate):
 
     assert outcome["result"].startswith("Posted.")
     assert len(clicks) == 1
+
+
+# --- hotels_web: Booking.com payment is refused, never asked ------------------------------------
+
+
+@pytest.mark.parametrize(
+    "labels",
+    [
+        ["Complete booking"],
+        ["Pay now"],
+        ["Book now"],
+        ["Confirm your booking"],
+        ["CompleteBooking"],
+    ],
+)
+@pytest.mark.parametrize("host", ["www.booking.com", "secure.booking.com"])
+def test_booking_payment_click_is_blocked(labels, host):
+    facts = safety.ClickFacts(labels, is_submit=True, host=host, control_name="book")
+    with pytest.raises(safety.ConfirmationDeclined, match="Payment needs you"):
+        safety.click_risk(facts)
+
+
+def test_booking_payment_block_cannot_hide_behind_a_safe_name():
+    facts = safety.ClickFacts(
+        ["Next: Final details", "Pay now"],
+        is_submit=True,
+        host="www.booking.com",
+        control_name="book",
+    )
+    with pytest.raises(safety.ConfirmationDeclined):
+        safety.click_risk(facts)
+
+
+def test_booking_navigation_clicks_are_known_safe():
+    reserve = safety.ClickFacts(["I'll reserve"], is_submit=True, host="www.booking.com")
+    nxt = safety.ClickFacts(
+        ["Next: Final details"], True, host="secure.booking.com", control_name="book"
+    )
+    assert safety.click_risk(reserve) is None
+    assert safety.click_risk(nxt) is None
+
+
+def test_booking_lookalike_host_is_not_trusted():
+    facts = safety.ClickFacts(["I'll reserve"], is_submit=True, host="www.booking.com.evil.io")
+    assert safety.click_risk(facts)
+
+
+def test_payment_block_leaves_amazon_place_order_confirmable():
+    facts = safety.ClickFacts(["Place your order"], True, host="www.amazon.in")
+    assert safety.click_risk(facts).kind == "purchase"
+
+
+def test_hotel_actions_are_registered():
+    assert safety.risk_of("hotel_search") == "free"
+    assert safety.risk_of("hotel_book") == safety.risk_of("hotel_guest_details") == "guarded"

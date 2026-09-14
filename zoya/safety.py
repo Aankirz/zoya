@@ -119,6 +119,9 @@ TOOL_RISK: dict[str, RiskClass] = {
     "amazon_cart_remove": "guarded",  # the cart line's own Delete form only (KNOWN_SAFE_CLICKS)
     "amazon_checkout": "guarded",  # presses the fixed "Proceed to Buy" form; nothing is ordered
     "amazon_place_order": "guarded",
+    "hotel_search": "free",  # builds a search URL (GET) and reads the results
+    "hotel_book": "guarded",  # opens the hotel, picks a room, known-safe reserve/next clicks only
+    "hotel_guest_details": "guarded",  # fill_checked (no secret fields), then the known-safe next
     # Browser: reading and navigating are free; clicks and typing check their real target.
     "browser_open": "free",
     "browser_read": "free",
@@ -197,6 +200,8 @@ RISKY_PHRASES: tuple[tuple[str, str, str], ...] = (
     ("purchase", r"proceed to pay(?:ment)?", "Pay"),
     ("purchase", r"(?:confirm|complete|submit) (?:purchase|order|payment)", "Confirm purchase"),
     ("purchase", r"purchase", "Purchase"),
+    ("purchase", r"(?:complete|confirm|finish) (?:your |the |my )?(?:booking|reservation)", "Book"),
+    ("purchase", r"book(?: and pay| now)|reserve and pay", "Book"),
     ("purchase", r"transfer(?: money| funds)?", "Transfer"),
     # Hindi (Devanagari) and Hinglish: "ऑर्डर करें", "खरीदें", "भुगतान करें", "order karo".
     (
@@ -229,6 +234,7 @@ SQUASHED = (
     ("purchase", "confirmpurchase", "Confirm purchase"),
     ("purchase", "submitorder", "Place order"),
     ("purchase", "proceedtopay", "Pay"),
+    ("purchase", "completebooking", "Book"),
     ("checkout", "checkout", "Check out"),
     ("send", "sendmessage", "Send"),
     ("send", "sendmoney", "Send"),
@@ -336,7 +342,17 @@ KNOWN_SAFE_CLICKS = (
         frozenset({"proceed to checkout", "proceed to buy buy amazon items"}),
         "proceedToRetailCheckout",
     ),
+    # Booking.com (hotels_web): the room table's "I'll reserve" and the guest form's "Next: Final
+    # details" (name="book") only move to the next form; the final step is payment (blocked below).
+    # Labels as read from www.booking.com, 2026-09-15.
+    ("www.booking.com", frozenset({"i ll reserve"}), ""),
+    ("www.booking.com", frozenset({"next final details"}), "book"),
+    ("secure.booking.com", frozenset({"next final details"}), "book"),
 )
+# Hotel sites where Zoya stops at the payment page: a purchase click there is never asked, only
+# refused (owner: "Payment needs you"). Checked before KNOWN_SAFE_CLICKS, by exact host suffix.
+PAYMENT_BLOCKED_HOSTS = ("booking.com",)
+PAYMENT_BLOCKED_SAY = "I don't make payments or complete bookings. Payment needs you."
 
 
 def known_safe_click(facts: ClickFacts) -> bool:
@@ -355,6 +371,11 @@ def _allowed_name(name: str, allowed: frozenset[str]) -> bool:
     )
 
 
+def payment_blocked_host(host: str) -> bool:
+    host = host.casefold()
+    return any(host == h or host.endswith(f".{h}") for h in PAYMENT_BLOCKED_HOSTS)
+
+
 def click_risk(facts: ClickFacts) -> RiskyLabel | None:
     """Guard 2, failing closed: ask unless the click is clearly harmless.
 
@@ -365,11 +386,14 @@ def click_risk(facts: ClickFacts) -> RiskyLabel | None:
     ponytail: a JS-handled <div> with a harmless name ("Continue") on a page with no amount and a
     neutral URL still passes. Phase 4 skills must list their known final buttons as risky.
     """
+    hit = risky_label(facts.labels)
+    if hit and hit.kind == "purchase" and payment_blocked_host(facts.host):
+        raise ConfirmationDeclined(PAYMENT_BLOCKED_SAY)
     if known_safe_click(
         facts
     ):  # exact entries only; "Proceed to buy" would otherwise read as risky
         return None
-    if hit := risky_label(facts.labels):
+    if hit:
         return hit
     name = spoken_name(facts.labels)
     if not name:
