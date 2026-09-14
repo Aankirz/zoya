@@ -132,3 +132,6 @@
 
 ## 2026-09-14 — Phase 2 fixes from owner live run
 - One-breath wake via turbo re-check, junk transcripts keep the wake window, volume ducking with guaranteed restore, Control+Option barge-in, echo gate for self-wake, cached_tokens logging, wake sweep eval; D50–D52.
+
+## 2026-09-14 — Phase 2 diagnose: junk after wake
+- Confirmed root cause by differential replay (tests/evals/wake_junk_replay.py); push-to-talk keys now fn + Shift (PUSH_TO_TALK_KEYS).
