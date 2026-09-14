@@ -25,12 +25,13 @@ from strands import tool
 
 from zoya import safety
 from zoya.config import (
+    AX_MAX_ANCESTORS,
     AX_MESSAGING_TIMEOUT_S,
     AX_NEARBY_MAX_CHARS,
     AX_READ_MAX_ITEMS,
     AX_WALK_DEADLINE_S,
 )
-from zoya.screen import AX_CLICKABLE_ROLES, AX_LABEL_ATTRIBUTES, AX_MAX_PARENTS, _ax
+from zoya.screen import AX_CLICKABLE_ROLES, AX_LABEL_ATTRIBUTES, _ax
 from zoya.tools import ToolError
 
 TEXT_ROLES = {"AXTextField", "AXTextArea", "AXComboBox", "AXSearchField"}
@@ -39,6 +40,8 @@ LISTED_ROLES = PRESSABLE_ROLES | TEXT_ROLES | {"AXStaticText", "AXHeading", "AXS
 NAME_ATTRIBUTES = ("AXTitle", "AXDescription", "AXValue", "AXPlaceholderValue", "AXHelp")
 DIALOG_SUBROLES = {"AXDialog", "AXSystemDialog", "AXFloatingWindow"}
 MAX_ANCESTORS_FOR_URL = 40
+ROOT_ROLES = {"AXWindow", "AXSheet", "AXApplication", "AXSystemWide"}
+HIDDEN = "[hidden]"  # what a secure field's typed value becomes, everywhere Zoya reads AX text
 AX_SUCCESS = 0
 
 
@@ -71,10 +74,22 @@ def focused_element() -> Any:
     return _ax(app, "AXFocusedUIElement")
 
 
+def texts_of(element: Any, attributes: tuple[str, ...]) -> list[str]:
+    """String attributes of `element`; a secure field's AXValue (what was typed) is never read
+    (§12.1, AGENTS.md §6): it would reach the model, logs and spoken summaries."""
+    secure = is_secure(element)
+    return [
+        str(v)
+        for a in attributes
+        if not (secure and a == "AXValue") and isinstance(v := _ax(element, a), str) and v
+    ]
+
+
 def name_of(element: Any) -> str:
-    return next(
-        (str(v) for a in NAME_ATTRIBUTES if isinstance(v := _ax(element, a), str) and v), ""
-    )
+    names = texts_of(element, NAME_ATTRIBUTES)
+    if is_secure(element):
+        return f"{names[0]} (password field, {HIDDEN})" if names else f"password field, {HIDDEN}"
+    return names[0] if names else ""
 
 
 def frame_of(element: Any) -> tuple[float, float, float, float] | None:
@@ -90,20 +105,28 @@ def frame_of(element: Any) -> tuple[float, float, float, float] | None:
     return point.x, point.y, extent.width, extent.height
 
 
-def _clickable(element: Any) -> tuple[Any, list[str]]:
-    """The element a click on `element` presses (itself or a clickable ancestor) and all labels
-    on the way up (same walk as screen.ax_labels_at)."""
+def _clickable(element: Any) -> tuple[Any, list[str], bool]:
+    """(element a click on `element` presses, labels on the way up, whether the walk is complete).
+
+    Complete = a pressable ancestor-or-self was found, or the window/app root was reached with
+    none. A walk cut short by the depth or time cap is incomplete: a "Delete" button may sit
+    above it, so callers must fail closed (coordinator attack 1).
+    """
     labels: list[str] = []
     current = element
-    for _ in range(AX_MAX_PARENTS):
-        labels += [str(v) for a in AX_LABEL_ATTRIBUTES if isinstance(v := _ax(current, a), str)]
-        if _ax(current, "AXRole") in PRESSABLE_ROLES:
-            return current, labels
+    deadline = time.monotonic() + AX_WALK_DEADLINE_S
+    for _ in range(AX_MAX_ANCESTORS):
+        labels += texts_of(current, AX_LABEL_ATTRIBUTES)
+        role = _ax(current, "AXRole")
+        if role in PRESSABLE_ROLES:
+            return current, labels, True
         parent = _ax(current, "AXParent")
-        if parent is None:
+        if parent is None or role in ROOT_ROLES:
+            return element, labels, True
+        if time.monotonic() > deadline:
             break
         current = parent
-    return element, labels
+    return element, labels, False
 
 
 def _web_path(element: Any) -> str:
@@ -124,18 +147,21 @@ def _nearby_text(element: Any) -> str:
     parent = _ax(element, "AXParent")
     for container in (parent, _ax(parent, "AXParent") if parent is not None else None):
         for child in (_ax(container, "AXChildren") or []) if container is not None else []:
-            texts += [str(v) for a in AX_LABEL_ATTRIBUTES if isinstance(v := _ax(child, a), str)]
+            texts += texts_of(child, AX_LABEL_ATTRIBUTES)
             if sum(map(len, texts)) > AX_NEARBY_MAX_CHARS:
                 return " ".join(texts)[:AX_NEARBY_MAX_CHARS]
     return " ".join(texts)
 
 
 def click_facts(element: Any) -> safety.ClickFacts:
-    """What the app says about the element that will really be pressed. No element → no labels,
-    which click_risk treats as an unnamed target (asks: fail closed)."""
+    """What the app says about the element that will really be pressed. No element, or a walk cut
+    short before a pressable ancestor or the window → no labels, which click_risk treats as an
+    unnamed target (asks: fail closed)."""
     if element is None:
         return safety.ClickFacts(labels=[])
-    target, labels = _clickable(element)
+    target, labels, complete = _clickable(element)
+    if not complete:
+        return safety.ClickFacts(labels=[])
     window = _ax(target, "AXWindow")
     default = _ax(window, "AXDefaultButton") if window is not None else None
     return safety.ClickFacts(
@@ -233,7 +259,7 @@ def ax_press(label: str, occurrence: int = 1) -> str:
     element = find(label, occurrence)
     facts = click_facts(element)
     computer.refuse_if_blocked(facts.labels, app_name)
-    risky = safety.native_click_risk(facts)
+    risky = computer.native_risk(computer.centre_of(frame_of(element)), facts)
     safety.log_safety_timing(event="ax_press", risk=risky.kind if risky else "free")
     if risky is not None:
         computer.session.asked = True
@@ -248,7 +274,7 @@ def ax_press(label: str, occurrence: int = 1) -> str:
 
         safety.require_confirmation(action, current=live)
         element = verified[-1]
-    target, _labels = _clickable(element)
+    target, _labels, _complete = _clickable(element)
     computer.press_element(target, frame_of(target))
     return f"Pressed {label}." + (" The user confirmed it out loud." if risky else "")
 

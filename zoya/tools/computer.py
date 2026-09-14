@@ -41,6 +41,8 @@ from zoya.config import (
     CURSOR_MOVED_BY_USER_PT,
     LOG_DIR,
     MAX_FAILED_ATTEMPTS,
+    OCR_CROP_HALF_HEIGHT_PT,
+    OCR_CROP_HALF_WIDTH_PT,
     SHORTCUTS_TIMEOUT_S,
     TIMING_LOG,
     TYPE_CHUNK_CHARS,
@@ -291,6 +293,74 @@ def _counted(error: ToolError) -> ToolError:
     return ToolError(_failed(str(error)))
 
 
+SECRET_KEYS_REFUSED = "That's a password or code field. Please type it yourself; I'll wait."
+SHORTCUT_NAME_MAX_CHARS = 40
+# A control named only this says nothing about what it does: without OCR evidence, ask.
+GENERIC_NAMES = {
+    "continue",
+    "ok",
+    "okay",
+    "yes",
+    "next",
+    "done",
+    "go",
+    "proceed",
+    "start",
+    "got it",
+}
+
+
+def ocr_backstop(point: tuple[float, float], facts: safety.ClickFacts) -> safety.RiskyLabel | None:
+    """Guard 2 backstop for native inputs (coordinator attack 4): the AX name can say "Continue"
+    while the control is drawn as "Subscribe — ₹799/mo". OCR a crop around the target; a currency
+    amount or a risky word there asks. OCR failed → a generic name asks, a specific one passes.
+    Cost: one region capture (~150 ms) + Rekognition DetectText (~0.5–1.5 s) per otherwise-free
+    native click, press or Return/Space."""
+    name = safety.spoken_name(facts.labels)
+    started = time.monotonic()
+    try:
+        jpeg = screen.capture_region_jpeg(*point, OCR_CROP_HALF_WIDTH_PT, OCR_CROP_HALF_HEIGHT_PT)
+        rows = safety.rows_from_ocr(screen.detect_text(jpeg))
+    except ToolError:
+        log_stage("ocr_backstop", ok=False, ocr_ms=round((time.monotonic() - started) * 1000))
+        return safety.RiskyLabel("unknown", f"click {name}") if name in GENERIC_NAMES else None
+    log_stage("ocr_backstop", ok=True, ocr_ms=round((time.monotonic() - started) * 1000))
+    text = " ".join(rows)
+    if safety.CURRENCY_AMOUNT.search(text) or safety.risky_label(rows):
+        return safety.RiskyLabel("context", f"click {name or 'a button'}")
+    return None
+
+
+def centre_of(frame: tuple[float, float, float, float] | None) -> tuple[float, float] | None:
+    return (frame[0] + frame[2] / 2, frame[1] + frame[3] / 2) if frame else None
+
+
+def native_risk(
+    point: tuple[float, float] | None, facts: safety.ClickFacts
+) -> safety.RiskyLabel | None:
+    """native_click_risk, then the OCR backstop around the target (no point → generic names ask)."""
+    if risky := safety.native_click_risk(facts):
+        return risky
+    if point is None:
+        name = safety.spoken_name(facts.labels)
+        return safety.RiskyLabel("unknown", f"click {name}") if name in GENERIC_NAMES else None
+    return ocr_backstop(point, facts)
+
+
+def spoken_shortcut_name(name: str) -> str:
+    """A user's Shortcut name is text Zoya speaks: invisible and control characters removed,
+    whitespace collapsed, capped (coordinator attack 5)."""
+    import unicodedata
+
+    visible = "".join(
+        " " if unicodedata.category(ch) == "Cc" else ch
+        for ch in name
+        if unicodedata.category(ch)[0] != "C" or unicodedata.category(ch) == "Cc"
+    )
+    words = " ".join(visible.split())
+    return words[:SHORTCUT_NAME_MAX_CHARS].rstrip() or "with no name"
+
+
 PURCHASE_REFUSED = (
     "I only pay or place orders in Zoya's browser, where I check the total on screen first. "
     "Stop and tell the user."
@@ -358,11 +428,12 @@ def click(x: float, y: float, button: str = "left", double: bool = False) -> dic
         raise _counted(error) from error
 
     def probe() -> tuple[safety.ClickFacts, str]:
-        return ax.click_facts(ax.element_at(*point)), ax.front_app()[0]
+        app_name = ax.front_app()[0]  # first: it asks Chromium/Electron to build their AX tree
+        return ax.click_facts(ax.element_at(*point)), app_name
 
     facts, app = probe()
     refuse_if_blocked(facts.labels, app)
-    risky = safety.native_click_risk(facts)
+    risky = native_risk(point, facts)
     safety.log_safety_timing(event="pixel_click", risk=risky.kind if risky else "free")
     if risky is not None:
         session.asked = True
@@ -409,8 +480,15 @@ def key_risk(mods: frozenset[str], main: str, focused: Any) -> safety.RiskyLabel
     if not mods and main == "space" and role in ax.TEXT_ROLES:
         return None  # typing a space
     if not mods and main in PRESS_KEYS:
-        return safety.native_click_risk(_key_facts(main, focused, role))
-    return safety.RiskyLabel("key", f"press {'+'.join(sorted(mods))}{'+' if mods else ''}{main}")
+        return native_risk(
+            centre_of(ax.frame_of(focused)) if focused is not None else None,
+            _key_facts(main, focused, role),
+        )
+    combo = f"{'+'.join(sorted(mods))}{'+' if mods else ''}{main}"
+    field = (
+        safety.spoken_name(ax.texts_of(focused, ax.NAME_ATTRIBUTES)) if focused is not None else ""
+    )
+    return safety.RiskyLabel("key", f"press {combo}" + (f" in the {field} field" if field else ""))
 
 
 def _key_facts(main: str, focused: Any, role: str) -> safety.ClickFacts:
@@ -451,6 +529,9 @@ def key(keys: str) -> dict[str, Any]:
     focused = ax.focused_element()
     labels = probe()[0].labels if main in PRESS_KEYS else []
     refuse_if_blocked(labels, ax.front_app()[0])
+    moving = (not mods and main in NAVIGATION_KEYS) or (mods == {"shift"} and main == "tab")
+    if focused is not None and ax.is_secure(focused) and not moving:
+        raise ToolError(SECRET_KEYS_REFUSED)  # no paste, typing or submitting in secret fields
     risky = key_risk(mods, main, focused)
     safety.log_safety_timing(event="key", risk=risky.kind if risky else "free")
     if risky is not None:
@@ -538,7 +619,7 @@ def run_shortcut(name: str) -> str:
     """
     if name not in _shortcut_names():
         raise ToolError(f"There's no shortcut called {name}.")
-    action = safety.Action("tool", f"run your shortcut {name}")
+    action = safety.Action("tool", f"run a shortcut named {spoken_shortcut_name(name)}")
     safety.require_confirmation(
         action,
         current=lambda: action if name in _shortcut_names() else safety.Action("changed", ""),

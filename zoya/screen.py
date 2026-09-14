@@ -103,10 +103,14 @@ def _capture(content_filter: Any, size: Any) -> bytes:
     return _jpeg(_capture_image(content_filter, size.width * scale, size.height * scale))
 
 
-def _capture_image(content_filter: Any, width: float, height: float) -> Any:
+def _capture_image(
+    content_filter: Any, width: float, height: float, source: Frame | None = None
+) -> Any:
     import ScreenCaptureKit as SCK
 
     config = SCK.SCStreamConfiguration.alloc().init()
+    if source is not None:  # display-local points; SCStreamConfiguration.sourceRect (macOS 14+)
+        config.setSourceRect_(((source[0], source[1]), (source[2], source[3])))
     config.setWidth_(int(width))
     config.setHeight_(int(height))
     config.setShowsCursor_(False)
@@ -317,6 +321,43 @@ def capture_display() -> Shot:
         raw=bytes(Quartz.CGDataProviderCopyData(Quartz.CGImageGetDataProvider(image))),
         bytes_per_row=Quartz.CGImageGetBytesPerRow(image),
     )
+
+
+def capture_region_jpeg(x: float, y: float, half_width: float, half_height: float) -> bytes:
+    """A JPEG of the screen around global point (x, y), at pixel scale, Zoya's windows left out.
+    For OCR of what is drawn next to a native control (Guard 2 backstop)."""
+    import Quartz
+    import ScreenCaptureKit as SCK
+
+    Quartz.CGMainDisplayID()
+    content, error = _await(
+        lambda h: SCK.SCShareableContent.getShareableContentExcludingDesktopWindows_onScreenWindowsOnly_completionHandler_(  # noqa: E501
+            True, True, h
+        )
+    )
+    if error is not None or content is None:
+        raise ToolError("I need Screen Recording permission to see the screen.")
+    display = next(
+        (d for d in content.displays() if Quartz.CGRectContainsPoint(d.frame(), (x, y))), None
+    )
+    if display is None:
+        raise ToolError("That spot isn't on any screen.")
+    rect = display.frame()
+    left = max(0.0, x - rect.origin.x - half_width)
+    top = max(0.0, y - rect.origin.y - half_height)
+    width = min(rect.size.width - left, 2 * half_width)
+    height = min(rect.size.height - top, 2 * half_height)
+    mine = [a for a in content.applications() if a.processID() == os.getpid()]
+    content_filter = (
+        SCK.SCContentFilter.alloc().initWithDisplay_excludingApplications_exceptingWindows_(
+            display, mine, []
+        )
+    )
+    scale = content_filter.pointPixelScale()
+    image = _capture_image(
+        content_filter, width * scale, height * scale, (left, top, width, height)
+    )
+    return _jpeg(image)
 
 
 def _front_display(content: Any, pid: int) -> Any:

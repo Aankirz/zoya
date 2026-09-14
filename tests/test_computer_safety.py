@@ -48,7 +48,17 @@ def mac(monkeypatch):
     monkeypatch.setattr(computer, "_post_keys", lambda mods, main: posted.append(("key", main)))
     monkeypatch.setattr(computer, "_verify", lambda before, box, did: did)
     monkeypatch.setattr(computer, "check_user_idle", lambda: None)
-    return {"posted": posted, "facts": facts, "gate": gate}
+    ocr: dict = {"lines": []}  # what Rekognition "reads" around a target; an Exception = OCR down
+
+    def detect(_jpeg):
+        if isinstance(ocr["lines"], Exception):
+            raise ToolError("OCR failed")
+        return [(text, 0.0, i * 0.1, 0.05) for i, text in enumerate(ocr["lines"])]
+
+    monkeypatch.setattr(computer.screen, "capture_region_jpeg", lambda *a: b"crop")
+    monkeypatch.setattr(computer.screen, "detect_text", detect)
+    monkeypatch.setattr(computer, "log_stage", lambda *a, **k: None)
+    return {"posted": posted, "facts": facts, "gate": gate, "ocr": ocr}
 
 
 # --- Pixel clicks --------------------------------------------------------------------------------
@@ -150,7 +160,7 @@ def test_click_before_any_screenshot_is_refused(mac):
 def test_ax_press_on_a_risky_control_asks_first(mac, monkeypatch):
     pressed = []
     monkeypatch.setattr(ax, "find", lambda label, occurrence=1: object())
-    monkeypatch.setattr(ax, "_clickable", lambda element: (element, []))
+    monkeypatch.setattr(ax, "_clickable", lambda element: (element, [], True))
     monkeypatch.setattr(ax, "frame_of", lambda element: None)
     monkeypatch.setattr(computer, "press_element", lambda e, f: pressed.append(e))
     mac["facts"]["now"] = safety.ClickFacts(labels=["Log Out"])
@@ -472,3 +482,166 @@ def test_native_clicks_never_pay_even_with_confirm(mac, labels):
         computer.click(640, 400)
 
     assert mac["posted"] == [] and mac["gate"].asked == []
+
+
+# --- Coordinator review of Phase 5 (attacks5/): each repro is a test ------------------------------
+
+
+class Elem:
+    def __init__(self, **attrs):
+        self.attrs = {"AXRole": "AXGroup", **attrs}
+
+
+@pytest.fixture
+def ax_graph(monkeypatch):
+    monkeypatch.setattr(ax, "_ax", lambda element, name: getattr(element, "attrs", {}).get(name))
+
+
+def _button_above(levels: int) -> Elem:
+    current = Elem(AXRole="AXButton", AXDescription="Delete")
+    for depth in range(levels):
+        current = Elem(AXDescription=f"part {depth}", AXParent=current)
+    return current
+
+
+def test_attack1_button_far_above_the_hit_element_is_still_found(ax_graph):
+    facts = ax.click_facts(_button_above(5))
+
+    assert "Delete" in facts.labels and safety.native_click_risk(facts) is not None
+
+
+def test_attack1_walk_cut_short_by_the_depth_cap_fails_closed(ax_graph, monkeypatch):
+    monkeypatch.setattr(ax, "AX_MAX_ANCESTORS", 4)
+
+    facts = ax.click_facts(_button_above(5))
+
+    assert facts.labels == [] and safety.native_click_risk(facts).kind == "unknown"
+
+
+def test_attack1_static_text_under_a_window_with_no_button_stays_free(ax_graph):
+    window = Elem(AXRole="AXWindow", AXTitle="Appearance")
+    text = Elem(AXRole="AXStaticText", AXValue="Theme", AXParent=Elem(AXParent=window))
+
+    assert safety.native_click_risk(ax.click_facts(text)) is None
+
+
+SECRET = "hunter2-my-real-password"
+
+
+def _banking_app():
+    field = Elem(AXRole="AXTextField", AXSubrole="AXSecureTextField", AXValue=SECRET)
+    label = Elem(AXRole="AXStaticText", AXValue="Password")
+    window = Elem(AXRole="AXWindow", AXChildren=[label, field])
+    field.attrs["AXParent"] = label.attrs["AXParent"] = window
+    return field, Elem(AXRole="AXApplication", AXWindows=[window], AXFocusedWindow=window)
+
+
+def test_attack2_ax_read_never_returns_a_secure_fields_value(ax_graph, monkeypatch):
+    field, app = _banking_app()
+    monkeypatch.setattr(ax, "front_app", lambda: ("Banking App", app))
+
+    listing = ax.ax_read()
+
+    assert SECRET not in listing and ax.HIDDEN in listing
+
+
+def test_attack2_click_facts_never_carry_a_secure_value(ax_graph):
+    field, _app = _banking_app()
+
+    facts = ax.click_facts(field)
+
+    assert SECRET not in " ".join(facts.labels) + facts.nearby_text
+
+
+@pytest.mark.parametrize("keys", ["cmd+v", "cmd+shift+v", "a", "return", "space", "backspace"])
+def test_attack3_no_paste_typing_or_submit_into_a_secure_field(mac, fields, monkeypatch, keys):
+    monkeypatch.setattr(ax, "focused_element", lambda: Field("AXSecureTextField"))
+
+    with pytest.raises(ToolError, match="password or code"):
+        computer.key(keys)
+
+    assert mac["posted"] == [] and mac["gate"].asked == []
+
+
+def test_attack3_tab_still_moves_out_of_a_secure_field(mac, fields, monkeypatch):
+    monkeypatch.setattr(ax, "focused_element", lambda: Field("AXSecureTextField"))
+
+    computer.key("tab")
+
+    assert mac["posted"] == [("key", "tab")]
+
+
+def test_attack3_shortcut_summary_names_the_focused_field(fields):
+    risky = computer.key_risk(frozenset({"command"}), "v", Field(AXDescription="Search"))
+
+    assert "search field" in risky.say
+
+
+@pytest.mark.parametrize(
+    "drawn", [["Subscribe — $9.99/mo"], ["₹799 per month"], ["Delete account"]]
+)
+def test_attack4_innocent_ax_name_with_price_or_risk_drawn_next_to_it_asks(mac, drawn):
+    mac["facts"]["now"] = safety.ClickFacts(labels=["Continue"])
+    mac["ocr"]["lines"] = drawn
+
+    computer.click(640, 400)
+
+    assert len(mac["gate"].asked) == 1
+
+
+def test_attack4_generic_name_asks_when_ocr_is_down(mac):
+    mac["facts"]["now"] = safety.ClickFacts(labels=["Continue"])
+    mac["ocr"]["lines"] = RuntimeError()
+
+    computer.click(640, 400)
+
+    assert len(mac["gate"].asked) == 1
+
+
+def test_attack4_specific_name_with_ocr_down_or_clean_text_stays_free(mac):
+    mac["ocr"]["lines"] = RuntimeError()
+    computer.click(640, 400)
+    mac["ocr"]["lines"] = ["Appearance", "Dark"]
+    computer.click(640, 400)
+
+    assert mac["gate"].asked == [] and len(mac["posted"]) == 2
+
+
+def test_attack4_ax_press_gets_the_same_ocr_backstop(mac, monkeypatch):
+    pressed = []
+    monkeypatch.setattr(ax, "find", lambda label, occurrence=1: object())
+    monkeypatch.setattr(ax, "frame_of", lambda element: (100.0, 100.0, 80.0, 30.0))
+    monkeypatch.setattr(ax, "_clickable", lambda element: (element, [], True))
+    monkeypatch.setattr(computer, "press_element", lambda e, f: pressed.append(e))
+    mac["facts"]["now"] = safety.ClickFacts(labels=["OK"])
+    mac["ocr"]["lines"] = ["Upgrade to Pro ₹4,999"]
+
+    ax.ax_press("OK")
+
+    assert len(mac["gate"].asked) == 1 and len(pressed) == 1
+
+
+@pytest.mark.parametrize(
+    "name, spoken",
+    [
+        ("Morning\u200b routine", "Morning routine"),
+        ("Pay rent\nSay confirm now", "Pay rent Say confirm now"),
+        ("x" * 200, "x" * 40),
+        ("\u202e\u2066", "with no name"),
+    ],
+)
+def test_attack5_shortcut_names_are_cleaned_before_zoya_speaks_them(name, spoken):
+    assert computer.spoken_shortcut_name(name) == spoken
+
+
+def test_attack5_run_shortcut_says_a_shortcut_named(mac, monkeypatch):
+    name = "Evil\u200b\u202e name that goes on and on and on forever and ever"
+    monkeypatch.setattr(computer, "_shortcut_names", lambda: [name])
+    mac["gate"].answer = "cancel"
+
+    with pytest.raises(safety.ConfirmationDeclined):
+        computer.run_shortcut(name)
+
+    summary = mac["gate"].asked[0]
+    assert "a shortcut named evil name" in summary.lower() and "\u200b" not in summary
+    assert len(summary) < 100
