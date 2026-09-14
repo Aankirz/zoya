@@ -177,3 +177,8 @@
 
 ## 2026-09-14 — Zoya Chrome profile confirmed (D60)
 - DECISIONS D60 + §20 roadmap: Playwright Zoya profile for the hackathon; real-Chrome extension later.
+
+## 2026-09-14 — Phase 3 safety gate
+- zoya/safety.py, zoya/screen.py, zoya/tools/browser.py, tests/test_safety.py, fixtures, tests/evals/safety_replay.py: voice-minted confirmation tokens, fail-closed click guard, risk registry, OCR amount check, audit log (D61).
+- orchestrator/voice/speech/audio/events/router/main: gate wiring, PTT answers a confirmation, warning/cancel earcons, EventLoopException unwrap, page actions skip the router, --page flag.
+- Docs: D61, §9.9 as-built facts, removed the duplicate line in the Phase 3 brief.
