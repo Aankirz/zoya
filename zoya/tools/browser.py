@@ -36,6 +36,7 @@ LABEL_ATTRIBUTES = ("aria-label", "title", "value", "alt", "placeholder")
 # The nearest clickable ancestor-or-self: clicking a <span> inside "Place order" presses the button.
 CLICKABLE = "xpath=ancestor-or-self::*[self::button or self::a or @role='button' or self::input][1]"
 CHROME_APP = "Chrome"
+PROFILE_IN_USE = "Opening in existing browser session"  # Chrome, when the profile is open
 # Submit controls, XPath in Playwright's selector engine (not page JS). A <button> with no type
 # inside a <form> submits it (HTML spec default).
 _LOWER = "translate(@type, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')"
@@ -72,9 +73,14 @@ def _page() -> Any:
 
     if "playwright" not in _state:
         _state["playwright"] = sync_playwright().start()
-    context = _state["playwright"].chromium.launch_persistent_context(
-        user_data_dir=str(BROWSER_PROFILE_DIR), channel="chrome", headless=False
-    )
+    try:
+        context = _state["playwright"].chromium.launch_persistent_context(
+            user_data_dir=str(BROWSER_PROFILE_DIR), channel="chrome", headless=False
+        )
+    except Exception as error:  # noqa: BLE001 — Playwright raises its own Error type
+        if PROFILE_IN_USE in str(error):
+            raise ToolError("Zoya's browser is already in use. Is another Zoya running?") from error
+        raise
     context.set_default_timeout(PLAYWRIGHT_TIMEOUT_MS)
     _state["page"] = context.pages[0] if context.pages else context.new_page()
     return _state["page"]

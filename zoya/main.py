@@ -59,9 +59,13 @@ def _start(args: argparse.Namespace):  # noqa: ANN202 — returns VoiceLoop, imp
         wake_enabled=not args.no_wake, test_wake=args.test_wake, record_clips=args.record_clips
     )
     if args.page:
+        from zoya.tools import ToolError
         from zoya.tools.browser import browser_open
 
-        print(browser_open(url=args.page))
+        try:
+            print(browser_open(url=args.page))
+        except ToolError as error:
+            print(f"Couldn't open {args.page}: {error}")
     print(f"ready in {time.monotonic() - started:.1f} s — timing log: {TIMING_LOG}")
     return loop
 
