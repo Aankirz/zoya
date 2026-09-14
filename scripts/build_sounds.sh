@@ -9,7 +9,7 @@ SRC="$ROOT/sounds/candidates/zen"
 OUT="$ROOT/sounds"
 RATE=48000  # zoya/audio.py mixes at this rate
 
-for cue in wake release success error stop mention; do
+for cue in wake release success error stop mention warning cancel; do
   ffmpeg -hide_banner -loglevel error -y -i "$SRC/$cue.ogg" \
     -af "loudnorm=I=-20:TP=-3,afade=t=in:d=0.005" -ac 1 -ar $RATE "$OUT/$cue.wav"
 done

@@ -137,6 +137,22 @@ PUSH_TO_TALK_KEYS = ("fn", "shift")
 TASK_JOIN_TIMEOUT_S = 90.0
 WEATHER_TIMEOUT_S = 3.0  # per Open-Meteo call (D50)
 
+# --- Phase 3: safety gate (§9.9, §12, D7) ------------------------------------------------------
+
+CONFIRM_TOKEN_TTL_S = 60.0  # a voice-issued token is dead after this
+CONFIRM_REPLY_TIMEOUT_S = 20.0  # no answer → re-prompt once → auto-cancel (silence ≠ consent)
+CONFIRM_PROMPTS = 2  # the first ask + one re-prompt
+CONFIRM_SPEAK_TIMEOUT_S = 30.0  # bound on speaking one summary
+WARNING_EARCON_GAP_S = 0.6  # warning.wav is 0.53 s; played twice before every summary
+CONFIRMATION_AUDIT_TABLE = "zoya-confirmations"  # partition key: confirmation_id (S)
+CONFIRMATION_LOG = LOG_DIR / "confirmations.log"  # local copy of the audit log
+SCREEN_CAPTURE_TIMEOUT_S = 3.0  # ScreenCaptureKit completion handlers (D23)
+REKOGNITION_TIMEOUT_S = 6.0  # DetectText on a ~1 MB screenshot
+SCREENSHOT_JPEG_QUALITY = 0.8  # Rekognition image bytes limit is 5 MB
+BROWSER_PROFILE_DIR = Path.home() / ".zoya" / "chrome-profile"  # D11 dedicated profile
+BROWSER_ACTION_TIMEOUT_S = 15.0  # every Playwright call (navigation, click, read)
+BROWSER_TEXT_MAX_CHARS = 6000  # page text handed to the brain
+
 
 def load_env() -> None:
     """Load .env from the repo root without overriding real environment variables."""

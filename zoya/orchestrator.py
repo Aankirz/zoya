@@ -27,8 +27,9 @@ from typing import Any
 from opentelemetry import trace
 from strands import Agent, tool
 from strands.hooks import AfterToolCallEvent, BeforeModelCallEvent, HookProvider, HookRegistry
+from strands.tools.executors import SequentialToolExecutor
 
-from zoya import aws, events, speech
+from zoya import aws, events, safety, speech
 from zoya.config import (
     LOG_DIR,
     MAX_TOOL_CALLS_PER_TASK,
@@ -51,6 +52,7 @@ GENERIC_FAILURE = "Sorry, something went wrong. Please try again."
 LIMIT_MESSAGE = "I've stopped this task because it was taking too many steps."
 IDLE_MESSAGE = "Nothing is running."
 OPEN_APP_FALLBACK = "open_app_fallback"
+DECLINED = "confirmation_declined"  # the safety gate already played cancel and spoke
 MAX_CONVERSATION_TURNS = 6  # follow-ups keep context; older turns drop to bound token cost
 SENTENCE_END = re.compile(r"(?<=[.!?।])\s+")
 
@@ -152,7 +154,10 @@ def build_orchestrator(
         system_prompt=ORCHESTRATOR_PROMPT,
         tools=tools,
         messages=messages,
-        hooks=[limits],
+        # The gate goes last so it sees the final tool call (safety.ConfirmationGate). Tools run one
+        # at a time: nothing else speaks or clicks while a confirmation waits for the user.
+        hooks=[limits, safety.ConfirmationGate()],
+        tool_executor=SequentialToolExecutor(),
         callback_handler=callback_handler,
         trace_attributes={"zoya.component": "orchestrator"},
     )
@@ -194,6 +199,10 @@ def run_orchestrator(command: str, timings: dict[str, int] | None = None) -> str
         log.warning("task stopped: %s", limit)
         speech.narrate(LIMIT_MESSAGE)
         return LIMIT_MESSAGE
+    except safety.ConfirmationDeclined as declined:
+        _record_usage(agent, timings if timings is not None else {})
+        remember_turn(command, f"{declined} [the user did not confirm]")  # "why didn't you…" works
+        raise
     _record_usage(agent, timings if timings is not None else {})
     if result.stop_reason == "cancelled" or _cancel.is_set():
         _remember_interrupted(command, spoken)
@@ -230,6 +239,9 @@ def remember_turn(command: str, reply: str) -> None:
 
 
 def run_fast_tool(decision: RouteDecision) -> str:
+    # No Agent, so no hooks on this path: only free tools may run here (safety registry).
+    if not safety.fast_tool_allowed(decision.tool or ""):
+        raise ToolError("I can't do that directly.")
     tools = {t.tool_name: t for t in collect_tools("zoya.tools")}
     return tools[decision.tool](**decision.args)
 
@@ -252,6 +264,11 @@ def _execute(decision: RouteDecision, timings: dict[str, int]) -> tuple[str, boo
         return run_orchestrator(decision.text, timings), True
     except ToolError as error:
         return str(error), False
+    except safety.ConfirmationDeclined as declined:
+        if str(declined) == safety.STOPPED_TO_MODEL:
+            return STOPPED_MESSAGE, False
+        timings[DECLINED] = 1  # the gate played cancel and said what happened
+        return str(declined), False
     except (KeyboardInterrupt, TaskCancelled):
         return STOPPED_MESSAGE, False
     except Exception:  # noqa: BLE001 — never crash on a command; say so politely
@@ -266,6 +283,7 @@ def handle_command(text: str, pre_timings: dict[str, int] | None = None) -> Comm
     task_id = uuid.uuid4().hex[:12]
     started = time.monotonic()
     _cancel.clear()
+    safety.begin_task(task_id)
     with _running_lock:
         _running[task_id] = text
     with trace.get_tracer("zoya").start_as_current_span("zoya.command") as span:
@@ -282,9 +300,11 @@ def handle_command(text: str, pre_timings: dict[str, int] | None = None) -> Comm
         span.set_attributes({f"zoya.{k}": v for k, v in timings.items()})
         span.set_attributes({"zoya.route": decision.route, "zoya.tool": decision.tool or ""})
     outcome = "stop" if decision.route == "stop" or spoken == STOPPED_MESSAGE else "success"
-    events.emit(events.EarconEvent(outcome if ok or outcome == "stop" else "error"))
+    declined = DECLINED in timings
+    if not declined:
+        events.emit(events.EarconEvent(outcome if ok or outcome == "stop" else "error"))
     streamed = decision.route == "orchestrator" or OPEN_APP_FALLBACK in timings
-    if not streamed or not ok:  # the orchestrator already spoke as it streamed
+    if (not streamed or not ok) and not declined:  # the orchestrator already spoke as it streamed
         speech.narrate(spoken)
     if decision.route == "fast" and not streamed:
         remember_turn(text, spoken)
@@ -317,6 +337,7 @@ def start_task(
 def stop_task() -> str:
     """Stop speech and the running task now (§11.3). Returns what to say."""
     _cancel.set()
+    safety.cancel_pending()  # a confirmation waiting for "confirm" ends with no token
     speech.cancel()
     return STOPPED_MESSAGE
 

@@ -31,7 +31,7 @@ from datetime import UTC, datetime
 
 import numpy as np
 
-from zoya import audio, orchestrator, speech
+from zoya import audio, orchestrator, safety, speech
 from zoya.config import (
     AFTER_WAKE_WAIT_S,
     COMMAND_END_SILENCE_S,
@@ -410,6 +410,7 @@ class VoiceLoop:
         self.awaiting_command_until = 0.0  # "Hey Zoya" … pause … command
         self.ptt: Segment | None = None
         self.task: threading.Thread | None = None
+        self.confirmations = safety.claim_voice_channel()  # Phase 3: only this loop mints tokens
         self.last_spoke_at = 0.0
 
     # --- main loop ---------------------------------------------------------------------
@@ -453,7 +454,7 @@ class VoiceLoop:
             if voiced:
                 self.segment = Segment([*self.pre_roll, block], arrival)
                 self.segment.began_while_busy = self._zoya_busy()
-                if time.monotonic() < self.awaiting_command_until:
+                if time.monotonic() < self.awaiting_command_until or safety.awaiting_reply():
                     self.segment.woke_at = time.monotonic()  # already awake: this is the command
                     self.segment.awaited = True
             return
@@ -622,7 +623,7 @@ class VoiceLoop:
         if self.ptt is None and not held:
             return False
         if self.ptt is None:
-            if self._zoya_busy():
+            if self._zoya_busy() and not safety.awaiting_reply():  # keys answer a confirmation
                 orchestrator.stop_task()  # pressing the keys interrupts Zoya, like Wispr's fn key
                 audio.engine().silence_all()
             self.ptt = Segment([*self.pre_roll, block], arrival, woke_at=time.monotonic())
@@ -655,6 +656,9 @@ class VoiceLoop:
         if segment.awaited and self._is_repeated_wake(segment):
             self._await_command()  # "Hey Zoya" again while listening: not a command
             return
+        if safety.awaiting_reply():
+            self._confirmation_reply(segment, transcript)
+            return
         audio.earcon("heard")
         audio.earcon("working")
         speech.reset_timing()
@@ -670,6 +674,20 @@ class VoiceLoop:
         self.awaiting_command_until = 0.0
         audio.restore()  # the command is in: other audio comes back before Zoya answers
         self._dispatch(text, segment.last_voice_at, {"endpoint_ms": endpoint_ms, "stt_ms": stt_ms})
+
+    def _confirmation_reply(self, segment: Segment, transcript: str | None) -> None:
+        """Phase 3 hook: while Zoya waits for "confirm" or "cancel", the next utterance answers.
+
+        safety decides (echo window, wording, token); this only hands over the user's own words.
+        """
+        if segment.awaited and segment.voiced_fraction < MIN_VOICED_FRACTION:
+            return  # music or noise: not an answer, silence keeps counting toward auto-cancel
+        text = transcript if transcript is not None else self._transcribe(segment)[0]
+        print(f"REPLY {text!r}")
+        if is_stop(text):
+            self._stop(segment.last_voice_at, text, partial=False)  # "Zoya, stop" cancels it too
+            return
+        self.confirmations.reply(text, heard_from=segment.woke_at or 0.0)
 
     def _is_repeated_wake(self, segment: Segment) -> bool:
         """Turbo writes a repeated "Hey Zoya" as "He's real." / "He is aware." (owner's run)."""

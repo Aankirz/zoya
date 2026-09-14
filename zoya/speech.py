@@ -199,6 +199,22 @@ def cancel() -> None:
         process.kill()
 
 
+def say_and_wait(text: str, timeout_s: float) -> bool:
+    """Speak `text` after anything already queued; block until played. False if it was cancelled
+    (stop / barge-in) or ran past `timeout_s` — the safety gate then treats it as not heard."""
+    generation = _generation
+    narrate(text)
+    deadline = time.monotonic() + timeout_s
+    # unfinished_tasks drops only after speak_now returned (played or cancelled), unlike empty().
+    while (
+        _queue.unfinished_tasks or audio.engine().speech_pending()
+    ) and generation == _generation:
+        if time.monotonic() > deadline:
+            return False
+        time.sleep(DRAIN_POLL_S)
+    return generation == _generation
+
+
 def is_speaking() -> bool:
     return _busy.is_set() or not _queue.empty() or audio.engine().speech_pending()
 

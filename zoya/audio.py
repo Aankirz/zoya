@@ -43,9 +43,11 @@ EARCON_FILES = {
     "error": "error",
     "stop": "stop",
     "attention": "mention",
+    "warning": "warning",  # ×2 before a confirmation summary (§9.9)
+    "cancel": "cancel",
 }
 LOOP_FILE = "processing"
-ENDS_LOOP = {"success", "error", "stop"}
+ENDS_LOOP = {"success", "error", "stop", "warning", "cancel"}  # quiet while asking
 
 
 def _load(name: str) -> np.ndarray:

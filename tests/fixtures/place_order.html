@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Zoya test checkout</title>
+<style>
+  body { font: 22px/1.5 -apple-system, sans-serif; max-width: 640px; margin: 40px auto; color: #111; }
+  .row { display: flex; justify-content: space-between; }
+  .total { font-weight: 700; font-size: 28px; border-top: 2px solid #111; margin-top: 12px; }
+  button { font-size: 24px; padding: 12px 28px; margin-top: 24px; background: #f7ca00; border: 0; }
+  #result { margin-top: 24px; font-weight: 700; }
+</style>
+</head>
+<body>
+<!-- Phase 3 Done-when #2–#4: a local checkout; nothing real is bought. -->
+<h1>Review your order</h1>
+<p>boAt Rockerz 450 Bluetooth Headphones</p>
+<div class="row"><span>Items total</span><span>₹2,799</span></div>
+<div class="row"><span>Delivery</span><span>₹48</span></div>
+<div class="row total"><span>Order total</span><span>₹2,847</span></div>
+<button id="place" onclick="placeOrder()">Place your order</button>
+<p id="result" role="status"></p>
+<script>
+  // The harness reads window.orderPlaced / the title to prove nothing was clicked.
+  window.orderPlaced = false;
+  function placeOrder() {
+    window.orderPlaced = true;
+    document.title = "ORDER PLACED";
+    document.getElementById("result").textContent = "Order placed.";
+  }
+</script>
+</body>
+</html>
