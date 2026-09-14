@@ -191,6 +191,9 @@ class OnsetDetector:
         owner's "Zoya, stop" over her speech keeps a median 0.8–0.9, so the share kept decides.
         """
         probability = self._vad(cleaned)  # every block: Silero carries state
+        if not len(raw):  # the canceller's first, delayed block has no source yet
+            self._run, self.voiced = 0, False
+            return False
         level = float(np.sqrt(np.mean(cleaned**2)))
         self.kept = level / (float(np.sqrt(np.mean(raw**2))) + KEPT_EPSILON)
         loud = level >= ONSET_MIN_RMS and self.kept >= ONSET_MIN_KEPT
