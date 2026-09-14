@@ -117,7 +117,24 @@ def youtube_play_video(title: str) -> str:
     if urlparse(url).path != WATCH_PATH:
         raise ToolError(f"I couldn't find a video called {title}.")
     browser.goto(url)
+    if not browser.on_page(_video_playing):
+        return f"I opened {name} on YouTube, but it isn't playing yet."
     return f"Playing {name} on YouTube."
+
+
+PLAYING_JS = (
+    "() => { const v = document.querySelector('video');"
+    " return v && !v.paused && v.currentTime > 0 }"
+)
+
+
+def _video_playing(page: Any) -> bool:
+    """The watch page's <video> advanced (autoplay switch in browser.py; an ad counts)."""
+    try:
+        page.wait_for_function(PLAYING_JS, timeout=WAIT_MS)
+    except Exception:  # noqa: BLE001 — Playwright TimeoutError: say it isn't playing yet
+        return False
+    return True
 
 
 def _on_watch_or_channel(page: Any) -> None:
