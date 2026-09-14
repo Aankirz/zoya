@@ -6,6 +6,7 @@ Usage:
   python -m zoya.main --test-wake             # print wake/stop detections + timings, run nothing
   python -m zoya.main --test-wake --record-clips  # also save each utterance to logs/wake_clips/
   python -m zoya.main --disable-tts polly     # Polly off → ElevenLabs → macOS voice (#7)
+  python -m zoya.main --page http://127.0.0.1:8765/place_order.html  # open a page in Zoya's browser
 Every stage's timing is printed and appended to logs/timing.log. Ctrl+C quits.
 """
 
@@ -39,6 +40,7 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         "--record-clips", action="store_true", help="with --test-wake: save logs/wake_clips/*.wav"
     )
     parser.add_argument("--disable-tts", default="", help="comma list: polly,elevenlabs")
+    parser.add_argument("--page", default="", help="open this page in Zoya's browser (Phase 3)")
     return parser.parse_args(argv)
 
 
@@ -56,6 +58,10 @@ def _start(args: argparse.Namespace):  # noqa: ANN202 — returns VoiceLoop, imp
     loop = VoiceLoop(
         wake_enabled=not args.no_wake, test_wake=args.test_wake, record_clips=args.record_clips
     )
+    if args.page:
+        from zoya.tools.browser import browser_open
+
+        print(browser_open(url=args.page))
     print(f"ready in {time.monotonic() - started:.1f} s — timing log: {TIMING_LOG}")
     return loop
 
