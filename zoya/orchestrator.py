@@ -200,7 +200,7 @@ def run_orchestrator(command: str, timings: dict[str, int] | None = None) -> str
         log.warning("task stopped: %s", limit)
         speech.narrate(LIMIT_MESSAGE)
         return LIMIT_MESSAGE
-    except safety.ConfirmationDeclined as declined:
+    except safety.ConfirmationDeclined:
         _record_usage(agent, timings if timings is not None else {})
         # What the user heard, not the model-facing "do not try again": a later, fresh request
         # for the same thing must be asked again, not refused (Phase 3 replay).
