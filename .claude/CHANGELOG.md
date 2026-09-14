@@ -229,3 +229,21 @@
 
 ## 2026-09-15 — D62 live run recorded
 - Owner live laptop-speaker run results in D62; OnsetDetector skips the empty first block (numpy empty-mean warning)
+
+## 2026-09-15 — Zoya website brief
+- docs/website/BRIEF.md: one-page GTM site brief (blind-first, waitlist, blue orb, Next.js); builder session launched.
+
+## 2026-09-15 — Waitlist database for the Zoya website
+- Created Neon project zoya-waitlist (empty-firefly-95814779, aws-ap-southeast-1, personal org) with table waitlist(email pk, created_at); owner chose Neon for Vercel deploy. DATABASE_URL goes to Vercel env only, never committed.
+
+## 2026-09-15 — Vercel project for the Zoya website
+- Created Vercel project zoya (team aankir101-5169s-projects), enabled Web Analytics, added DATABASE_URL (production) from the Neon zoya-waitlist DB. Owner asked for a Vercel deploy + analytics + visitor count.
+
+## 2026-09-15 — Zoya website moved to the right Vercel account
+- Created Vercel project zoya in team aankirzs-projects, connected to GitHub Aankirz/zoya (production branch main, root directory site, Next.js), Web Analytics on, DATABASE_URL (production) set, ignored build step skips deploys when site/ is unchanged.
+- Rotated the Neon neondb_owner password so the copy left in the unused aankir101-5169 project is dead (owner chose to keep that project). Nothing was ever deployed there.
+
+## 2026-09-15 — Zoya one-page website built in site/
+- Next.js 16 App Router site per docs/website/BRIEF.md: hero (h1, value line, real Polly Kajal "Hear Zoya" clip with word-synced transcript, waitlist), promises, transformation, things you can say, FAQ, closing waitlist, footer with contact and visitor count.
+- Waitlist + unique visitor count on Neon via DATABASE_URL (lib/waitlist.ts, lib/visitors.ts), jsonl fallback in local dev, honeypot + best-effort in-memory rate limit, Vercel Analytics only on Vercel.
+- Verified: axe 0 violations (AA + AAA contrast, both themes), Lighthouse mobile 99/100/100/100, no overflow at 320/375/768/1440 or 200% zoom, reduced motion stops the orb.

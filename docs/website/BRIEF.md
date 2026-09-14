@@ -52,8 +52,11 @@ Anti-references: generic AI SaaS (purple gradients, glass cards, "revolutionary 
 
 ## 6. Constraints
 
-- **Next.js** (App Router, TypeScript) in `site/` at the repo root. Static where possible. No UI kit; hand-written CSS (CSS modules or one global stylesheet with tokens). No analytics or trackers.
-- **Waitlist storage (local for now):** a route handler validates the email and appends to `site/data/waitlist.jsonl` (git-ignored). Rate-limit per IP, honeypot field (no CAPTCHA). Note clearly in the README that a real store is needed before deploying.
+- **Next.js** (App Router, TypeScript) in `site/` at the repo root. Static where possible. No UI kit; hand-written CSS (CSS modules or one global stylesheet with tokens).
+- **Deploy: Vercel** (owner, 2026-09-15). The coordinator deploys after review and sets env vars. `npm run build` must pass with no env vars set.
+- **Analytics:** Vercel Web Analytics (`@vercel/analytics`, cookieless) only. No other trackers.
+- **Waitlist storage:** Neon Postgres via `DATABASE_URL`, table `waitlist(email pk, created_at)`, `on conflict do nothing`. Local dev without `DATABASE_URL` falls back to `site/data/waitlist.jsonl` (git-ignored). Honeypot field (no CAPTCHA); per-IP rate limit is best-effort on serverless.
+- **Visitor count with an eye icon** (owner): real unique visitors from table `visitors(id pk, first_seen)`. A random id is kept in localStorage and posted once. Shown quietly as an aria-hidden eye icon plus the text "N people have visited", rendered server-side, never in an aria-live region, never seeded. Hidden when `DATABASE_URL` is unset.
 - **Honest copy only:** no invented numbers, users, logos or quotes. No em dashes in copy.
 - Performance: Lighthouse ≥ 95 on Accessibility, Best Practices and SEO; LCP < 2.5 s; JS kept small.
 - **Local only.** Do not deploy anywhere or create accounts. Commit on `main` in small conventional commits; **do not push** until the owner has seen it.
@@ -67,3 +70,6 @@ Anti-references: generic AI SaaS (purple gradients, glass cards, "revolutionary 
 5. 320 / 375 / 768 / 1440 px: no horizontal scroll; 200 % zoom works.
 6. Reduced motion stops the orb; body contrast ≥ 7:1 in both themes.
 7. Owner judges it "clear in 5 seconds" and a delight (🧑).
+8. Deployed on Vercel with the live link shared; waitlist signups land in Neon from the live site.
+9. Vercel Web Analytics enabled and recording page views.
+10. Visitor count with an eye icon shows real unique visitors: a second visit from the same browser doesn't increase it, and a fresh browser does. It isn't announced repeatedly by VoiceOver.
