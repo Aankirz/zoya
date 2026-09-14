@@ -1,8 +1,9 @@
-"""Zoya's presence (Phase 7 redesign): a small rounded character drawn with Core Animation only.
+"""Zoya's presence (Phase 7 redesign): a small character drawn with Core Animation only.
 
-A squircle body filled with a two-tone gradient of the state's colour, three soft clouds drifting
-inside it, and two eyes whose shape and motion carry the state. Inspired by Plane's Agent Avatar
-Lab (https://agents.plane.so, reference only, no assets copied) and ChatGPT Voice's flowing orb.
+A flat, matte eight-point badge (two rounded squares, one turned 45°) in Zoya violet, three darker
+translucent planes turning slowly inside it, and two small eyes set low whose shape and motion
+carry the state. Visual language from Plane's Agent Avatar Lab (https://agents.plane.so: flat
+silhouette, turning planes, low eyes; reference only, no assets or paths copied).
 
 Everything is GPU-composited layer animation: no timers, no per-frame Python. Transitions start
 from the presentation value, so bursts of events retarget instead of jumping. Reduce Motion: no
@@ -18,27 +19,24 @@ import AppKit
 import Quartz
 
 PET_PT = 76.0
-PET_RADIUS_PT = 24.0
-EYE_W, EYE_H, EYE_R = 8.0, 12.0, 3.0
-EYE_GAP = 18.0  # centre to centre
-EYE_Y = 33.0  # a little below the middle, like a face
-CLOUD_PT = 84.0
-CLOUD_ORBIT_PT = 16.0
-CLOUD_PERIODS_S = (14.0, -21.0)
-CLOUD_STOPS = (0.30, 0.10, 0.0)  # highlight alpha at centre, midway, edge: smooth, no banding
-CLOUD_LOCATIONS = (0.0, 0.45, 1.0)
-SHEEN_ALPHA = 0.18  # a soft top light: the body reads as a lit object on any background
-ERROR_TILT_RAD = math.radians(
-    28
-)  # error eyes tilt into a frown: distinct from "stopped" without colour
+BADGE_SQUARE_PT = 55.0  # each of the two rounded squares that make the badge
+BADGE_RADIUS_PT = 12.0
+EYE_W, EYE_H, EYE_R = 8.0, 12.0, 2.0
+EYE_GAP = 20.0  # centre to centre
+EYE_Y = 30.0  # low in the body, like a face looking out
+PLANE_W, PLANE_H, PLANE_R = 50.0, 30.0, 8.0
+PLANE_OFFSETS = ((-16.0, 10.0), (12.0, -6.0), (18.0, 20.0))  # from the centre, before turning
+PLANE_PERIODS_S = (22.0, -30.0, 38.0)
+PLANE_TINT = ((52, 22, 138), 0.2)  # darker violet at 20 %: the matte "multiply" planes
+ERROR_TILT_RAD = math.radians(24)  # error eyes droop: distinct from "stopped" without colour
 POSE_S = 0.32
 EASE_OUT_QUINT = (0.22, 1.0, 0.36, 1.0)
 CROSSFADE_S = 0.2
 
 # One signature colour, so the room remembers Zoya: states are told by the eyes, motion and the
-# label, never by hue. Only "stopped" dims. sRGB 0..255, top-left → bottom-right.
-ZOYA_VIOLET = ((170, 136, 255), (98, 64, 228))
-ZOYA_VIOLET_DIM = ((150, 142, 186), (96, 90, 136))
+# label, never by hue. Only "stopped" dims. sRGB 0..255, top-left → bottom-right: nearly flat.
+ZOYA_VIOLET = ((132, 98, 246), (116, 82, 232))
+ZOYA_VIOLET_DIM = ((150, 144, 184), (136, 130, 170))
 PALETTE: dict[str, tuple[tuple[int, int, int], tuple[int, int, int]]] = {
     state: ZOYA_VIOLET_DIM if state == "stopped" else ZOYA_VIOLET
     for state in (
@@ -59,8 +57,8 @@ _L, _R = PET_PT / 2 - EYE_GAP / 2, PET_PT / 2 + EYE_GAP / 2
 POSES: dict[str, tuple[tuple[float, ...], tuple[float, ...]]] = {
     "idle": ((_L, EYE_Y, EYE_W, EYE_H, EYE_R), (_R, EYE_Y, EYE_W, EYE_H, EYE_R)),
     "listening": ((_L - 1, EYE_Y + 1, 9.0, 15.0, 3.5), (_R + 1, EYE_Y + 1, 9.0, 15.0, 3.5)),
-    "thinking": ((38.0, 38.0, 10.0, 10.0, 5.0), (38.0, 38.0, 10.0, 10.0, 5.0)),  # one dot
-    "acting": ((28.0, 38.0, 8.0, 8.0, 4.0), (48.0, 38.0, 8.0, 8.0, 4.0)),  # two orbiting dots
+    "thinking": ((38.0, 36.0, 9.0, 9.0, 4.5), (38.0, 36.0, 9.0, 9.0, 4.5)),  # one dot
+    "acting": ((27.0, 38.0, 8.0, 8.0, 4.0), (49.0, 38.0, 8.0, 8.0, 4.0)),  # two orbiting dots
     "speaking": ((_L, EYE_Y, EYE_W, EYE_H, EYE_R), (_R, EYE_Y, EYE_W, EYE_H, EYE_R)),
     "waiting": ((_L, EYE_Y + 6, EYE_W, EYE_H, EYE_R), (_R, EYE_Y + 6, EYE_W, EYE_H, EYE_R)),
     "stopped": ((_L, EYE_Y, 11.0, 3.0, 1.5), (_R, EYE_Y, 11.0, 3.0, 1.5)),
@@ -71,6 +69,25 @@ POSES: dict[str, tuple[tuple[float, ...], tuple[float, ...]]] = {
 def _cg(rgb: tuple[int, int, int], alpha: float = 1.0) -> Any:
     red, green, blue = (c / 255 for c in rgb)
     return AppKit.NSColor.colorWithSRGBRed_green_blue_alpha_(red, green, blue, alpha).CGColor()
+
+
+def _badge_path() -> Any:
+    """The eight-point badge: a rounded square united with the same square turned 45°."""
+    path = Quartz.CGPathCreateMutable()
+    side = BADGE_SQUARE_PT
+    origin = (PET_PT - side) / 2
+    rect = ((origin, origin), (side, side))
+    centre = PET_PT / 2
+    turned = Quartz.CGAffineTransformTranslate(
+        Quartz.CGAffineTransformRotate(
+            Quartz.CGAffineTransformMakeTranslation(centre, centre), math.pi / 4
+        ),
+        -centre,
+        -centre,
+    )
+    Quartz.CGPathAddRoundedRect(path, None, rect, BADGE_RADIUS_PT, BADGE_RADIUS_PT)
+    Quartz.CGPathAddRoundedRect(path, turned, rect, BADGE_RADIUS_PT, BADGE_RADIUS_PT)
+    return path
 
 
 def _ease() -> Any:
@@ -112,40 +129,39 @@ class Pet:
     def __init__(self, reduce_motion: bool, contrast: bool) -> None:
         self.reduce_motion = reduce_motion
         self.state = ""
-        self.layer = Quartz.CALayer.layer()  # host: soft ambient shadow
+        path = _badge_path()
+        self.layer = Quartz.CALayer.layer()  # host: soft ambient shadow in the badge's shape
         self.layer.setBounds_(((0, 0), (PET_PT, PET_PT)))
-        path = Quartz.CGPathCreateWithRoundedRect(
-            ((0, 0), (PET_PT, PET_PT)), PET_RADIUS_PT, PET_RADIUS_PT, None
-        )
         self.layer.setShadowPath_(path)
-        self.layer.setShadowColor_(_cg((20, 18, 40)))
-        self.layer.setShadowOpacity_(0.28)
-        self.layer.setShadowRadius_(14.0)
-        self.layer.setShadowOffset_((0, -6))
+        self.layer.setShadowColor_(_cg((20, 16, 44)))
+        self.layer.setShadowOpacity_(0.26)
+        self.layer.setShadowRadius_(12.0)
+        self.layer.setShadowOffset_((0, -5))
         self.plate = self._sublayer(self.layer)  # tight contact shadow, then the body
         self.plate.setShadowPath_(path)
-        self.plate.setShadowColor_(_cg((20, 18, 40)))
-        self.plate.setShadowOpacity_(0.22)
+        self.plate.setShadowColor_(_cg((20, 16, 44)))
+        self.plate.setShadowOpacity_(0.2)
         self.plate.setShadowRadius_(1.5)
         self.plate.setShadowOffset_((0, -1))
         self.body = Quartz.CAGradientLayer.layer()
         self._place(self.body, self.plate)
-        self.body.setCornerRadius_(PET_RADIUS_PT)
-        self.body.setCornerCurve_(Quartz.kCACornerCurveContinuous)
-        self.body.setMasksToBounds_(True)
         self.body.setStartPoint_((0.0, 1.0))
         self.body.setEndPoint_((1.0, 0.0))
+        mask = Quartz.CAShapeLayer.layer()
+        mask.setPath_(path)
+        self.body.setMask_(mask)
         if contrast:
-            self.body.setBorderWidth_(1.5)
-            self.body.setBorderColor_(AppKit.NSColor.labelColor().CGColor())
-        self.clouds = [self._cloud(period, index) for index, period in enumerate(CLOUD_PERIODS_S)]
-        sheen = Quartz.CAGradientLayer.layer()
-        self._place(sheen, self.body)
-        sheen.setColors_([_cg(EYE_COLOUR, SHEEN_ALPHA), _cg(EYE_COLOUR, 0.0)])
-        sheen.setStartPoint_((0.5, 1.0))  # layer y is up: top edge
-        sheen.setEndPoint_((0.5, 0.45))
+            edge = Quartz.CAShapeLayer.layer()
+            edge.setPath_(path)
+            edge.setFillColor_(None)
+            edge.setStrokeColor_(AppKit.NSColor.labelColor().CGColor())
+            edge.setLineWidth_(3.0)  # half is clipped by the mask: a 1.5 pt inside edge
+            self.contrast_edge = edge
+        self.planes = [self._plane(i) for i in range(len(PLANE_PERIODS_S))]
         self.face = self._sublayer(self.body)  # eyes move and orbit together
         self.eyes = [self._eye(), self._eye()]
+        if contrast:
+            self.body.addSublayer_(self.contrast_edge)
 
     def _sublayer(self, parent: Any) -> Any:
         layer = Quartz.CALayer.layer()
@@ -158,32 +174,28 @@ class Pet:
         layer.setPosition_((PET_PT / 2, PET_PT / 2))
         parent.addSublayer_(layer)
 
-    def _cloud(self, period: float, index: int) -> Any:
-        """A soft radial highlight (or shade) on a slowly turning arm: the flowing interior."""
+    def _plane(self, index: int) -> Any:
+        """A darker translucent rounded plane on its own slowly turning arm: the matte texture."""
         arm = self._sublayer(self.body)
-        cloud = Quartz.CAGradientLayer.layer()
-        cloud.setType_(Quartz.kCAGradientLayerRadial)
-        cloud.setColors_([_cg(EYE_COLOUR, alpha) for alpha in CLOUD_STOPS])
-        cloud.setLocations_(list(CLOUD_LOCATIONS))
-        cloud.setStartPoint_((0.5, 0.5))
-        cloud.setEndPoint_((1.0, 1.0))
-        cloud.setBounds_(((0, 0), (CLOUD_PT, CLOUD_PT)))
-        angle = index * 2 * math.pi / len(CLOUD_PERIODS_S)
-        cloud.setPosition_(
-            (
-                PET_PT / 2 + CLOUD_ORBIT_PT * math.cos(angle),
-                PET_PT / 2 + CLOUD_ORBIT_PT * math.sin(angle),
-            )
-        )
-        arm.addSublayer_(cloud)
+        plane = Quartz.CAShapeLayer.layer()
+        dx, dy = PLANE_OFFSETS[index]
+        rect = ((PET_PT / 2 + dx - PLANE_W / 2, PET_PT / 2 + dy - PLANE_H / 2), (PLANE_W, PLANE_H))
+        plane.setPath_(Quartz.CGPathCreateWithRoundedRect(rect, PLANE_R, PLANE_R, None))
+        rgb, alpha = PLANE_TINT
+        plane.setFillColor_(_cg(rgb, alpha))
+        plane.setBounds_(((0, 0), (PET_PT, PET_PT)))
+        plane.setPosition_((PET_PT / 2, PET_PT / 2))
+        start = index * 2 * math.pi / len(PLANE_PERIODS_S)
+        arm.setTransform_(Quartz.CATransform3DMakeRotation(start, 0, 0, 1))
+        arm.addSublayer_(plane)
         if not self.reduce_motion:
-            direction = 1 if period > 0 else -1
-            spin = _loop(
-                "transform.rotation.z",
-                [0.0, direction * 2 * math.pi],
-                abs(period),
-                mode=Quartz.kCAAnimationLinear,
-            )
+            period = PLANE_PERIODS_S[index]
+            turn = math.copysign(2 * math.pi, period)
+            spin = Quartz.CABasicAnimation.animationWithKeyPath_("transform.rotation.z")
+            spin.setByValue_(turn)
+            spin.setDuration_(abs(period))
+            spin.setRepeatCount_(float("inf"))
+            spin.setAdditive_(True)
             arm.addAnimation_forKey_(spin, "drift")
         return arm
 
