@@ -312,7 +312,9 @@ def run_fast_tool(decision: RouteDecision) -> str:
     # No Agent, so no hooks on this path: only free tools may run here (safety registry).
     if not safety.fast_tool_allowed(decision.tool or ""):
         raise ToolError("I can't do that directly.")
-    tools = {t.tool_name: t for t in collect_tools("zoya.tools")}
+    from zoya.agents.screen_describer import describe_screen  # the one agent tool allowed here
+
+    tools = {t.tool_name: t for t in [*collect_tools("zoya.tools"), describe_screen]}
     return tools[decision.tool](**decision.args)
 
 

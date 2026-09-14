@@ -5,7 +5,8 @@ No network: match_rules() never calls a model or AWS.
 
 import pytest
 
-from zoya.router import RouteChoice, decision_from_choice, match_rules
+from zoya import orchestrator, safety
+from zoya.router import RouteChoice, RouteDecision, decision_from_choice, match_rules
 from zoya.tools import ToolError, collect_tools
 from zoya.tools.fast import media_control, normalise_url
 
@@ -197,3 +198,38 @@ def test_page_actions_skip_the_router_model(command):
     decision = match_rules(command)
 
     assert decision is not None and decision.route == "orchestrator"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "what's on my screen?",
+        "Hey Zoya, what is on the screen",
+        "whats on my screen",
+        "describe my screen",
+        "what am I looking at?",
+        "mere screen pe kya hai",
+    ],
+)
+def test_screen_questions_go_straight_to_describe_screen(command):
+    decision = match_rules(command)
+
+    assert (decision.route, decision.tool) == ("fast", "describe_screen")
+
+
+@pytest.mark.parametrize("command", ["what's the total on my screen?", "click send on my screen"])
+def test_other_screen_commands_are_not_the_describe_fast_path(command):
+    decision = match_rules(command)
+
+    assert decision is None or decision.tool != "describe_screen"
+
+
+def test_fast_path_runs_describe_screen_but_no_other_agent_tool(monkeypatch):
+    from zoya.agents import screen_describer
+
+    monkeypatch.setattr(screen_describer.screen, "capture_display", lambda: 1 / 0)
+    assert safety.fast_tool_allowed("describe_screen")
+    with pytest.raises(ZeroDivisionError):  # reached the real tool
+        orchestrator.run_fast_tool(RouteDecision("fast", "describe_screen"))
+    with pytest.raises(ToolError):
+        orchestrator.run_fast_tool(RouteDecision("fast", "computer_task", {"goal": "x"}))

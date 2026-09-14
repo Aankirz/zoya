@@ -78,6 +78,14 @@ STOP = re.compile(
     r"(?:[\s,]+(?:it|that|now|everything|mat\s+kijiye|karo|what you'?re doing))*$",
     _I,
 )
+# "What's on my screen?" goes straight to describe_screen (free, read-only): ~4 s less than a
+# brain call that only picks that tool and repeats its answer (Phase 5, coordinator).
+SCREEN_QUESTION = re.compile(
+    r"^(?:(?:what(?:'s| is)|whats|tell me what(?:'s| is))(?: there)? on (?:my|the) screen"
+    r"|describe (?:my|the) screen|what am i looking at|what do you see(?: on (?:my|the) screen)?"
+    r"|(?:mere )?screen (?:pe|par) kya (?:hai|dikh raha hai))\??$",
+    _I,
+)
 TIME = re.compile(
     r"^(?:what(?:'s| is)(?: the)? time(?: now)?|what time is it(?: now)?|tell me the time"
     r"|time kya (?:hai|hua)|kitne baje(?: hai| hain)?|samay kya hai)$",
@@ -204,6 +212,8 @@ def match_rules(text: str) -> RouteDecision | None:
         if EXPLICIT_APP.search(command):
             args["in_app"] = True
         return RouteDecision("fast", "media_control", args)
+    if SCREEN_QUESTION.match(command):
+        return RouteDecision("fast", "describe_screen")
     if TIME.match(command):
         return RouteDecision("fast", "get_time")
     if match := VOLUME_SET.match(command):

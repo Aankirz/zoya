@@ -1,7 +1,7 @@
-"""Phase 4 live checks through the real router, harness, brain, browser and web APIs (typed, no mic).
+"""Phase 4 live checks through the real router, harness, brain, browser and web APIs (typed).
 
-Each command goes through `orchestrator.handle_command`, exactly like a spoken one after STT; the
-timing record (route, source, skill, model_calls, tokens, stage ms) is printed and appended to
+No mic. Each command goes through `orchestrator.handle_command`, like a spoken one after STT;
+the timing record (route, source, skill, model_calls, tokens, stage ms) is printed and appended to
 logs/timing.log. Speech is captured instead of played so parallel sessions aren't disturbed.
 Needs the Zoya profile free, OPENAI/TINYFISH/SUPERMEMORY keys, AWS_PROFILE. An eval, not a pytest.
 
@@ -14,6 +14,7 @@ import os
 
 os.environ["HF_HUB_OFFLINE"] = "1"
 
+import faulthandler  # noqa: E402
 import json  # noqa: E402
 import sys  # noqa: E402
 import time  # noqa: E402
@@ -21,8 +22,11 @@ import time  # noqa: E402
 from zoya import aws, speech  # noqa: E402
 from zoya.config import load_env  # noqa: E402
 
+HANG_DUMP_S = 120
+
 
 def main(commands: list[str]) -> int:
+    faulthandler.dump_traceback_later(HANG_DUMP_S, repeat=True)  # a hang prints every stack
     load_env()
     aws.load_provider_secrets()
     said: list[str] = []
