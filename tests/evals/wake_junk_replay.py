@@ -22,6 +22,7 @@ import tempfile  # noqa: E402
 import threading  # noqa: E402
 import time  # noqa: E402
 from pathlib import Path  # noqa: E402
+from types import SimpleNamespace  # noqa: E402
 
 import numpy as np  # noqa: E402
 import soundfile as sf  # noqa: E402
@@ -110,15 +111,23 @@ def replay_ducked(loop: voice.VoiceLoop, user: np.ndarray, background: np.ndarra
 
 def main() -> int:
     audio.duck = audio.restore = lambda: None  # never touch the Mac's volume from an eval
+    # Silent eval: no earcons, no Polly. A None task used to read as "three tasks running" and
+    # Zoya said the FULL_MESSAGE aloud on every dispatch (coordinator, 2026-09-15).
+    audio.earcon = lambda *_a: None
+    audio.engine = lambda: SimpleNamespace(
+        one_shot_at=0.0, silence_all=lambda: None, set_speech_gain=lambda _g: None
+    )
+    speech.narrate = lambda *_a, **_k: None
     speech.is_speaking = lambda: False
     dispatched: list[tuple[float, str]] = []
 
-    def start_task(text: str, _pre: object = None, on_done: object = None) -> None:
+    def start_task(text: str, _pre: object = None, on_done: object = None) -> SimpleNamespace:
         dispatched.append((time.monotonic(), text))
         if on_done:  # Zoya "answered": opens the follow-up window
             decision = orchestrator.RouteDecision("orchestrator", text=text)
             result = orchestrator.CommandResult("replay", decision, "Which note?", True, {})
             threading.Thread(target=on_done, args=(result,), daemon=True).start()  # as in the app
+        return SimpleNamespace(shared=False)
 
     orchestrator.start_task = start_task
     rng = np.random.default_rng(1)
