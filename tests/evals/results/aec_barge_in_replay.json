@@ -1,0 +1,33 @@
+{
+ "onsets_per_min_echo_alone": {
+  "tts x1": 0.0,
+  "tts x2": 0.0,
+  "music x1": 2.9,
+  "music x2": 2.9
+ },
+ "wake_over_music": {
+  "music 0.58 barge_in=off": {
+   "wakes": "13/21",
+   "false": [
+    "wake_clips_session2/028"
+   ]
+  },
+  "music 0.58 barge_in=on": {
+   "wakes": "16/21",
+   "false": [
+    "wake_clips_session2/028",
+    "wake_clips/018"
+   ]
+  },
+  "music 1.16 barge_in=off": {
+   "wakes": "6/21",
+   "false": []
+  },
+  "music 1.16 barge_in=on": {
+   "wakes": "12/21",
+   "false": [
+    "wake_clips_session2/028"
+   ]
+  }
+ }
+}
