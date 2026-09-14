@@ -94,6 +94,14 @@ STOP_COOLDOWN_S = 2.0
 # After Zoya answers, listen this long without "Hey Zoya" (§9.1 conversation timeout; GPT-Voice
 # style follow-ups; pipecat's wake-phrase strategy keeps 10 s).
 FOLLOW_UP_WINDOW_S = 8.0
+# Answer mode (Zoya just asked a question): LiveKit's endpointing defaults with a turn model are
+# min 0.3 s / max 2.5 s (https://docs.livekit.io/agents/logic/turns/turn-detector/). Owner's run:
+# "uh for the budget" was cut at 293 ms. A "complete" verdict still waits the plain-VAD min (0.5 s),
+# "incomplete" waits up to the max, and an answer is held this long so a continuation merges in.
+ANSWER_COMPLETE_SILENCE_S = 0.5
+ANSWER_INCOMPLETE_SILENCE_S = 2.5
+ANSWER_MERGE_S = 1.5
+EXPIRED_CONFIRMATION = "That confirmation has expired, so nothing was done."
 # wake.wav is 0.40 s and 4 of its 28 VAD blocks (128 ms) read as speech; one short word is ~0.3 s.
 ECHO_MAX_VOICED_S = 0.25
 
@@ -103,7 +111,8 @@ ECHO_MAX_VOICED_S = 0.25
 NAME = re.compile(r"^z(?:oo?e?y|oi|oe|o)ah?$")
 # Whisper sometimes merges the greeting: "Hizoya", "Hezoya".
 MERGED_WAKE = re.compile(r"^(?:hey|hi|he|hay|ok|okay)z(?:oo?e?y|oi|oe|o)ah?$")
-WORD = re.compile(r"[a-z]+|[\u0900-\u097F]+")
+WORD = re.compile(r"[a-z]+|\d+|[\u0900-\u097F]+")  # digits: "Zoya 5000" answers a budget question
+WORD_SPAN = re.compile(r"[^\W\d_]+|\d+")
 # large-v3-turbo writes Hinglish in Devanagari (D42): "ज़ोया, स्पॉटिफ़ाई खोल दो".
 DEVANAGARI_NAME = re.compile(r"^(?:ज़|ज़|ज)ोया$")
 WAKE_NAME_WORDS = 3
@@ -116,7 +125,7 @@ HALLUCINATIONS = {
     *("you", "thank you", "thanks for watching", "bye", "so", "okay"),
     *("um", "uh", "hmm", "mm", "ah", "er"),  # fillers: owner's live run sent "um" to the brain
 }
-SUPPORTED_SCRIPT = re.compile(r"[A-Za-z\u0900-\u097F]")  # Latin or Devanagari (D42)
+SUPPORTED_SCRIPT = re.compile(r"[A-Za-z0-9\u0900-\u097F]")  # Latin or Devanagari (D42), or digits
 LATIN_ACCENT = re.compile(r"[\u0300-\u036f]")
 # Not "soya": turbo wrote real "Hey Zoya" as "Hey, Soya." (replay) and "Soya!" (owner live run).
 SOUND_ALIKES = {"zoe", "joya", "sonia", "sonya", "so", "siri", "सोनिया", "ज़ो"}
@@ -176,6 +185,18 @@ def after_wake(text: str) -> str:
     return ""
 
 
+def strip_wake(text: str) -> str:
+    """The original words after a leading wake name, punctuation kept: "Here's Zoya 5000." → "5000."
+    (owner's run: "Zoya 5000" answered a budget question and was taken for a repeated wake)."""
+    if not is_wake(text):
+        return text
+    for match in list(WORD_SPAN.finditer(text))[:WAKE_NAME_WORDS]:
+        word = words(match.group())
+        if word and (is_name(word[0]) or MERGED_WAKE.match(word[0])):
+            return text[match.end() :].lstrip(" ,.!?")
+    return text
+
+
 def is_runaway(text: str) -> bool:
     """Whisper looping ("Zoya no no no …" ×200) or far longer than any spoken command."""
     spoken = words(text)
@@ -199,7 +220,28 @@ def is_usable_command(text: str) -> bool:
     if " ".join(words(command)) in HALLUCINATIONS:
         return False
     # Count what was said, before fillers are stripped: "Just hello" is two words.
-    return len(words(text)) >= MIN_COMMAND_WORDS or match_rules(command) is not None
+    spoken = words(text)
+    has_number = any(word.isdigit() for word in spoken)  # "5000" answers "what budget?"
+    return len(spoken) >= MIN_COMMAND_WORDS or has_number or match_rules(command) is not None
+
+
+# "Hey Zoya, it's confirmed." after the confirmation ended (owner's run: it started a new task).
+LATE_CONFIRM_FILLERS = {"it", "its", "s", "is", "i", "ve", "have", "already", "ok", "okay", "done"}
+
+
+def is_bare_confirmation(text: str) -> bool:
+    """Only a confirm reply, with nothing else asked for. Parser (D37)."""
+    spoken = safety.normalise(strip_wake(text)).split()
+    allowed = safety.CONFIRM_WORDS | safety.CONFIRM_FILLERS | LATE_CONFIRM_FILLERS
+    if not any(word in safety.CONFIRM_WORDS for word in spoken):
+        return False
+    return all(word in allowed for word in spoken)
+
+
+def is_junk_reply(text: str) -> bool:
+    """Not an answer to "confirm or cancel": nothing, or one word that is neither ("Boom.", "Yes.").
+    Junk is ignored, so silence keeps counting to the re-prompt and auto-cancel (§9.9)."""
+    return safety.classify_reply(text) == "unclear" and len(words(text)) < MIN_COMMAND_WORDS
 
 
 def is_stop(text: str) -> bool:
@@ -226,6 +268,9 @@ STOP_FILLER = {
     "you",
     "re",
     "doing",
+    "current",
+    "task",  # "stop the task" is a bare stop, not a task named "task" (owner's run)
+    "tasks",
 }
 
 
@@ -464,6 +509,10 @@ class VoiceLoop:
         self.canceller: aec.LiveCanceller | None = None
         self.onset: aec.OnsetDetector | None = None
         self.barge_in_until = 0.0  # while set, other apps stay ducked and Zoya stays quiet
+        self.answer_expected = False  # Zoya's last reply asked a question
+        self.answer_until = 0.0  # answer mode: that question's follow-up window
+        self.held: tuple[Segment, str, dict[str, int]] | None = None  # an answer waiting to merge
+        self.held_until = 0.0
 
     # --- main loop ---------------------------------------------------------------------
 
@@ -556,6 +605,10 @@ class VoiceLoop:
             audio.restore()
         if self._push_to_talk(arrival, block):
             return
+        if self.segment is None and self.held and (voiced or time.monotonic() >= self.held_until):
+            self._resume_or_release(block, voiced)
+            if voiced:
+                return
         if self.segment is None:
             self.pre_roll.append(block)
             if voiced:
@@ -599,6 +652,10 @@ class VoiceLoop:
             return silence >= WAKE_END_SILENCE_S
         if self.turn and silence >= TURN_CHECK_SILENCE_S and segment.turn_complete is None:
             segment.turn_complete = self.turn(segment.tail(TURN_WINDOW_S))
+        if segment.awaited and self._answer_mode():
+            if segment.turn_complete:
+                return silence >= ANSWER_COMPLETE_SILENCE_S
+            return silence >= (ANSWER_INCOMPLETE_SILENCE_S if self.turn else COMMAND_END_SILENCE_S)
         # Smart Turn can only end a command sooner; "incomplete" falls back to the 0.5 s rule.
         return bool(segment.turn_complete) or silence >= COMMAND_END_SILENCE_S
 
@@ -696,6 +753,7 @@ class VoiceLoop:
         """Zoya finished answering: the next sentence needs no wake word for a few seconds."""
         self.follow_up_pending = False
         self.awaiting_command_until = time.monotonic() + FOLLOW_UP_WINDOW_S
+        self.answer_until = self.awaiting_command_until if self.answer_expected else 0.0
         print(f"LISTENING for a follow-up ({FOLLOW_UP_WINDOW_S:.0f} s, no wake word needed)")
 
     def _on_task_done(self, result: orchestrator.CommandResult) -> None:
@@ -706,6 +764,7 @@ class VoiceLoop:
         # After "play …" the window would only capture the music ("Tadam!", "Lose out").
         started_playback = "play" in words(result.decision.text)
         self.follow_up_pending = not (stopped or started_playback)
+        self.answer_expected = self.follow_up_pending and result.spoken.rstrip().endswith("?")
 
     def _await_command(self) -> None:
         self.awaiting_command_until = time.monotonic() + AFTER_WAKE_WAIT_S
@@ -737,6 +796,8 @@ class VoiceLoop:
         audio.earcon("stop")
         after_end = round((stopped_at - voice_end_at) * MS_PER_S)
         self.segment = None
+        self.held = None
+        self.answer_expected, self.answer_until = False, 0.0
         self.recent.clear()  # don't hear the same "stop" twice
         self.last_stop_at = time.monotonic()
         self.follow_up_pending = False
@@ -806,14 +867,18 @@ class VoiceLoop:
 
     def _command(self, segment: Segment, transcript: str | None = None) -> None:
         endpoint_ms = round((time.monotonic() - segment.last_voice_at) * MS_PER_S)
+        if segment.awaited and segment.began_while_busy:
+            # Started while Zoya (any task) was speaking: her own words at the mic. Owner's run:
+            # her re-prompt "I need a clear answer." was dispatched as a command (V3).
+            _log_voice({"event": "echo_dropped", "reason": "speech"})
+            return
         if segment.awaited and self._is_repeated_wake(segment):
             self._await_command()  # "Hey Zoya" again while listening: not a command
             return
         if safety.awaiting_reply():
             self._confirmation_reply(segment, transcript)
             return
-        own_sound = segment.began_while_busy or segment.over_earcon
-        if segment.awaited and own_sound and self._only_echo(segment):
+        if segment.awaited and segment.over_earcon and self._only_echo(segment):
             return  # Zoya's own chime heard back: no STT, no earcons, the window keeps its time
         audio.earcon("heard")
         audio.earcon("working")
@@ -829,10 +894,40 @@ class VoiceLoop:
                 self.awaiting_command_until += segment.seconds + stt_ms / MS_PER_S
             # Junk in the wait window (music, the chime) keeps the wake, and the music stays ducked.
             return
+        if segment.awaited:
+            text = strip_wake(text)  # "Zoya 5000" answers with "5000"
+        pre = {"endpoint_ms": endpoint_ms, "stt_ms": stt_ms}
+        if segment.awaited and self._answer_mode():
+            audio.engine().silence_all()  # quiet while we wait to see if the answer goes on
+            self.held, self.held_until = (segment, text, pre), time.monotonic() + ANSWER_MERGE_S
+            return
+        self._send(segment, text, pre)
+
+    def _answer_mode(self) -> bool:
+        return time.monotonic() < self.answer_until
+
+    def _send(self, segment: Segment, text: str, pre: dict[str, int]) -> None:
         self.awaiting_command_until = 0.0
+        self.answer_expected, self.answer_until = False, 0.0
         events.emit(events.OverlayEvent(text, "listening", {"role": "user"}))  # caption (Phase 7)
         audio.restore()  # the command is in: other audio comes back before Zoya answers
-        self._dispatch(text, segment.last_voice_at, {"endpoint_ms": endpoint_ms, "stt_ms": stt_ms})
+        self._dispatch(text, segment.last_voice_at, pre)
+
+    def _resume_or_release(self, block: np.ndarray, voiced: bool) -> None:
+        """A held answer: the user went on speaking → one segment again (re-transcribed whole at
+        its end); quiet for ANSWER_MERGE_S → send it."""
+        segment, text, pre = self.held
+        self.held = None
+        if not voiced:
+            audio.earcon("working")
+            self._send(segment, text, pre)
+            return
+        segment.blocks.extend([*self.pre_roll, block])
+        segment.last_voice_at = time.monotonic()
+        segment.voiced_blocks += 1
+        segment.turn_complete = None
+        self.segment = segment
+        _log_voice({"event": "answer_merged", "held_words": len(words(text))})
 
     def _only_echo(self, segment: Segment) -> bool:
         """Started over Zoya's output with less voice than a word: her chime, not the user.
@@ -858,9 +953,11 @@ class VoiceLoop:
         text = transcript if transcript is not None else self._transcribe(segment)[0]
         print(f"REPLY {text!r}")
         events.emit(events.OverlayEvent(text, "listening", {"role": "user"}))
-        if is_stop(text):
-            self._stop(segment.last_voice_at, text, partial=False)  # "Zoya, stop" cancels it too
+        if is_stop_command(text):  # "Zoya, stop" / "stop the task" cancels it too
+            self._stop(segment.last_voice_at, text, partial=False)
             return
+        if is_junk_reply(text):
+            return  # "Boom.", "": not an answer; silence keeps counting to the re-prompt (V4)
         pending = safety.pending_task_id()
         answer = tasks.answer_for(text, pending)
         if answer is None:  # names another task: never an answer to this confirmation (D61)
@@ -886,6 +983,10 @@ class VoiceLoop:
             return
         if is_stop_command(text):
             self._stop(speech_end_at, text, partial=False)
+            return
+        if is_bare_confirmation(text):  # the confirmation already ended: never a new task (V4)
+            audio.engine().silence_all()
+            speech.narrate(EXPIRED_CONFIRMATION)
             return
         if STATUS.search(text):
             audio.earcon("success")

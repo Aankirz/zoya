@@ -79,6 +79,7 @@ def replay(loop: voice.VoiceLoop, stream: np.ndarray) -> None:
 
 def fresh(loop: voice.VoiceLoop) -> None:
     loop.segment, loop.awaiting_command_until, loop.follow_up_pending = None, 0.0, False
+    loop.held, loop.answer_expected, loop.answer_until = None, False, 0.0
     loop.loudness.clear()
 
 
@@ -173,7 +174,8 @@ def main() -> int:
     replay(
         loop,
         np.concatenate(
-            [silence(3.5), wake, silence(0.6), command, silence(3.0), follow_up, silence(2.0)]
+            # 3.5 s tail: "Which note?" asks a question, so the answer is held 1.5 s to merge.
+            [silence(3.5), wake, silence(0.6), command, silence(3.0), follow_up, silence(3.5)]
         ),
     )
     texts = [text for _, text in dispatched]

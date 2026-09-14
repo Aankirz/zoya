@@ -7,11 +7,15 @@ import pytest
 
 from zoya.voice import (
     after_wake,
+    is_bare_confirmation,
+    is_junk_reply,
     is_runaway,
     is_stop,
     is_stop_command,
     is_usable_command,
     is_wake,
+    stop_name,
+    strip_wake,
     vetoes_wake,
 )
 
@@ -147,3 +151,40 @@ def test_runaway_repeats_and_overlong_transcripts_are_detected():
     assert is_runaway("Zoya no no no no no")
     assert is_runaway("word " * 61)
     assert not is_runaway("no, no, I meant Rahul Verma")
+
+
+def test_a_number_after_the_name_is_an_answer_not_a_repeated_wake():
+    # Owner's run: "Zoya 5000" (the budget) was swallowed as "still listening".
+    assert after_wake("Zoya 5000") == "5000"
+    assert strip_wake("Here's Zoya 5000.") == "5000."
+    assert strip_wake("Zoya, my budget is 5,000 rupees") == "my budget is 5,000 rupees"
+    assert strip_wake("book a hotel") == "book a hotel"
+    assert is_usable_command("5000")
+
+
+@pytest.mark.parametrize("heard", ["Hey Zoeya, it's confirmed.", "confirm", "Yes, confirm."])
+def test_a_late_confirmation_is_recognised_so_it_never_starts_a_task(heard):
+    assert is_bare_confirmation(heard)
+
+
+@pytest.mark.parametrize("heard", ["confirm my Amazon order for eggs", "book a hotel", "cancel"])
+def test_commands_are_not_bare_confirmations(heard):
+    assert not is_bare_confirmation(heard)
+
+
+@pytest.mark.parametrize("heard", ["", "Boom.", "Yes.", "Uh."])
+def test_junk_replies_do_not_count_as_answers(heard):
+    assert is_junk_reply(heard)
+
+
+@pytest.mark.parametrize(
+    "heard", ["confirm", "cancel", "no", "confirm karo", "Yes, confirm the order"]
+)
+def test_real_replies_count(heard):
+    assert not is_junk_reply(heard)
+
+
+def test_stop_the_task_is_a_bare_stop():
+    assert is_stop_command("stop the task.")
+    assert stop_name("stop the task", known_only=False) == ""
+    assert stop_name("stop all tasks", known_only=False) == "everything"
