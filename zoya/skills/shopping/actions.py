@@ -469,8 +469,8 @@ def order_total(summary: str) -> str:
 @tool
 def amazon_buy_now(result_number: int) -> str:
     """Buy one product from the last amazon_search on its own with the product page's Buy Now:
-    opens checkout for only that item and leaves the cart untouched. Nothing is ordered: that needs
-    amazon_place_order and the user's spoken confirm.
+    opens checkout for that item (live check 2026-09-15: Amazon.in also adds it to the cart).
+    Nothing is ordered: that needs amazon_place_order and the user's spoken confirm.
 
     Args:
         result_number: Its number in the last search results (1 = first).
@@ -511,8 +511,8 @@ def _check_item(title: str) -> str:
 @tool
 def amazon_buy(query: str) -> str:
     """One call for "buy X on Amazon": search, pick the first non-sponsored listing, Buy Now (only
-    that item; the cart is untouched), read the checkout, then place the order through Zoya's
-    spoken confirmation. Amazon Now items (groceries) are added to the cart instead.
+    that item; Amazon.in also adds it to the cart), read the checkout, then place the order
+    through Zoya's spoken confirmation. Amazon Now items (groceries) are added to the cart instead.
 
     Args:
         query: What to buy, e.g. "48 Laws of Power book".

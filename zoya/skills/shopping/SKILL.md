@@ -20,8 +20,7 @@ Amazon.in sells products. It doesn't book hotels, cabs or restaurants: say so at
 web_search for a site that does, before asking the user any details.
 
 "Buy X" (one item): `amazon_buy(query)` does it all in one call: it picks the first listing that
-isn't a sponsored ad, uses Buy Now so only that item is checked out (the rest of the cart stays as
-it is), and the safety layer asks the user to confirm out loud. To buy a result the user chose from
+isn't a sponsored ad, uses Buy Now so only that item is checked out (Amazon.in still adds it to the cart), and the safety layer asks the user to confirm out loud. To buy a result the user chose from
 a search: `amazon_buy_now(result_number)`, then `amazon_place_order` with the page's total and item.
 
 "Only that one" / "remove the rest": `amazon_cart` lists the cart (saved-for-later items don't
