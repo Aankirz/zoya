@@ -171,3 +171,6 @@
 
 ## 2026-09-14 — Harness rollout into phase briefs
 - Phases 4–6: Strands-first harness layers from docs/research/harness.md (skills + actions + caching in 4, Shortcuts/recorded flows in 5, multi-agent in 6); phase 5 duplicate line removed.
+
+## 2026-09-14 — Duck state survives a kill
+- audio.py/main.py: SIGTERM/SIGHUP restore the volume; pre-duck level persisted to logs/duck_state.json and restored at startup after kill -9; no compounding over repeated kills (tests/test_duck_state.py)
