@@ -214,3 +214,6 @@
 
 ## 2026-09-14 — Phase 6 AWS resources + managed IAM policy (D68)
 - Created zoya-reminders schedule group, zoya-scheduler-sns role, zoya-shared bucket, zoya-shares topic; moved zoya-app to a managed policy (inline 2,048-byte limit).
+
+## 2026-09-14 — Phase 7: stage overlay, action ring, CloudWatch dashboard spec
+- zoya/overlay.py + overlay_app.py (child-process NSPanel: presence states, masked captions, ring); screen.display_filter excludes the overlay in every display capture; aws.traced span per AWS call; infra/cloudwatch/zoya-stage-dashboard.json; zoya-app policy +xray:PutSpans/PutSpansForIndexing; tests/test_overlay.py, tests/evals/overlay_check.py; D69, §9.11 as built.

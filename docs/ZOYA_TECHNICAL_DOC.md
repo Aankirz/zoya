@@ -646,6 +646,8 @@ The user never needs it; judges, sighted helpers, and low-vision users benefit f
 - **Look and feel:** Apple Human Interface Guidelines — Liquid Glass / standard material panel, SF Pro + SF Symbols, brief purposeful motion, Reduce Motion / Reduce Transparency / Increase Contrast honoured. The avatar behaves like an ambient agent "presence" (inspired by AgentPet) showing idle · listening · thinking (with the current step) · acting · speaking · waiting for yes · stopped · error — calm, no gamification. Details in the Phase 7 brief.
 - **Cost:** ~1–2 hours. First item on the cut list.
 
+**As built (Phase 7, D69):** a child process (`zoya/overlay.py` bridge, `zoya/overlay_app.py` AppKit) started by `--overlay`; bottom-right Liquid Glass panel 480×148 pt with an SF Symbol orb, a state title ("Grocery order — Acting · browser click"), the user's last words and Zoya's current sentence (20 pt), secrets hidden before they leave Zoya. The action ring is a separate click-through panel around the element (browser: DOM rect + window origin; pixel clicks: 44 pt around the point), shown 0.25 s before the click and for 1.4 s; no text label on the ring. Every display capture excludes the overlay's pid through `screen.display_filter`. Judge dashboard `zoya-stage` over the `aws/spans` log group (Transaction Search): task latency, recent tasks, tool calls, AWS services per trace, model tokens, errors.
+
 ### 9.12 Shopping patterns borrowed from `anthropics/commerce-agents`
 Reference: https://github.com/anthropics/commerce-agents (Apache-2.0).
 
