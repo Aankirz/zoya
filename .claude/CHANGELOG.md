@@ -138,3 +138,6 @@
 
 ## 2026-09-14 — Phase 2 diagnose: turn-taking and background music
 - Follow-up window, loudness-gated VAD, stop cooldown, filler filter, interrupted-turn context, media rule; replay eval extended; D53.
+
+## 2026-09-14 — Phase 2: Smart Turn endpointing + wake veto
+- Smart Turn v3.2 end-of-turn (D55), turbo veto of sound-alike wakes with name guard (D54), pinned onnxruntime/huggingface-hub.
