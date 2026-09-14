@@ -490,7 +490,21 @@ def _read_stdin(presence: Presence | None) -> None:
     AppHelper.callAfter(AppHelper.stopEventLoop)  # Zoya quit or crashed: the pipe closed
 
 
+PARENT_POLL_S = 0.5
+
+
+def _exit_when_orphaned(parent_pid: int) -> None:
+    # The stdin pipe can stay open after Zoya dies (e.g. the terminal is closed), so also watch
+    # the parent: once it's gone the overlay must not linger on screen.
+    while os.getppid() == parent_pid:
+        time.sleep(PARENT_POLL_S)
+    os._exit(0)
+
+
 def run(controls_only: bool = False) -> int:
+    threading.Thread(
+        target=_exit_when_orphaned, args=(os.getppid(),), name="overlay-parent", daemon=True
+    ).start()
     app = AppKit.NSApplication.sharedApplication()
     app.setActivationPolicy_(AppKit.NSApplicationActivationPolicyAccessory)  # no Dock, no focus
     controls = Controls.alloc().init().install()
