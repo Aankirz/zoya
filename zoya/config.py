@@ -272,3 +272,5 @@ REMINDER_SCHEDULE_GROUP = "zoya-reminders"
 REMINDER_ROLE_ARN = "arn:aws:iam::567487920371:role/zoya-scheduler-sns"  # D67, owner-created
 REMINDER_TIMEZONE = "Asia/Kolkata"
 REMINDER_MAX_DAYS = 30
+REMINDER_MAX_PER_TASK = 5  # new reminders one command may set (a hijacked model can't fan out)
+REMINDER_MAX_ACTIVE = 20  # spoken reminders waiting at once
