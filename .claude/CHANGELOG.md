@@ -185,3 +185,6 @@
 
 ## 2026-09-14 — AEC plumbing (flag off)
 - zoya/aec.py, tests/evals/aec_replay.py, livekit + pyobjc CoreAudio pins, mixer reference feed; AEC_ENABLED=False (D62 in progress)
+
+## 2026-09-14 — Phase 4 AWS resources
+- zoya-memory table (pk/sk), zoya-alerts SNS topic + owner email subscription, geo-places permissions for zoya-app (infra/iam/zoya-app-policy.json).

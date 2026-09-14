@@ -20,7 +20,11 @@
         "xray:PutTelemetryRecords"
       ],
       "Resource": "*",
-      "Condition": {"StringEquals": {"aws:RequestedRegion": "ap-south-1"}}
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "ap-south-1"
+        }
+      }
     },
     {
       "Sid": "TaskHistoryTables",
@@ -46,13 +50,19 @@
     {
       "Sid": "ZoyaBuckets",
       "Effect": "Allow",
-      "Action": ["s3:ListBucket"],
+      "Action": [
+        "s3:ListBucket"
+      ],
       "Resource": "arn:aws:s3:::zoya-*"
     },
     {
       "Sid": "ZoyaObjects",
       "Effect": "Allow",
-      "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject"
+      ],
       "Resource": "arn:aws:s3:::zoya-*/*"
     },
     {
@@ -64,8 +74,24 @@
     {
       "Sid": "ZoyaLogs",
       "Effect": "Allow",
-      "Action": ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+      ],
       "Resource": "arn:aws:logs:ap-south-1:567487920371:log-group:zoya*"
+    },
+    {
+      "Sid": "PlaceSearch",
+      "Effect": "Allow",
+      "Action": [
+        "geo-places:SearchText",
+        "geo-places:SearchNearby",
+        "geo-places:Geocode",
+        "geo-places:ReverseGeocode",
+        "geo-places:GetPlace"
+      ],
+      "Resource": "arn:aws:geo-places:ap-south-1::provider/default"
     }
   ]
 }
