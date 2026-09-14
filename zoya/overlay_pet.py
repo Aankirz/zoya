@@ -1,6 +1,6 @@
 """Zoya's presence (Phase 7 redesign): a small character drawn with Core Animation only.
 
-A flat, matte rounded square in Zoya violet, three darker translucent planes turning slowly
+A flat, matte rounded square in Zoya blue, three darker translucent planes turning slowly
 inside it, and two small eyes set low whose shape and motion carry the state. Visual language
 from Plane's Agent Avatar Lab (https://agents.plane.so: flat silhouette, turning planes, low
 eyes; reference only, no assets or paths copied).
@@ -27,7 +27,7 @@ EYE_Y = 30.0  # low in the body, like a face looking out
 PLANE_W, PLANE_H, PLANE_R = 50.0, 30.0, 8.0
 PLANE_OFFSETS = ((-16.0, 10.0), (12.0, -6.0), (18.0, 20.0))  # from the centre, before turning
 PLANE_PERIODS_S = (22.0, -30.0, 38.0)
-PLANE_TINT = ((52, 22, 138), 0.2)  # darker violet at 20 %: the matte "multiply" planes
+PLANE_TINT = ((0, 40, 130), 0.2)  # darker blue at 20 %: the matte "multiply" planes
 ERROR_TILT_RAD = math.radians(24)  # error eyes droop: distinct from "stopped" without colour
 POSE_S = 0.32
 EASE_OUT_QUINT = (0.22, 1.0, 0.36, 1.0)
@@ -35,10 +35,10 @@ CROSSFADE_S = 0.2
 
 # One signature colour, so the room remembers Zoya: states are told by the eyes, motion and the
 # label, never by hue. Only "stopped" dims. sRGB 0..255, top-left → bottom-right: nearly flat.
-ZOYA_VIOLET = ((132, 98, 246), (116, 82, 232))
-ZOYA_VIOLET_DIM = ((150, 144, 184), (136, 130, 170))
+ZOYA_BLUE = ((40, 140, 255), (10, 116, 240))  # the blue orb; no violet
+ZOYA_BLUE_DIM = ((140, 158, 186), (126, 144, 172))
 PALETTE: dict[str, tuple[tuple[int, int, int], tuple[int, int, int]]] = {
-    state: ZOYA_VIOLET_DIM if state == "stopped" else ZOYA_VIOLET
+    state: ZOYA_BLUE_DIM if state == "stopped" else ZOYA_BLUE
     for state in (
         "idle",
         "listening",

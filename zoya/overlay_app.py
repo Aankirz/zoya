@@ -25,10 +25,11 @@ import time
 from typing import Any
 
 import AppKit
+import ApplicationServices
 import Quartz
 from PyObjCTools import AppHelper
 
-from zoya.overlay_pet import PET_PT, ZOYA_VIOLET, Pet
+from zoya.overlay_pet import PET_PT, ZOYA_BLUE, Pet
 
 WINDOW_W_PT = 520.0
 WINDOW_H_PT = 190.0
@@ -46,7 +47,7 @@ CAPTION_LINES = 3
 IDLE_HIDE_S = 5.0  # the bubble lingers this long after a task ends, then only the pet remains
 FADE_S = 0.15
 RING_LINE_PT = 4.0
-RING_RGB = ZOYA_VIOLET[1]
+RING_RGB = ZOYA_BLUE[1]
 RING_SHOW_S = 1.4
 RING_ENTER_SCALE = 1.08
 RING_ENTER_S = 0.2
