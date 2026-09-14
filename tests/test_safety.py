@@ -1291,3 +1291,147 @@ def test_place_order_is_never_a_known_safe_click():
     ):
         facts = safety.ClickFacts(labels, is_submit=True, host="www.amazon.in", control_name=name)
         assert safety.click_risk(facts), labels
+
+
+# --- X posts (x_web): exact text and count, nothing posted without a spoken confirm ---------------
+
+
+class _FakeXLocator:
+    def __init__(self, page, selector):
+        self.page, self.selector = page, selector
+        self.first = self
+
+    def filter(self, **_):
+        return self
+
+    def wait_for(self, timeout=0):
+        return None
+
+    def count(self):
+        return 1
+
+    def click(self):
+        return None
+
+    def inner_text(self):
+        return self.page.typed if "tweetTextarea" in self.selector else "Post"
+
+    def get_attribute(self, name):
+        return None
+
+
+class _FakeXPage:
+    url = "https://x.com/compose/post"
+
+    def __init__(self):
+        self.typed = ""
+        self.keyboard = self
+
+    def locator(self, selector):
+        return _FakeXLocator(self, selector)
+
+    def press(self, _key):
+        return None
+
+    def insert_text(self, text):
+        self.typed = text
+
+
+@pytest.fixture
+def fake_x(monkeypatch):
+    from zoya.skills.x_web import actions as x_web
+
+    page, clicks = _FakeXPage(), []
+    handle = type("Handle", (), {"evaluate": lambda self, *_: True})()
+    facts = safety.ClickFacts(labels=["Post"], host="x.com")
+    monkeypatch.setattr(browser_tools, "goto", lambda url: "X")
+    monkeypatch.setattr(browser_tools, "on_page", lambda work: work(page))
+    monkeypatch.setattr(browser_tools, "_on_browser", lambda call: call())
+    monkeypatch.setattr(
+        browser_tools,
+        "probe_with",
+        lambda find: lambda: browser_tools.Target(handle, facts, "", ""),
+    )
+    monkeypatch.setattr(browser_tools, "_click", clicks.append)
+    monkeypatch.setattr(x_web, "needs_sign_in", lambda _page: False)
+    monkeypatch.setattr(x_web, "_sent", lambda _page: True)
+    return x_web, clicks
+
+
+def _post_in_background(x_web, text):
+    outcome: dict = {}
+
+    def run():
+        try:
+            outcome["result"] = x_web.x_post(text=text)
+        except (safety.ConfirmationDeclined, ToolError) as error:
+            outcome["result"] = error
+
+    thread = threading.Thread(target=run, daemon=True)
+    thread.start()
+    return thread, outcome
+
+
+def test_x_post_is_guarded_and_x_post_button_is_a_risky_label():
+    assert safety.risk_of("x_post") == "guarded"
+    assert safety.risky_label(["Post"]) is not None
+
+
+@pytest.mark.parametrize(
+    ("text", "length"),
+    [
+        ("testing Zoya, my voice assistant", 32),
+        ("नमस्ते", 6),
+        ("日本", 4),
+        ("see https://zoya.ai now", 31),
+    ],
+)
+def test_tweet_length_uses_x_weights(text, length):
+    from zoya.skills.x_web import actions as x_web
+
+    assert x_web.tweet_length(text) == length
+
+
+def test_an_over_limit_tweet_is_refused_never_truncated(fake_x, gate):
+    x_web, clicks = fake_x
+
+    with pytest.raises(ToolError, match="281 characters"):
+        x_web.x_post(text="a" * 281)
+
+    assert clicks == [] and gate["prompts"] == []
+
+
+def test_x_post_reads_back_text_and_count_and_cancel_posts_nothing(fake_x, gate):
+    x_web, clicks = fake_x
+    channel = safety.claim_voice_channel()
+    thread, outcome = _post_in_background(x_web, "testing Zoya, my voice assistant")
+
+    _answer(channel, "cancel")
+    thread.join(REPLY_WAIT_S)
+
+    assert '"testing Zoya, my voice assistant", 32 characters' in gate["prompts"][0]
+    assert isinstance(outcome["result"], safety.ConfirmationDeclined)
+    assert clicks == []
+
+
+def test_x_post_unanswered_posts_nothing(fake_x, gate):
+    x_web, clicks = fake_x
+    safety.claim_voice_channel()
+    thread, outcome = _post_in_background(x_web, "hello")
+
+    thread.join(REPLY_WAIT_S)
+
+    assert isinstance(outcome["result"], safety.ConfirmationDeclined)
+    assert clicks == []
+
+
+def test_x_post_confirm_clicks_post_once(fake_x, gate):
+    x_web, clicks = fake_x
+    channel = safety.claim_voice_channel()
+    thread, outcome = _post_in_background(x_web, "hello")
+
+    _answer(channel, "confirm")
+    thread.join(REPLY_WAIT_S)
+
+    assert outcome["result"].startswith("Posted.")
+    assert len(clicks) == 1

@@ -41,6 +41,11 @@ from zoya.tools import ToolError, handoff
             {"channel": "Lex Fridman"},
         ),
         ("play the newest MrBeast video on youtube", "youtube_play_latest", {"channel": "MrBeast"}),
+        (
+            "tweet: testing Zoya, my voice assistant",
+            "x_post",
+            {"text": "testing Zoya, my voice assistant"},
+        ),
         ("search lofi beats on youtube", "youtube_search", {"query": "lofi beats"}),
         ("what's the weather in New Delhi", "get_weather", {"city": "New Delhi"}),
         ("search for basmati rice on amazon", "amazon_search", {"query": "basmati rice"}),

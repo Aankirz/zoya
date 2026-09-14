@@ -108,6 +108,7 @@ TOOL_RISK: dict[str, RiskClass] = {
     "youtube_subscribe": "guarded",
     "youtube_like": "guarded",
     "youtube_comment": "guarded",
+    "x_post": "guarded",  # confirm_then_click with the exact text and count; verified by X's toast
     "spotify_search": "free",
     "spotify_play_song": "guarded",
     "amazon_search": "free",
