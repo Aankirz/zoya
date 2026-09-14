@@ -82,6 +82,7 @@ export function WaitlistForm({ idPrefix }: { idPrefix: string }) {
           type="email"
           inputMode="email"
           autoComplete="email"
+          placeholder={WAITLIST.placeholder}
           autoCapitalize="none"
           spellCheck={false}
           aria-invalid={error ? true : undefined}

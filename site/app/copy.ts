@@ -4,8 +4,9 @@
 export const CONTACT_EMAIL = "sahuankit453@gmail.com";
 
 export const META = {
-  title: "zoya · your mac, by voice",
-  description: "your mac, by voice. say what you want done, and zoya does it. made for blind and low-vision people.",
+  title: "zoya · your mac, by voice, for people who can't see the screen",
+  description:
+    "zoya lets people who can't see the screen use their mac by voice: say what you want done, and zoya does it.",
 };
 
 export const SKIP_LINK = "skip to the waitlist";
@@ -13,7 +14,7 @@ export const SKIP_LINK = "skip to the waitlist";
 export const MENU = {
   brand: "zoya",
   links: [
-    { href: "#promises", label: "promises" },
+    { href: "#abilities", label: "what zoya does" },
     { href: "#faq", label: "faq" },
   ],
   cta: "join the waitlist",
@@ -21,7 +22,14 @@ export const MENU = {
 
 export const HERO = {
   title: "zoya",
-  subline: "your mac, by voice. say what you want done, and zoya does it.",
+  subline: "your mac, by voice. made for people who can't see the screen.",
+};
+
+export const WHY = {
+  label: "why zoya",
+  title: "the computer was built for people who can see.",
+  body: "apps, the internet, and now ai agents. all of it assumes you can see the screen. zoya hands that power to people who can't. say what you want, and zoya does it for you.",
+  closer: "a screen reader tells you what's there. zoya does what you meant.",
 };
 
 export const HELLO = {
@@ -40,7 +48,8 @@ export const WAITLIST = {
   label: "your email",
   button: "join the waitlist",
   sending: "joining…",
-  hint: "made for blind and low-vision people. mac only.",
+  placeholder: "you@example.com",
+  hint: "mac only.",
   success: "you're on the list. we'll email you when zoya is ready.",
   errors: {
     empty: "enter your email address.",
@@ -50,20 +59,38 @@ export const WAITLIST = {
   },
 };
 
-export const PROMISES = {
-  label: "promises",
+// Real shipped abilities only (Phase 4 amazon.in shopping with a spoken "confirm", the Spotify skill, the Phase 6
+// document agent). Spotify plays by song, artist or album (zoya/skills/spotify_web), so no "mood" claim.
+export const ABILITIES = {
+  label: "what zoya does",
   items: [
     {
-      say: "confirm",
-      title: "zoya asks before anything you can't undo",
-      line: "paying, sending, deleting: zoya waits for your “confirm”.",
+      say: "zoya, buy this on amazon",
+      title: "shops for you",
+      line: "finds it, adds it to your cart, and waits for your “confirm” before it pays.",
+      window: "amazon",
     },
     {
-      say: "done",
-      title: "your passwords stay yours",
-      line: "zoya pauses, you type them, you say “done”.",
+      say: "zoya, play a song on spotify",
+      title: "plays your music",
+      line: "name a song, an artist or an album, and it starts playing.",
+      window: "spotify",
+    },
+    {
+      say: "zoya, make a presentation",
+      title: "makes your slides",
+      line: "tell it the topic, and your deck is ready in keynote or powerpoint.",
+      window: "slides",
     },
   ],
+  trust: "it asks before anything you can't undo. it never types your passwords.",
+} as const;
+
+// Visible words inside the drawn windows (decorative, aria-hidden). Text names only, no logos.
+export const APP_WINDOWS = {
+  amazon: { title: "amazon.in", placeOrder: "place order", sayConfirm: "say confirm" },
+  spotify: { title: "spotify" },
+  slides: { title: "presentation.pptx" },
 };
 
 export const FAQ = {

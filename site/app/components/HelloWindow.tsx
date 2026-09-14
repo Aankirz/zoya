@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { HELLO } from "../copy";
 import { GlassMicrophone, OutlinePlay, OutlineStop } from "../icons/rune";
-import { MacLights } from "./Props";
+import { MacLights } from "./MacWindow";
 import { GlossyBubble, Waveform } from "./Talk";
 
 // Typing runs slightly ahead of the voice so the words land as she says them.

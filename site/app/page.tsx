@@ -1,3 +1,4 @@
+import { AppWindow } from "./components/AppWindows";
 import { FolderWordmark } from "./components/FolderWordmark";
 import { HelloWindow } from "./components/HelloWindow";
 import { MenuBar } from "./components/MenuBar";
@@ -6,7 +7,7 @@ import { Waveform } from "./components/Talk";
 import { TypingBubble } from "./components/TypingBubble";
 import { VisitorCount } from "./components/VisitorCount";
 import { WaitlistForm } from "./components/WaitlistForm";
-import { CONTACT_EMAIL, FAQ, FOOTER, HERO, PROMISES, SKIP_LINK } from "./copy";
+import { ABILITIES, CONTACT_EMAIL, FAQ, FOOTER, HERO, SKIP_LINK, WHY } from "./copy";
 import { OutlinePlus } from "./icons/rune";
 import { getVisitorCount } from "@/lib/visitors";
 
@@ -39,18 +40,29 @@ export default async function Home() {
           <HelloWindow />
         </section>
 
-        <section className="promises" id="promises">
-          <h2 className="capsule">{PROMISES.label}</h2>
-          <ul className="promise-list">
-            {PROMISES.items.map((promise) => (
-              <li className="promise" key={promise.say}>
+        <section className="why" id="why">
+          <p className="capsule" aria-hidden="true">
+            {WHY.label}
+          </p>
+          <h2 className="section-title why-title">{WHY.title}</h2>
+          <p className="why-body">{WHY.body}</p>
+          <p className="why-closer">{WHY.closer}</p>
+        </section>
+
+        <section className="abilities" id="abilities">
+          <h2 className="capsule">{ABILITIES.label}</h2>
+          <ul className="ability-list">
+            {ABILITIES.items.map((ability) => (
+              <li className="ability" key={ability.say}>
                 <Waveform />
-                <TypingBubble text={promise.say} />
-                <h3 className="promise-title">{promise.title}</h3>
-                <p className="promise-line">{promise.line}</p>
+                <TypingBubble text={ability.say} />
+                <h3 className="ability-title">{ability.title}</h3>
+                <p className="ability-line">{ability.line}</p>
+                <AppWindow kind={ability.window} className="feature-window" />
               </li>
             ))}
           </ul>
+          <p className="trust-line">{ABILITIES.trust}</p>
         </section>
 
         <section className="faq" id="faq">
