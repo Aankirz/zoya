@@ -147,3 +147,6 @@
 
 ## 2026-09-14 — Learning doc
 - learning/learning.md: architecture overview and the story of phases 0–2 for the owner.
+
+## 2026-09-14 — Offline model loading
+- HF_HUB_OFFLINE at runtime, MODEL_PINS + zoya/setup_models.py, fail-fast on missing models; AUDIT §6 (startup hang on black-holed IPv6).
