@@ -52,7 +52,7 @@ IDLE_MESSAGE = "Nothing is running."
 NAME_MATCH_RATIO = 0.6
 COUNT_WORDS = {1: "One thing", 2: "Two things", 3: "Three things"}
 ALL_WORDS = {"all", "everything", "all tasks", "every task", "sab", "sab kuch"}
-FILLER = re.compile(r"\b(?:the|my|a|an|task|please|zoya)\b", re.I)
+FILLER = re.compile(r"\b(?:hey|hi|ok|okay|the|my|a|an|task|please|zoya)\b|[^\w\s]", re.I)
 
 # Spoken names: the first rule that matches the command. Otherwise its first three words.
 NAME_RULES = [

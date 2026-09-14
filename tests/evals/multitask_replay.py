@@ -79,7 +79,9 @@ def stand_in_grocery(command: str, pre: dict | None = None) -> orchestrator.Comm
     return orchestrator.CommandResult(task.id, decision, spoken, ok, {})
 
 
-DOCUMENT_STAND_IN_S = 45.0  # a presentation takes ~10 s; slow it so both tasks overlap
+DOCUMENT_STAND_IN_S = float(
+    os.environ.get("STAND_IN_S", "45")
+)  # a presentation takes ~10 s; slow it so both tasks overlap
 
 
 def slow_documents() -> None:
