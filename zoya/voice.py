@@ -125,7 +125,10 @@ STATUS = re.compile(r"\bwhat(?:'s| is| are you)\s+(?:running|doing|working on)\b
 TASK_STATUS = re.compile(
     r"^how(?:'s| is| are)\s+(?P<name>.+?)(?:\s+(?:going|doing|coming along))?\??$", re.I
 )
-QUEUE_IT = re.compile(r"^(?:yes,?\s+)?queue(?:\s+(?:it|that))?(?:\s+please)?\.?$", re.I)
+# Turbo writes "queue it" as "cue it" (Phase 6 replay).
+QUEUE_IT = re.compile(
+    r"^(?:yes,?\s+)?(?:queue|cue|kyu)(?:\s+(?:it|that))?(?:\s+please)?[.!]?$", re.I
+)
 # Once tasks have run side by side, a partial "Zoya, stop…" waits this long for "…the presentation".
 STOP_NAME_PAUSE_S = 0.35
 

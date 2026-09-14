@@ -550,3 +550,11 @@ def test_partial_stop_waits_for_a_task_name_once_tasks_shared_the_floor(loop, mo
     loop._check_stop(now)
 
     assert spotted == []
+
+
+@pytest.mark.parametrize("heard", ["queue it", "Cue it!", "yes, queue that"])
+def test_queue_it_as_transcribed(heard):
+    from zoya import voice
+    from zoya.router import clean_command
+
+    assert voice.QUEUE_IT.match(clean_command(heard))
