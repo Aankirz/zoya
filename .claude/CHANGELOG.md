@@ -266,3 +266,10 @@
 - Rebuilt site/ in heyclicky's DNA with our own drawn assets, light only and centered: macOS menu bar with an animated Zoya mark, dotted desktop hero with SVG props (notes and Finder windows, folders, trash, "hello my name is" sticker, kaomoji) around "zoya", the subline and the waitlist, a big "hello" Mac window that plays Zoya's real Polly Kajal greeting with waveform dots and a typing glossy bubble, three stacked promise rows with typing bubbles (confirm / done / zoya, stop), white FAQ rows, and a footer "zoya" built from drawn folders with the visitor counter and contact.
 - Inter replaces Atkinson (owner: exactly like heyclicky); greys darkened to >= 7:1. Removed the v2 script name, chip, line art and dark theme.
 - Verified: axe 0 violations incl. AAA contrast, Lighthouse mobile 99/100/100/100, no overflow at 320/375/390/768/1440 or 200% zoom, reduced motion honoured, clean-clone build.
+
+## 2026-09-15 — Website v3 deployed
+- Pushed main@775b1b6 (heyclicky-style light centered site); Vercel production READY at https://zoya-indol.vercel.app. Live checks: no secrets or personal data beyond the approved contact email, no third-party origins, waitlist GET 405 / POST validates, voice clip and analytics 200.
+
+## 2026-09-15 — Rune Icons on the Zoya website
+- Added 12 Rune Icons (Nexvyn, Apache-2.0) as inline components in site/app/icons/rune.tsx: glass folder, trash, notes and microphone for the desktop props and hello window; outline eye, plus, play, stop, wifi and battery for UI; two pixelated accents (ear, message) in the desktop hero. Glass ids are namespaced per instance.
+- Added site/THIRD_PARTY_NOTICES.md with the Apache-2.0 text and a footer credit "icons by rune icons". axe 0 (incl. AAA), no overflow at 320–1440 and 200% zoom, build clean.
