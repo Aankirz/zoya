@@ -31,3 +31,8 @@ output/
 
 # Owner voice recordings (personal biometric audio) stay local
 tests/evals/fixtures/commands/*.wav
+
+# Website (Next.js in site/)
+site/node_modules/
+site/.next/
+site/data/
