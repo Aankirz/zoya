@@ -605,6 +605,15 @@ class ConfirmationGate(HookProvider):
 - Bound to the summary shown (hash of action + amount + target), **single use**, **expires in 60 s**.
 - No answer in 20 s → re-prompt once → auto-cancel. **Silence is never consent.**
 
+**As built and verified (Phase 3, D61)** — facts found while building, keep them:
+- Strands 1.55.1 wraps an exception raised in a hook in `EventLoopException` (`event_loop/event_loop.py`); the orchestrator unwraps it, or a cancel (and the cost/step cap) is spoken as "something went wrong".
+- Direct `agent.tool.X()` calls run the same executor and hooks but cannot raise interrupts (`tools/_caller.py`); the router fast path calls tools with no Agent at all. So the token check lives inside each risky action, not only in the hook.
+- A label blocklist fails open ("Checkout", "BuyNow", "खरीदें", icon-only buttons were clicked in review). The click guard asks on any of: risky label, no accessible name, submit control, commerce/compose page.
+- ScreenCaptureKit window capture (`SCContentFilter initWithDesktopIndependentWindow`) aborts the process with a `CGS_REQUIRE_INIT` assertion unless CoreGraphics is initialised first (`CGMainDisplayID()`).
+- A new Chrome window publishes its title late, and title-substring matching once captured the *previous* page. Capture only the one window titled exactly like the page, and require the page's host in the OCR'd address bar.
+- Rekognition DetectText returns at most 100 words per image; a busy page can miss the total → mismatch → never confirm (fail closed). Tile the image if real shops need it.
+- Time to the question on the test page: speech end → question starts ≈ 10 s (brain 2 turns ≈ 7.5 s, capture 0.1–0.4 s + OCR ≈ 1.1 s, warning ×2 1.2 s); page actions skip the router model.
+
 ### 9.10 Audio engine
 - **Playback:** pre-load earcons into memory as numpy arrays via `sounddevice` (no process spawn per sound; `afplay` is OK for v0 but adds ~100 ms).
 - **Channels:** `speech` (priority), `earcons`, `ambient` (working loop, ducked −18 dB under speech).
