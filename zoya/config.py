@@ -192,6 +192,8 @@ TEXTRACT_TIMEOUT_S = 15.0  # AnalyzeDocument on one page
 DOCUMENT_MAX_PAGES = 5  # pages read aloud per document (sync Textract: 1 page per call)
 DOCUMENT_RENDER_DPI = 150  # Textract needs ≥ 15 px text height; 8 pt at 150 DPI qualifies
 DOCUMENT_TEXT_MAX_CHARS = 6000
+COMPUTER_FLOWS_FILE = LOG_DIR / "computer_flows.json"  # intent + app → steps that worked (harness)
+COMPUTER_FLOW_TTL_S = 7 * 24 * 3600  # same lifetime as Phase 4's learned picks
 
 
 def load_env() -> None:

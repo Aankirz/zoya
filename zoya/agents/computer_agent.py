@@ -4,7 +4,7 @@ tool, `computer_task(goal)`.
 Harness, cheapest first (docs/research/harness.md): replay a recorded flow (0 model calls) →
 the user's Shortcuts → AX (T1) → pixels (T3). Strands provides the agent loop, hooks, the
 sequential executor and cancellation; Zoya adds the GUI lock, screenshot pruning, the give-up
-rule and the gate.
+rule, recorded flows and the gate.
 
 - One GUI task at a time (`computer.gui_lock`); "Zoya, stop" cancels it (orchestrator._cancel).
 - The safety gate is registered last, as on the orchestrator (safety.ConfirmationGate); every
@@ -12,30 +12,45 @@ rule and the gate.
 - Only the last KEEP_SCREENSHOTS screenshots stay in context (§9.3).
 - Three failed attempts in a row, or the user moving the mouse, end the task honestly.
 - Its cost counts against what is left of the task's cap.
+- Recorded flows: a task that succeeded without any confirmation is stored as its input steps
+  (open_app, ax_press, click with the AX labels it hit, key, scroll), keyed by intent + front
+  app, in the style of Phase 4's learned picks (JSON under logs/, 7-day TTL). Next time it
+  replays at 0 model calls through the SAME tool functions, so Guard 2 runs on every step; any
+  mismatch (labels, screen size, app, no visible change, a refusal) falls back to the agent,
+  which records again.
 
-Strands 1.55.1 source: tools/decorator.py (`@tool(context=True)` → ToolContext.agent),
-hooks/events.py (BeforeModelCallEvent), agent/agent.py (`cancel_signal`).
+Strands 1.55.1 source: tools/decorator.py (`context=True` → ToolContext.agent),
+hooks/events.py (BeforeModelCallEvent, AfterToolCallEvent), agent/agent.py (`cancel_signal`).
 """
 
 from __future__ import annotations
 
+import json
 import os
 import time
 from typing import Any
 
 from strands import Agent, ToolContext, tool
-from strands.hooks import BeforeModelCallEvent, HookProvider, HookRegistry
+from strands.hooks import AfterToolCallEvent, BeforeModelCallEvent, HookProvider, HookRegistry
 from strands.tools.executors import SequentialToolExecutor
 from strands.types.exceptions import EventLoopException
 
-from zoya import safety
-from zoya.config import KEEP_SCREENSHOTS, PER_TASK_COST_CAP_USD
+from zoya import safety, screen
+from zoya.config import (
+    COMPUTER_FLOW_TTL_S,
+    COMPUTER_FLOWS_FILE,
+    KEEP_SCREENSHOTS,
+    LOG_DIR,
+    PER_TASK_COST_CAP_USD,
+)
 from zoya.prompts import COMPUTER_PROMPT
 from zoya.tools import ToolError, ax, computer
 
 BUSY = "I'm already using the screen for another task."
 PRUNED_SCREENSHOT = {"text": "[older screenshot removed]"}
+REPLAYED = "Done, the same way as last time."
 MS_PER_S = 1000
+SPENT_KEY = "computer_spent_usd"  # on the brain agent's state: earlier computer_task calls
 
 
 class ComputerStopped(Exception):
@@ -72,7 +87,102 @@ class GiveUp(HookProvider):
             raise ComputerStopped(computer.session.stop_reason)
 
 
-SPENT_KEY = "computer_spent_usd"  # on the brain agent's state: earlier computer_task calls
+# --- Recorded flows (harness Layer 1 for GUI tasks) ----------------------------------------------
+
+STEP_TOOLS = {"open_app", "ax_press", "click", "key", "scroll"}
+UNRECORDABLE = {"type_text", "run_shortcut"}  # typed text may be personal; shortcuts always ask
+
+
+class FlowMismatch(Exception):
+    """The screen isn't what the recorded flow expects: let the agent do it."""
+
+
+class FlowRecorder(HookProvider):
+    """Collect the successful input steps of one computer task."""
+
+    def __init__(self) -> None:
+        self.steps: list[dict[str, Any]] = []
+        self.spoiled = False
+
+    def register_hooks(self, registry: HookRegistry, **_: Any) -> None:
+        registry.add_callback(AfterToolCallEvent, self.after_tool)
+
+    def after_tool(self, event: AfterToolCallEvent) -> None:
+        name = str(event.tool_use.get("name", ""))
+        if name in UNRECORDABLE:
+            self.spoiled = True
+        if name not in STEP_TOOLS or (event.result or {}).get("status") != "success":
+            return
+        if name in ("click", "key") and computer.session.failures:
+            return  # it didn't visibly work: not part of the recipe
+        step = {"tool": name, "args": dict(event.tool_use.get("input") or {})}
+        if name == "click":
+            step["expect"] = computer.session.last_click
+        self.steps.append(step)
+
+
+def flow_key(goal: str, app: str) -> str:
+    """ponytail: exact normalised goal text; the brain phrasing a goal differently is a miss."""
+    return f"{safety.normalise(app)}|{safety.normalise(goal)}"
+
+
+def _load_flows() -> dict[str, Any]:
+    try:
+        return json.loads(COMPUTER_FLOWS_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def save_flow(key: str, steps: list[dict[str, Any]]) -> None:
+    flows = {**_load_flows(), key: {"at": time.time(), "steps": steps}}
+    try:
+        LOG_DIR.mkdir(exist_ok=True)
+        COMPUTER_FLOWS_FILE.write_text(json.dumps(flows, ensure_ascii=False), encoding="utf-8")
+    except OSError:
+        pass  # a lost recipe only costs model calls next time
+
+
+def replay_flow(key: str, cancel: Any) -> bool:
+    """Run a recorded flow with no model: True if every step verified, False if none is stored,
+    FlowMismatch otherwise. ConfirmationDeclined still ends the task: each tool runs its gate."""
+    flow = _load_flows().get(key)
+    if not flow or time.time() - flow.get("at", 0) > COMPUTER_FLOW_TTL_S:
+        return False
+    tools = {t.tool_name: t for t in [*computer.COMPUTER_TOOLS, *ax.AX_TOOLS]}
+    for step in flow["steps"]:
+        if cancel.is_set():
+            raise FlowMismatch("cancelled")
+        _check_step(step)
+        failures = computer.session.failures
+        try:
+            tools[step["tool"]](**step["args"])
+        except (ToolError, KeyError, TypeError) as error:
+            raise FlowMismatch(str(error)) from error
+        if computer.session.failures > failures or computer.session.stop_reason:
+            raise FlowMismatch("a step didn't visibly work")
+    return True
+
+
+def _check_step(step: dict[str, Any]) -> None:
+    """A recorded click only replays onto the same screen size, app and AX labels."""
+    if step["tool"] != "click":
+        return
+    shot = computer.session.shot = screen.capture_display()
+    expect = step.get("expect") or {}
+    if [shot.width, shot.height] != expect.get("size"):
+        raise FlowMismatch("screen size changed")
+    x, y = step["args"].get("x", -1), step["args"].get("y", -1)
+    try:
+        point = screen.image_to_screen(x, y, shot.width, shot.height, shot.frame)
+    except ToolError as error:
+        raise FlowMismatch(str(error)) from error
+    if ax.front_app()[0] != expect.get("app"):
+        raise FlowMismatch("a different app is in front")
+    if ax.click_facts(ax.element_at(*point)).labels != expect.get("labels"):
+        raise FlowMismatch("the target isn't there")
+
+
+# --- Running a task ------------------------------------------------------------------------------
 
 
 def _usage_cost(agent: Any) -> float:
@@ -90,7 +200,7 @@ def _remaining_budget(parent: Any) -> float:
     return max(0.0, PER_TASK_COST_CAP_USD - spent)
 
 
-def build_computer_agent(cost_cap_usd: float) -> Agent:
+def build_computer_agent(cost_cap_usd: float, recorder: FlowRecorder | None = None) -> Agent:
     from zoya.models import get_model
     from zoya.orchestrator import TaskLimits, narrate_tool
 
@@ -100,6 +210,7 @@ def build_computer_agent(cost_cap_usd: float) -> Agent:
         tools=[*computer.COMPUTER_TOOLS, *ax.AX_TOOLS, narrate_tool],
         hooks=[
             TaskLimits(os.environ.get("BRAIN_MODEL", ""), cost_cap_usd),
+            *([recorder] if recorder else []),
             ScreenshotPruner(),
             GiveUp(),
             safety.ConfirmationGate(),  # last: sees the final tool call
@@ -113,21 +224,42 @@ def build_computer_agent(cost_cap_usd: float) -> Agent:
 def run_computer_task(
     goal: str, cost_cap_usd: float = PER_TASK_COST_CAP_USD, parent: Any = None
 ) -> str:
-    """Run one GUI goal under the lock. Raises ConfirmationDeclined / TaskLimitExceeded /
-    TaskCancelled like the orchestrator, so the task ends as itself."""
-    from zoya.orchestrator import TaskCancelled, TaskLimitExceeded, _cancel
+    """Run one GUI goal under the lock: a recorded flow first, else the agent. Raises
+    ConfirmationDeclined / TaskLimitExceeded / TaskCancelled like the orchestrator."""
+    from zoya.orchestrator import _cancel
 
     if not computer.gui_lock.acquire(blocking=False):
         raise ToolError(BUSY)
     started = time.monotonic()
-    agent = build_computer_agent(cost_cap_usd)
-    outcome = "done"
     try:
         computer.begin_session()
+        key = flow_key(goal, ax.front_app()[0])
+        try:
+            if replay_flow(key, _cancel):
+                elapsed = round((time.monotonic() - started) * MS_PER_S)
+                computer.log_stage("computer_task", outcome="replayed", computer_ms=elapsed)
+                return REPLAYED
+        except FlowMismatch as mismatch:
+            computer.log_stage("computer_flow_mismatch", reason=str(mismatch)[:80])
+            computer.begin_session()
+        return _run_agent(goal, key, cost_cap_usd, parent, started)
+    finally:
+        computer.gui_lock.release()
+
+
+def _run_agent(goal: str, key: str, cost_cap_usd: float, parent: Any, started: float) -> str:
+    from zoya.orchestrator import TaskCancelled, TaskLimitExceeded, _cancel
+
+    recorder = FlowRecorder()
+    agent = build_computer_agent(cost_cap_usd, recorder)
+    outcome = "done"
+    try:
         result = agent(goal, cancel_signal=_cancel)
         if result.stop_reason == "cancelled" or _cancel.is_set():
             outcome = "cancelled"
             raise TaskCancelled
+        if recorder.steps and not recorder.spoiled and not computer.session.asked:
+            save_flow(key, recorder.steps)
         return str(result).strip() or "Done."
     except EventLoopException as wrapped:
         cause = wrapped.original_exception
@@ -139,21 +271,22 @@ def run_computer_task(
             raise cause from wrapped
         raise
     finally:
-        computer.gui_lock.release()
-        usage = agent.event_loop_metrics.accumulated_usage
-        if parent is not None:
-            parent.state.set(
-                SPENT_KEY, float(parent.state.get(SPENT_KEY) or 0.0) + _usage_cost(agent)
-            )
-        computer.log_stage(
-            "computer_task",
-            outcome=outcome,
-            computer_ms=round((time.monotonic() - started) * MS_PER_S),
-            input_tokens=usage.get("inputTokens", 0),
-            output_tokens=usage.get("outputTokens", 0),
-            cached_tokens=usage.get("cacheReadInputTokens", 0),
-            failures=computer.session.failures,
-        )
+        _account(agent, parent, outcome, started)
+
+
+def _account(agent: Agent, parent: Any, outcome: str, started: float) -> None:
+    usage = agent.event_loop_metrics.accumulated_usage
+    if parent is not None:
+        parent.state.set(SPENT_KEY, float(parent.state.get(SPENT_KEY) or 0.0) + _usage_cost(agent))
+    computer.log_stage(
+        "computer_task",
+        outcome=outcome,
+        computer_ms=round((time.monotonic() - started) * MS_PER_S),
+        input_tokens=usage.get("inputTokens", 0),
+        output_tokens=usage.get("outputTokens", 0),
+        cached_tokens=usage.get("cacheReadInputTokens", 0),
+        failures=computer.session.failures,
+    )
 
 
 @tool(context=True)

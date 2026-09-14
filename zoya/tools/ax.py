@@ -236,6 +236,7 @@ def ax_press(label: str, occurrence: int = 1) -> str:
     risky = safety.native_click_risk(facts)
     safety.log_safety_timing(event="ax_press", risk=risky.kind if risky else "free")
     if risky is not None:
+        computer.session.asked = True
         action = safety.Action(risky.kind, risky.say, target=app_name)
         verified: list[Any] = []
 

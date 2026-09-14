@@ -88,6 +88,8 @@ class _Session:
     cursor: tuple[float, float] | None = None  # where Zoya last left the pointer
     failures: int = 0
     stop_reason: str = ""  # set → the agent's next model call ends the task (computer_agent)
+    asked: bool = False  # a step needed the user's confirmation: never record this flow
+    last_click: dict[str, Any] | None = None  # what the last click hit, for recorded flows
 
 
 session = _Session()
@@ -351,8 +353,10 @@ def click(x: float, y: float, button: str = "left", double: bool = False) -> dic
     risky = safety.native_click_risk(facts)
     safety.log_safety_timing(event="pixel_click", risk=risky.kind if risky else "free")
     if risky is not None:
+        session.asked = True
         _confirm_input(risky, probe)
     _mouse_click(*point, button=button, double=double)
+    session.last_click = {"labels": facts.labels, "size": [shot.width, shot.height], "app": app}
     confirmed = " The user confirmed it out loud." if risky else ""
     return _verify(shot, _box_around(x, y), f"Clicked at {x:.0f},{y:.0f}.{confirmed}")
 
@@ -438,6 +442,7 @@ def key(keys: str) -> dict[str, Any]:
     risky = key_risk(mods, main, focused)
     safety.log_safety_timing(event="key", risk=risky.kind if risky else "free")
     if risky is not None:
+        session.asked = True
         if main in PRESS_KEYS and not mods:
             _confirm_input(risky, probe)
         else:  # a shortcut: its meaning doesn't depend on the screen

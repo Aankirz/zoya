@@ -398,3 +398,64 @@ def test_ax_press_never_presses_allow(mac, monkeypatch):
         ax.ax_press("Allow")
 
     assert pressed == [] and mac["gate"].asked == []
+
+
+# --- Recorded flows: replay runs the same gate on every step --------------------------------------
+
+
+@pytest.fixture
+def flows(mac, tmp_path, monkeypatch):
+    monkeypatch.setattr(computer_agent, "COMPUTER_FLOWS_FILE", tmp_path / "flows.json")
+    monkeypatch.setattr(computer_agent, "LOG_DIR", tmp_path)
+    monkeypatch.setattr(computer_agent.screen, "capture_display", lambda: SHOT)
+    monkeypatch.setattr(ax, "click_facts", lambda element: mac["facts"]["now"])
+    step = {
+        "tool": "click",
+        "args": {"x": 640, "y": 400},
+        "expect": {"labels": ["Continue"], "size": [1280, 831], "app": "Finder"},
+    }
+    computer_agent.save_flow("finder|go on", [step])
+    return mac
+
+
+class Never:
+    def is_set(self):
+        return False
+
+
+def test_replayed_click_still_asks_when_the_page_now_shows_a_price(flows):
+    flows["facts"]["now"] = safety.ClickFacts(labels=["Continue"], nearby_text="Total ₹2,847")
+
+    assert computer_agent.replay_flow("finder|go on", Never()) is True
+
+    assert len(flows["gate"].asked) == 1
+
+
+def test_replay_declined_by_the_user_never_clicks(flows):
+    flows["facts"]["now"] = safety.ClickFacts(labels=["Continue"], nearby_text="Pay ₹499")
+    flows["gate"].answer = "cancel"
+
+    with pytest.raises(safety.ConfirmationDeclined):
+        computer_agent.replay_flow("finder|go on", Never())
+
+    assert flows["posted"] == []
+
+
+def test_replay_onto_a_different_target_falls_back_without_clicking(flows):
+    flows["facts"]["now"] = safety.ClickFacts(labels=["Delete"])
+
+    with pytest.raises(computer_agent.FlowMismatch):
+        computer_agent.replay_flow("finder|go on", Never())
+
+    assert flows["posted"] == [] and flows["gate"].asked == []
+
+
+def test_typing_spoils_a_flow_so_personal_text_is_never_recorded():
+    class Event:
+        tool_use = {"name": "type_text", "input": {"text": "my address"}}
+        result = {"status": "success"}
+
+    recorder = computer_agent.FlowRecorder()
+    recorder.after_tool(Event())
+
+    assert recorder.spoiled and recorder.steps == []
