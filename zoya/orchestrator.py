@@ -298,6 +298,8 @@ def run_skill(decision: RouteDecision, timings: dict[str, int]) -> str:
     try:
         spoken = harness.run_action(decision.tool, decision.args)
     except ToolError as error:
+        if decision.tool not in harness.action_tools():
+            raise  # a plain tool's answer is final ("I can't remember card numbers")
         log.warning("skill action %s failed (%s): brain retries", decision.tool, error)
         timings[SKILL_FALLBACK] = 1
         return run_orchestrator(decision.text, timings, decision.skill)
@@ -305,7 +307,7 @@ def run_skill(decision: RouteDecision, timings: dict[str, int]) -> str:
         harness.learn_pick(
             decision.text, harness.SkillMatch(decision.skill, decision.tool, decision.args)
         )
-    return spoken
+    return safety.UNTRUSTED_TAG.sub("", spoken).strip()  # spoken to the user, not fed to a model
 
 
 def run_fast_tool(decision: RouteDecision) -> str:
