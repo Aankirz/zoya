@@ -159,3 +159,6 @@
 
 ## 2026-09-14 — Web-first opening (D58)
 - open_app opens Spotify/YouTube/WhatsApp/Gmail websites unless "app" was said; router explicit-app override.
+
+## 2026-09-14 — Media keys for browser playback
+- media_control posts system media keys (browser tabs + apps); AppleScript only for explicit app; Accessibility permission prompt.
