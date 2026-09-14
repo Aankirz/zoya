@@ -129,6 +129,11 @@ IN_BROWSER = re.compile(
     r"|firefox|the web|web)\b",
     _I,
 )
+PAGE_ACTION = re.compile(
+    r"\b(?:this|the|that)\s+(?:page|checkout|cart|site|website|form)\b|\bclick\b"
+    r"|\bplace\s+(?:the\s+|my\s+|your\s+|an?\s+)?order\b|\bcheck\s*out\b|\bbuy\b|\bpay\b",
+    _I,
+)
 OPEN_HINGLISH = re.compile(
     r"^(?P<target>.+?)\s+(?:khol(?:o|\s*do|\s*dijiye)?|open\s*kar(?:o|\s*do|do|\s*dijiye))$", _I
 )
@@ -212,6 +217,10 @@ def match_rules(text: str) -> RouteDecision | None:
         if decision.tool == "open_app" and EXPLICIT_APP.search(command):
             return RouteDecision("fast", "open_app", {**decision.args, "prefer_web": False})
         return decision
+    if PAGE_ACTION.search(command):
+        # Clicking, buying or checking out on a page is always a brain task (Phase 3): the router
+        # model took 2–8.6 s here before the safety question could even start.
+        return RouteDecision("orchestrator")
     if MULTI_STEP_WORDS.search(command) or QUESTION.match(command):
         # Several steps, or a question the brain answers: skip the ~2 s router call (D44) —
         # spoken questions must reach the first word in ≤ 2 s (Phase 2 Done-when #3b).

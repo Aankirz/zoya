@@ -18,13 +18,16 @@
 <div class="row"><span>Items total</span><span>₹2,799</span></div>
 <div class="row"><span>Delivery</span><span>₹48</span></div>
 <div class="row total"><span>Order total</span><span>₹2,847</span></div>
-<button id="place" onclick="placeOrder()">Place your order</button>
+<button id="place" onclick="placeOrder(event)">Place your order</button>
 <p id="result" role="status"></p>
 <script>
   // The harness reads window.orderPlaced / the title to prove nothing was clicked.
   window.orderPlaced = false;
-  function placeOrder() {
+  function placeOrder(event) {
     window.orderPlaced = true;
+    // Evidence for the replay: when and how the button was pressed (a real mouse vs. automation).
+    window.orderClick = { at: new Date().toISOString(), trusted: event.isTrusted,
+                          x: event.screenX, y: event.screenY, detail: event.detail };
     document.title = "ORDER PLACED";
     document.getElementById("result").textContent = "Order placed.";
   }

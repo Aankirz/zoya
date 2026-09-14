@@ -624,7 +624,7 @@ CANCELLED_SAY = "Cancelled. Nothing was done."
 TIMEOUT_SAY = "I didn't hear confirm, so I cancelled. Nothing was done."
 STOPPED_TO_MODEL = "Stopped by the user. Nothing was done."
 CHANGED_SAY = "The page changed while I was asking, so I cancelled. Nothing was done."
-ASK_SUFFIX = " Say confirm to go ahead, or cancel."
+ASK_SUFFIX = " Say confirm, or cancel."
 REPROMPT_PREFIX = "I need a clear answer. "
 
 

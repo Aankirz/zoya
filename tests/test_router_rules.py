@@ -180,3 +180,20 @@ def test_web_services_open_in_the_browser_unless_the_app_was_asked_for(monkeypat
     assert opened[-1] == ["open", "https://open.spotify.com"]
     fast.open_app(app_name="Spotify", prefer_web=False)
     assert opened[-1] == ["open", "-a", "Spotify"]
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "Place the order on this page.",
+        "just click Place your order",
+        "Finish the checkout on this page for me",
+        "buy it",
+        "check out now",
+    ],
+)
+def test_page_actions_skip_the_router_model(command):
+    """Phase 3: the safety question must not wait 2-8 s for the router model first."""
+    decision = match_rules(command)
+
+    assert decision is not None and decision.route == "orchestrator"

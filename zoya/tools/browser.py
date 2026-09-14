@@ -232,6 +232,7 @@ def browser_click(text: str, amount: str = "", item: str = "") -> str:
     """
     target = _on_browser(lambda: _probe(text))
     risky = safety.click_risk(target.facts)
+    safety.log_safety_timing(event="browser_click", risk=risky.kind if risky else "free")
     if risky is None:
         _click(target.handle)
         return f"Clicked {text}."
@@ -247,6 +248,7 @@ def browser_click(text: str, amount: str = "", item: str = "") -> str:
         return _verified_action(now, again, amount, item)
 
     safety.require_confirmation(action, current=live)
+    safety.log_safety_timing(event="browser_click_confirmed", risk=risky.kind)
     _click(target.handle)
     return f"Clicked {risky.say}. The user confirmed it out loud."
 
