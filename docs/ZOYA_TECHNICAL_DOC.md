@@ -556,6 +556,7 @@ def ppt_agent(topic: str, audience: str, slide_count: int = 6) -> str:
 - **Verify-after-act:** after a click that should change state, take a new screenshot (or AX check) before the next step.
 - **Typing:** `pyautogui.write` for ASCII; clipboard paste (`pbcopy` + ⌘V) for Unicode / long text (faster, handles ₹ and Hindi).
 - **Tool exists?** check `strands-agents-tools` for a built-in computer tool first; otherwise these are ~5 small `@tool` functions.
+- **As built (Phase 5, D63):** screenshots use ScreenCaptureKit on the display under the frontmost window (not `screencapture`), at point size ≤ 1280 px wide, so one ratio plus the display origin maps model coordinates to clicks. Typing uses CGEvent unicode key events (₹, Hindi) instead of the clipboard, so the user's clipboard is untouched. `strands_tools.use_computer` was not used: it has no confirmation gate and needs OpenCV/Tesseract. Every click, AX press and Return/Space checks the real AX target (`safety.native_click_risk`). macOS permission prompts and native purchases are refused outright; purchases go only through `browser_click`'s OCR check. Measured live: capture ~190 ms, describe_screen 3.9–5.9 s, "turn on dark mode" by one pixel click 13 s, AX tier 21 s.
 
 ### 9.7 Browser subagent details
 - **Playwright** with `launch_persistent_context(user_data_dir="~/.zoya/chrome-profile", channel="chrome", headless=False)`.
