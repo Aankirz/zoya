@@ -62,11 +62,22 @@ def _find_app(name: str) -> str | None:
 
 
 @tool
-def open_app(app_name: str) -> str:
-    """Open an application on this Mac by name, e.g. "Spotify" or "Notes"."""
+def open_app(app_name: str, prefer_web: bool = True) -> str:
+    """Open an application by name, e.g. "Spotify" or "Notes".
+
+    Services with a website (Spotify, YouTube, WhatsApp, Gmail) open in the browser unless the
+    user asked for the app: easier for a blind user and where Phase 4 automates the page.
+
+    Args:
+        app_name: The app or service name.
+        prefer_web: False only when the user explicitly said "app".
+    """
     name = app_name.strip()
     if not name:
         raise ToolError("Which app should I open?")
+    if prefer_web and (site := WEB_APPS.get(name.lower())):
+        open_url(site)
+        return f"{name} is open in your browser."
     if _run(["open", "-a", name]).returncode == 0:
         return f"{name} is open."
     path = _find_app(name)
@@ -94,6 +105,15 @@ def open_url(url: str) -> str:
         raise ToolError("Sorry, I couldn't open that website.")
     return f"Opening {urlparse(address).netloc}."
 
+
+# Owner (2026-09-14): open these in the browser, not the Mac app (D58).
+WEB_APPS = {
+    "spotify": "open.spotify.com",
+    "youtube": "youtube.com",
+    "youtube music": "music.youtube.com",
+    "whatsapp": "web.whatsapp.com",
+    "gmail": "mail.google.com",
+}
 
 # No free-form AppleScript tool (coordinator review, §12.2): text-based allow-lists are
 # bypassable (e.g. the ¬ line continuation), and the brain passes untrusted text. Every

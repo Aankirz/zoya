@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from zoya import aws
 from zoya.events import Route
 from zoya.prompts import ROUTER_PROMPT
+from zoya.tools.fast import WEB_APPS
 
 log = logging.getLogger(__name__)
 
@@ -155,6 +156,9 @@ def _open_decision(target: str) -> RouteDecision | None:
     return RouteDecision("fast", "open_app", {"app_name": target})
 
 
+EXPLICIT_APP = re.compile(r"\b(?:app|application)\b", _I)
+
+
 def _note_decision(command: str) -> RouteDecision | None:
     if match := NOTE_APPEND.match(command):
         return RouteDecision(
@@ -195,10 +199,16 @@ def match_rules(text: str) -> RouteDecision | None:
     if note := _note_decision(command):  # before OPEN: note text may contain "open"
         return note
     if OPEN.match(command) and IN_BROWSER.search(command):
+        target = OPEN.match(IN_BROWSER.sub("", command).strip())
+        generic = not re.search(r"chrome|safari|firefox", command, _I)  # default browser only
+        if generic and target and target["target"].strip().lower() in WEB_APPS:
+            return RouteDecision("fast", "open_app", {"app_name": target["target"].strip()})
         return RouteDecision("orchestrator")
     if (match := OPEN.match(command) or OPEN_HINGLISH.match(command)) and (
         decision := _open_decision(match["target"])
     ):
+        if decision.tool == "open_app" and EXPLICIT_APP.search(command):
+            return RouteDecision("fast", "open_app", {**decision.args, "prefer_web": False})
         return decision
     if MULTI_STEP_WORDS.search(command) or QUESTION.match(command):
         # Several steps, or a question the brain answers: skip the ~2 s router call (D44) —

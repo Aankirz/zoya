@@ -20,7 +20,9 @@ from zoya.tools.fast import media_control, normalise_url
         ("Can you stop playing the song?", "media_control", {"action": "pause", "app": "spotify"}),
         ("Play music from Spotify.", "media_control", {"action": "play", "app": "spotify"}),
         ("Hey Zoya, open Spotify!", "open_app", {"app_name": "Spotify"}),
-        ("uh, launch the Notes app please", "open_app", {"app_name": "Notes"}),
+        ("uh, launch the Notes app please", "open_app", {"app_name": "Notes", "prefer_web": False}),
+        ("open the Spotify app", "open_app", {"app_name": "Spotify", "prefer_web": False}),
+        ("Open Spotify in a browser.", "open_app", {"app_name": "Spotify"}),
         ("Spotify khol do", "open_app", {"app_name": "Spotify"}),
         ("Chrome open kardo", "open_app", {"app_name": "Chrome"}),
         ("open youtube.com", "open_url", {"url": "youtube.com"}),
@@ -72,7 +74,7 @@ def test_stop_phrases_route_to_stop(command):
         "open Spotify then play my playlist",
         "Amazon kholo aur shoes dhundo",
         "Hey Zoya, what's the capital of Japan?",
-        "Open Spotify in a browser.",
+        "Open LinkedIn jobs in a browser.",
         "open youtube in chrome",
         "and its population?",
         "What's the weather in Delhi",
@@ -146,3 +148,17 @@ def test_media_control_rejects_script_text(payload, field, monkeypatch):
 def test_non_web_urls_are_refused(url):
     with pytest.raises(ToolError):
         normalise_url(url)
+
+
+def test_web_services_open_in_the_browser_unless_the_app_was_asked_for(monkeypatch):
+    from zoya.tools import fast
+
+    opened = []
+    monkeypatch.setattr(
+        fast, "_run", lambda argv, **_: opened.append(argv) or type("R", (), {"returncode": 0})()
+    )
+
+    assert fast.open_app(app_name="Spotify") == "Spotify is open in your browser."
+    assert opened[-1] == ["open", "https://open.spotify.com"]
+    fast.open_app(app_name="Spotify", prefer_web=False)
+    assert opened[-1] == ["open", "-a", "Spotify"]
