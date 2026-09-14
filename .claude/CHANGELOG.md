@@ -197,3 +197,9 @@
 
 ## 2026-09-14 — D62 echo-cancellation barge-in
 - DECISIONS D62: AEC in front of Whisper rejected with replay numbers; barge-in detector design, wake-over-music replay, onsets/min; AEC_ENABLED stays False pending owner stop clips + live run
+
+## 2026-09-14 — Phase 4 browser, shopping, memory, harness
+- zoya/harness.py + zoya/skills/{youtube,spotify_web,shopping,media,notes,weather,memory}: skills directory, trigger index, learned picks, skill-scoped brain, direct actions (D65).
+- zoya/tools/web.py (TinyFish, D64), memory.py (secret filter, Supermemory + local + DynamoDB), places.py (Amazon Location v2), handoff.py (Flow 10 + SNS), cache.py; browser.py launch switches + guarded recipe helpers (D66).
+- safety: Phase 4 registry, YouTube final buttons, Amazon Add to Cart allowlist, row-bound struck-price rule; earcons progress-step/add-to-cart/purchase/checkpoint/blocked; --login, --order-limit.
+- tests/test_memory_filter.py, tests/test_harness.py, tests/evals/phase4_live.py, phase4_gate_replay.py; docs §9.7/§9.8/§9.12 as built.
