@@ -150,3 +150,6 @@
 
 ## 2026-09-14 — Offline model loading
 - HF_HUB_OFFLINE at runtime, MODEL_PINS + zoya/setup_models.py, fail-fast on missing models; AUDIT §6 (startup hang on black-holed IPv6).
+
+## 2026-09-14 — Phase 4: web research and in-tab site control
+- Phase 4 brief: TinyFish Search/Fetch research tools, Spotify/YouTube in-tab control with the safety gate for subscribe/like/comment, 3 Done-when items.

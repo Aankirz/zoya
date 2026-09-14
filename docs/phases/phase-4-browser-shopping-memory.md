@@ -20,6 +20,8 @@
 - Login/CAPTCHA handoff flow (Flow 10), plus an **SNS email to the trusted contact** when Zoya is blocked.
 - **Order history + key-memory copy** in DynamoDB (fallback when Supermemory is unavailable).
 - **Amazon Location Service** tool: "nearest pharmacy / what's near me".
+- **Deep web research (Claude-style search → fetch → answer):** `web_search(query, intent)` and `web_fetch(url)` tools on the **TinyFish Search and Fetch APIs** (free tier: 30 searches/min, 150 fetches/min — https://docs.tinyfish.ai/search-api/reference, https://www.tinyfish.ai/blog/search-and-fetch-are-now-free-for-every-agent-everywhere). The brain searches, fetches the 2–3 best pages, and answers with the source name spoken ("according to…"). Fetched text is wrapped in `<untrusted_content>` (§12.2). API key in Secrets Manager `zoya/providers`; timeouts; only the query/URL leaves the Mac. Record as a DECISIONS entry. This handles "look it up" questions (population, news, comparisons) instead of the model guessing.
+- **In-tab site control on the user's logged-in sites** (DOM-first, Playwright Zoya profile): "play <song> on Spotify web", "play <video> on YouTube", "search <x> on YouTube", "subscribe to this channel", "comment <text> on this video", "like this video". Playing, searching and opening are free actions. **Subscribe, like, comment and post go through the Phase 3 safety gate** (spoken summary + "confirm") because they publish as the user.
 - `tests/test_memory_filter.py`.
 
 **Not in this phase:** pixel computer use, multiple simultaneous tasks, PPT.
@@ -34,5 +36,8 @@
 5. ☐ "Confirm" path places the order (cheap item) and saves order history to memory.
 6. ☐ Logged-out session → handoff message, resumes after "done".
 7. ☐ Card number / OTP rejected by `memory_add`.
+8. ☐ "What's the population of Bangalore compared to New York?" → Zoya searches, reads sources, answers with a named source (no "I can't read the results").
+9. ☐ "Play Love Me Not on Spotify" (Spotify web in the Zoya profile) → that exact song plays, not the last-played track.
+10. ☐ On a YouTube video: "play <video title>" works; "comment 'great video'" → spoken confirmation → "cancel" posts nothing.
 
 **Judge demo (90 s):** "Hey Zoya, remember my usual groceries are…" → "Hey Zoya, order my usual groceries from Amazon" → ticks per item → confirmation with real total → "Confirm" → `purchase` earcon.
