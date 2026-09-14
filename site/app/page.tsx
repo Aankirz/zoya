@@ -7,6 +7,7 @@ import { TypingBubble } from "./components/TypingBubble";
 import { VisitorCount } from "./components/VisitorCount";
 import { WaitlistForm } from "./components/WaitlistForm";
 import { CONTACT_EMAIL, FAQ, FOOTER, HERO, PROMISES, SKIP_LINK } from "./copy";
+import { OutlinePlus } from "./icons/rune";
 import { getVisitorCount } from "@/lib/visitors";
 
 // The visitor count is rendered on the server and refreshed at most once a minute.
@@ -60,7 +61,10 @@ export default async function Home() {
           <div className="faq-list">
             {FAQ.items.map((item) => (
               <details key={item.q}>
-                <summary>{item.q}</summary>
+                <summary>
+                  {item.q}
+                  <OutlinePlus className="faq-plus" />
+                </summary>
                 <p>{item.a}</p>
               </details>
             ))}
@@ -80,6 +84,9 @@ export default async function Home() {
           {FOOTER.contactLead} <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
         </p>
         <p>{FOOTER.credit}</p>
+        <p>
+          {FOOTER.iconsLead} <a href={FOOTER.iconsHref}>{FOOTER.iconsName}</a>
+        </p>
         <p>{FOOTER.copyright}</p>
       </footer>
     </>

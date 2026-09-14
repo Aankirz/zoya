@@ -1,4 +1,5 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
+import { GlassFileText, GlassFolder, GlassTrash, PixelEar, PixelMessage } from "../icons/rune";
 
 // Drawn "desktop" props in heyclicky's spirit. All decorative: the wrapper is aria-hidden.
 
@@ -24,25 +25,13 @@ function MacWindow({ title, className, children }: { title: string; className: s
   );
 }
 
-export function FolderIcon({ className, style }: { className?: string; style?: CSSProperties }) {
-  return (
-    <svg className={`folder-icon ${className ?? ""}`} style={style} viewBox="0 0 64 50" focusable="false">
-      <path fill="#4aa8e8" d="M4 8a4 4 0 0 1 4-4h15.5a4 4 0 0 1 2.8 1.2L31 10h25a4 4 0 0 1 4 4v28a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4z" />
-      <path fill="#79c4f5" d="M4 17a3 3 0 0 1 3-3h50a3 3 0 0 1 3 3v25a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4z" />
-      <path fill="#a9dcfb" d="M7 14h50a3 3 0 0 1 3 3v1.5H4V17a3 3 0 0 1 3-3z" />
-    </svg>
-  );
+// Rune Icons glass style for the desktop props (BRIEF-v3 addendum).
+export function FolderIcon({ className }: { className?: string }) {
+  return <GlassFolder className={`folder-icon ${className ?? ""}`} />;
 }
 
 export function TrashIcon({ className }: { className?: string }) {
-  return (
-    <svg className={`trash-icon ${className ?? ""}`} viewBox="0 0 48 60" focusable="false">
-      <rect x="17" y="1.5" width="14" height="6" rx="2" fill="none" stroke="#8d8d93" strokeWidth="2" />
-      <rect x="3" y="7" width="42" height="7" rx="3.5" fill="#d9d9de" stroke="#8d8d93" strokeWidth="1.5" />
-      <path d="M7 16h34l-3 38a5 5 0 0 1-5 4.5H15a5 5 0 0 1-5-4.5z" fill="#ececf0" stroke="#8d8d93" strokeWidth="1.5" />
-      <path d="M17 22v30M24 22v30M31 22v30" stroke="#b4b4ba" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
+  return <GlassTrash className={`trash-icon ${className ?? ""}`} />;
 }
 
 function HelloSticker({ className }: { className: string }) {
@@ -58,6 +47,7 @@ function HelloSticker({ className }: { className: string }) {
 function NotesWindow() {
   return (
     <MacWindow title="notes" className="p-notes">
+      <GlassFileText className="note-glyph" />
       <span className="note-line" style={{ width: "88%" }} />
       <span className="note-line" style={{ width: "72%" }} />
       <span className="note-line note-highlight" style={{ width: "64%" }} />
@@ -92,6 +82,8 @@ export function HeroProps() {
       <FolderIcon className="prop p-folder-2" />
       <FolderIcon className="prop p-folder-3" />
       <TrashIcon className="prop p-trash" />
+      <PixelEar className="prop pixel-accent p-pix-1" />
+      <PixelMessage className="prop pixel-accent p-pix-2" />
       <span className="prop kaomoji p-kao-1">(^_^)</span>
       <span className="prop kaomoji p-kao-2">\(^o^)/</span>
     </div>

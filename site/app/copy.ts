@@ -99,5 +99,8 @@ export const FOOTER = {
   disclaimer: "zoya looks at your screen only when a task needs it.",
   contactLead: "questions?",
   credit: "built for the vision os hackathon",
+  iconsLead: "icons by",
+  iconsName: "rune icons",
+  iconsHref: "https://www.runeicons.com",
   copyright: "© zoya 2026",
 };

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { HELLO } from "../copy";
+import { GlassMicrophone, OutlinePlay, OutlineStop } from "../icons/rune";
 import { MacLights } from "./Props";
 import { GlossyBubble, Waveform } from "./Talk";
 
@@ -65,7 +66,10 @@ export function HelloWindow() {
       <div className="mac-window hello-window">
         <div className="mac-titlebar" aria-hidden="true">
           <MacLights />
-          <span className="mac-title">{HELLO.windowTitle}</span>
+          <span className="mac-title">
+            <GlassMicrophone className="title-glyph" />
+            {HELLO.windowTitle}
+          </span>
         </div>
         <div className="hello-body desktop-dots">
           <Waveform active={playing} />
@@ -76,13 +80,7 @@ export function HelloWindow() {
             idle={phase === "idle"}
           />
           <button type="button" className="pill-glossy hello-play" onClick={toggle}>
-            <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20">
-              {playing ? (
-                <path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" />
-              ) : (
-                <path d="M8 5.2v13.6a.8.8 0 0 0 1.2.7l10.6-6.8a.8.8 0 0 0 0-1.4L9.2 4.5A.8.8 0 0 0 8 5.2z" />
-              )}
-            </svg>
+            {playing ? <OutlineStop className="pill-icon" /> : <OutlinePlay className="pill-icon" />}
             <span>{playing ? HELLO.stopLabel : HELLO.playLabel}</span>
           </button>
           <p className="sr-only">

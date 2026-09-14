@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { OutlineEye } from "../icons/rune";
 
 const VISITOR_ID_KEY = "zoya-visitor-id";
 const numberFormat = new Intl.NumberFormat("en");
@@ -41,10 +42,7 @@ export function VisitorCount({ initial }: { initial: number | null }) {
 
   return (
     <p className="visitors">
-      <svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22">
-        <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
-        <circle cx="12" cy="12" r="3" />
-      </svg>
+      <OutlineEye className="visitors-eye" />
       {numberFormat.format(count)} {count === 1 ? "person has" : "people have"} visited
     </p>
   );
