@@ -381,7 +381,7 @@ def barge_in_mic(user, echo, ref, gain: float, delay_s: float) -> tuple[np.ndarr
         quieter = quiet_from is not None and k * block >= quiet_from
         g = gain if quieter else 1.0
         mic[part] = user[part] + echo[part] * g
-        if onset(canceller.process(mic[part], ref[part] * g)) and quiet_from is None:
+        if onset(canceller.process(mic[part], ref[part] * g), mic[part]) and quiet_from is None:
             quiet_from = (k + 1 + AEC_MIC_DELAY_BLOCKS) * block + int(delay_s * RATE)
     return mic, quiet_from
 
@@ -491,7 +491,7 @@ def onsets_alone(mic, ref, spans) -> dict:
             block = voice.VAD_BLOCK
             for k in range(len(echo) // block):
                 window = slice(k * block, (k + 1) * block)
-                onset(canceller.process(echo[window].astype("f4"), reference[window]))
+                onset(canceller.process(echo[window].astype("f4"), reference[window]), echo[window])
             minutes = (end - begin) / 60
             out[f"{name} x{loudness:g}"] = round(onset.onsets / minutes, 1)
     return out

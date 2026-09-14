@@ -499,7 +499,7 @@ class VoiceLoop:
     def _listen_for_barge_in(self, arrival: float, block: np.ndarray, counts: dict) -> None:
         try:
             cleaned = self.canceller.process(block, counts)
-            started = self.onset(cleaned)
+            started = self.onset(cleaned, self.canceller.last_mic)
         except Exception as error:  # noqa: BLE001 — fall back to the pre-D62 loop, never crash
             log.warning("echo cancellation off after an error (%s)", error)
             self.canceller = None
@@ -531,6 +531,7 @@ class VoiceLoop:
                 "action": action,
                 "arrival_to_action_ms": drop_ms,
                 "onsets": self.onset.onsets,
+                "kept": round(self.onset.kept, 2),
             }
         )
 

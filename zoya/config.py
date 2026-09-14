@@ -203,6 +203,7 @@ AEC_REANCHOR_S = 0.03  # a source's offset moving more than this (clock drift) r
 # mixer block and other apps duck, so Whisper hears "stop" / "Hey Zoya" on the raw mic.
 BARGE_IN_ONSET_BLOCKS = 2  # consecutive voiced 32 ms blocks = the user is talking
 ONSET_MIN_RMS = 0.005  # same floor as the voice loop's MIN_SPEECH_RMS
+ONSET_MIN_KEPT = 0.4  # cancelled/raw level: leftover echo ~0.1, the user over Zoya ~0.8 (D62)
 OTHER_AUDIO_MIN_RMS = 0.003  # tap reference above this = another app is playing: duck it too
 BARGE_IN_SPEECH_GAIN = 10 ** (-20 / 20)  # Zoya keeps talking, 20 dB quieter
 BARGE_IN_HOLD_S = 2.5  # restore this long after the user's last voiced block, if no stop/wake

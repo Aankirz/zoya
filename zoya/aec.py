@@ -35,6 +35,7 @@ from zoya.config import (
     AEC_TAP_START_TIMEOUT_S,
     BARGE_IN_ONSET_BLOCKS,
     MIC_SAMPLE_RATE_HZ,
+    ONSET_MIN_KEPT,
     ONSET_MIN_RMS,
     OTHER_AUDIO_MIN_RMS,
     REFERENCE_LOCK_TIMEOUT_S,
@@ -49,6 +50,7 @@ INT16_MAX = 32767
 MS_PER_S = 1000
 REFERENCE_MAX = int(REFERENCE_MAX_S * MIC_SAMPLE_RATE_HZ)
 REANCHOR_SAMPLES = int(AEC_REANCHOR_S * MIC_SAMPLE_RATE_HZ)
+KEPT_EPSILON = 1e-9
 OFFSET_WINDOW_BLOCKS = 64  # ~2 s of mic blocks to find the on-time offset
 PLAYBACK, TAP = "playback", "tap"
 COREAUDIO = "/System/Library/Frameworks/CoreAudio.framework/CoreAudio"
@@ -127,6 +129,7 @@ class LiveCanceller:
         self._recent = {source: deque(maxlen=OFFSET_WINDOW_BLOCKS) for source in reference.fed}
         self.offsets: dict[str, int | None] = dict.fromkeys(reference.fed)
         self._tap_rms = 0.0
+        self.last_mic = np.zeros(0, np.float32)
 
     def process(self, mic: np.ndarray, counts: dict[str, int]) -> np.ndarray:
         self._mic_seen += len(mic)
@@ -136,6 +139,7 @@ class LiveCanceller:
         if len(self._pending) <= AEC_MIC_DELAY_BLOCKS:
             return np.zeros(len(mic), np.float32)  # the first block of a run: silence, once
         late, mic_end = self._pending.popleft()
+        self.last_mic = late  # the raw block this output cancels (for OnsetDetector's ratio)
         return self._canceller.process(late, self._far_end(len(late), mic_end))
 
     def _track(self, source: str, offset: int) -> None:
@@ -177,10 +181,19 @@ class OnsetDetector:
         self._run = 0
         self.voiced = False
         self.onsets = 0
+        self.kept = 0.0
 
-    def __call__(self, block: np.ndarray) -> bool:
-        probability = self._vad(block)  # every block: Silero carries state
-        loud = float(np.sqrt(np.mean(block**2))) >= ONSET_MIN_RMS
+    def __call__(self, cleaned: np.ndarray, raw: np.ndarray) -> bool:
+        """`raw` is the mic block `cleaned` came from.
+
+        Owner's live run: at full volume Zoya's leftover echo passed Silero and re-lowered her
+        ~34 times in one story. Leftover echo keeps ~0.1 of the mic's level (20 dB ERLE); the
+        owner's "Zoya, stop" over her speech keeps a median 0.8–0.9, so the share kept decides.
+        """
+        probability = self._vad(cleaned)  # every block: Silero carries state
+        level = float(np.sqrt(np.mean(cleaned**2)))
+        self.kept = level / (float(np.sqrt(np.mean(raw**2))) + KEPT_EPSILON)
+        loud = level >= ONSET_MIN_RMS and self.kept >= ONSET_MIN_KEPT
         self.voiced = loud and probability >= VAD_THRESHOLD
         self._run = self._run + 1 if self.voiced else 0
         if self._run != BARGE_IN_ONSET_BLOCKS:

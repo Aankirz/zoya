@@ -44,11 +44,10 @@
    ]
   },
   "loudness x1 barge_in=on": {
-   "stops": "8/10",
+   "stops": "7/10",
    "phrase_end_to_detect_ms": [
     150,
     0,
-    150,
     0,
     0,
     0,
