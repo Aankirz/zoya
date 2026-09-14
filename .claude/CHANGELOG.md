@@ -156,3 +156,6 @@
 
 ## 2026-09-14 — Phase 2 final-run triage fixes
 - D57: duck through wake wait, en/hi STT, junk/runaway filters, repeated-wake, filler prefixes, browser rule, prompt honesty; replays 6/6.
+
+## 2026-09-14 — Web-first opening (D58)
+- open_app opens Spotify/YouTube/WhatsApp/Gmail websites unless "app" was said; router explicit-app override.
