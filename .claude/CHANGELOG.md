@@ -194,3 +194,6 @@
 
 ## 2026-09-14 — Phase 5 computer use
 - zoya/tools/computer.py, ax.py, documents.py, agents/computer_agent.py, screen_describer.py, screen.py display capture; safety registry + native/permission guards; tests/test_coords.py, test_computer_safety.py; screen benchmark --zoya; D63.
+
+## 2026-09-14 — D62 echo-cancellation barge-in
+- DECISIONS D62: AEC in front of Whisper rejected with replay numbers; barge-in detector design, wake-over-music replay, onsets/min; AEC_ENABLED stays False pending owner stop clips + live run
