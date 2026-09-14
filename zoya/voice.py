@@ -63,10 +63,17 @@ VAD_STATE_SHAPE = (1, 1, 128)
 STOP_WINDOW_S = 2.0  # spot "stop" in the last 2 s of mic audio, across utterance boundaries
 WARM_UP_S = 1.0
 CLIPS_DIR = LOG_DIR / "wake_clips"
+BACKGROUND_WINDOW_S = 10.0
+BACKGROUND_MIN_S = 3.0  # too little history: the utterance itself would count as background
+SPEECH_OVER_BACKGROUND = 2.0  # the user's voice must be ≥ 2× (+6 dB) the background loudness
+MIN_SPEECH_RMS = 0.005
 ONE_BREATH_MIN_S = 1.2  # longer utterances get a turbo wake check if base.en misses the name
 FIRST_WORD_WAIT_S = 5.0
 FIRST_WORD_POLL_S = 0.02
-NAME_MEMORY_S = 2.5  # "Zoya … stop" may land in two different 2 s windows
+STOP_COOLDOWN_S = 2.0
+# After Zoya answers, listen this long without "Hey Zoya" (§9.1 conversation timeout; GPT-Voice
+# style follow-ups; pipecat's wake-phrase strategy keeps 10 s).
+FOLLOW_UP_WINDOW_S = 8.0
 
 # --- Parsers (tested: tests/test_voice_spotter.py) ------------------------------------
 
@@ -83,7 +90,10 @@ WAKE_NAME_WORDS = 3
 # "here"/"he's" (→ "he", "s"): how base.en heard the owner's real "Hey Zoya" (Phase 2 voice test).
 GREETINGS = {"hey", "hi", "hay", "he", "here", "hear", "s", "hello", "ok", "okay", "oh", "a", "हे"}
 # Whisper's classic outputs on near-silence (seen live: "you", "ん", "예소야").
-HALLUCINATIONS = {"you", "thank you", "thanks for watching", "bye", "so", "okay"}
+HALLUCINATIONS = {
+    *("you", "thank you", "thanks for watching", "bye", "so", "okay"),
+    *("um", "uh", "hmm", "mm", "ah", "er"),  # fillers: owner's live run sent "um" to the brain
+}
 SUPPORTED_SCRIPT = re.compile(r"[A-Za-z\u0900-\u097F]")  # Latin or Devanagari (D42)
 STOP_WORDS = {"stop", "cancel", "quiet", "ruko", "ruk", "bas", "chup"}
 MAX_STOP_PHRASE_WORDS = 6
@@ -263,8 +273,10 @@ class VoiceLoop:
         self.pre_roll: deque[np.ndarray] = deque(maxlen=int(PRE_ROLL_S / BLOCK_S))
         self.recent: deque[np.ndarray] = deque(maxlen=int(STOP_WINDOW_S / BLOCK_S))
         self.last_voice_at = 0.0
+        self.loudness: deque[float] = deque(maxlen=int(BACKGROUND_WINDOW_S / BLOCK_S))
         self.last_stop_check = 0.0
-        self.name_heard_at = 0.0
+        self.last_stop_at = 0.0
+        self.follow_up_pending = False
         self.utterances = 0
         self.segment: Segment | None = None
         self.awaiting_command_until = 0.0  # "Hey Zoya" … pause … command
@@ -295,13 +307,15 @@ class VoiceLoop:
                 self._on_block(arrival, block)
 
     def _on_block(self, arrival: float, block: np.ndarray) -> None:
-        voiced = self.vad(block) >= VAD_THRESHOLD
+        voiced = self._user_voice(block)
         self.recent.append(block)
         if voiced:
             self.last_voice_at = arrival
         if speech.is_speaking():
             self.last_spoke_at = time.monotonic()
         self._check_stop(arrival)
+        if self.follow_up_pending and not self._zoya_busy():
+            self._open_follow_up()
         if audio.is_ducked() and self._idle_since_wake():
             audio.restore()
         if self._push_to_talk(arrival, block):
@@ -322,6 +336,21 @@ class VoiceLoop:
             ended, self.segment = self.segment, None
             self.pre_roll.clear()
             self._on_segment_end(ended)
+
+    def _user_voice(self, block: np.ndarray) -> bool:
+        """VAD speech that is also clearly louder than the background.
+
+        Silero calls music vocals and radio "speech", so with Spotify playing an utterance never
+        ended and ran to MAX_UTTERANCE_S (owner's live run: wake → command gaps of 7–13 s, music
+        stayed ducked). ponytail: median loudness of the last 10 s as the background; a TV
+        talking at the user's own level still defeats it — AEC/source separation is the upgrade.
+        """
+        loudness = float(np.sqrt(np.mean(block**2)))
+        warmed_up = len(self.loudness) * BLOCK_S >= BACKGROUND_MIN_S
+        background = float(np.median(self.loudness)) if warmed_up else 0.0
+        self.loudness.append(loudness)
+        loud_enough = loudness >= max(background * SPEECH_OVER_BACKGROUND, MIN_SPEECH_RMS)
+        return loud_enough and self.vad(block) >= VAD_THRESHOLD
 
     def _segment_ended(self, segment: Segment, arrival: float) -> bool:
         silence = COMMAND_END_SILENCE_S if segment.woke_at is not None else WAKE_END_SILENCE_S
@@ -344,11 +373,10 @@ class VoiceLoop:
         ):
             return
         self.last_stop_check = now
+        if now - self.last_stop_at < STOP_COOLDOWN_S:
+            return  # Zoya saying "Okay, stopped." must not stop her again
         text = self._spot(np.concatenate(self.recent))
-        if any(is_name(word) for word in words(text)):
-            self.name_heard_at = now
-        recent_name = now - self.name_heard_at < NAME_MEMORY_S
-        if is_stop(text) or (recent_name and is_stop(f"Zoya {text}")):
+        if is_stop(text):  # name AND stop word in one window: echo alone rarely has both
             self._stop(self.last_voice_at, text, partial=True)
 
     def _spot(self, samples: np.ndarray) -> str:
@@ -365,6 +393,8 @@ class VoiceLoop:
             return  # echo protection (Done-when #2): only the stop spotter listens now
         # Whole utterance only: partial audio makes Whisper hallucinate the "Zoya" prompt.
         text = self._spot(segment.samples(WAKE_WINDOW_S))
+        if not words(text) and segment.seconds < ONE_BREATH_MIN_S:
+            return  # the wake chime or a click heard back: not an utterance
         self.utterances += 1
         if self.record_clips:
             _save_clip(self.utterances, segment.samples())
@@ -386,6 +416,16 @@ class VoiceLoop:
                 self._command(segment, transcript=full)
         elif self.test_wake:
             print(f"#{self.utterances} no wake — heard {text!r}")
+
+    def _open_follow_up(self) -> None:
+        """Zoya finished answering: the next sentence needs no wake word for a few seconds."""
+        self.follow_up_pending = False
+        self.awaiting_command_until = time.monotonic() + FOLLOW_UP_WINDOW_S
+        print(f"LISTENING for a follow-up ({FOLLOW_UP_WINDOW_S:.0f} s, no wake word needed)")
+
+    def _on_task_done(self, result: orchestrator.CommandResult) -> None:
+        stopped = result.decision.route == "stop" or result.spoken == orchestrator.STOPPED_MESSAGE
+        self.follow_up_pending = not stopped
 
     def _await_command(self) -> None:
         self.awaiting_command_until = time.monotonic() + AFTER_WAKE_WAIT_S
@@ -412,7 +452,8 @@ class VoiceLoop:
         after_end = round((stopped_at - voice_end_at) * MS_PER_S)
         self.segment = None
         self.recent.clear()  # don't hear the same "stop" twice
-        self.name_heard_at = 0.0
+        self.last_stop_at = time.monotonic()
+        self.follow_up_pending = False
         self.utterances = 0
         self.awaiting_command_until = 0.0
         audio.restore()
@@ -494,9 +535,12 @@ class VoiceLoop:
             audio.earcon("error")
             speech.narrate("I'm still on the last task. Say Zoya, stop, to cancel it.")
             return
-        self.task = orchestrator.start_task(
-            text, pre, on_done=lambda result: _report(result, speech_end_at, pre)
-        )
+
+        def on_done(result: orchestrator.CommandResult) -> None:
+            self._on_task_done(result)
+            _report(result, speech_end_at, pre)
+
+        self.task = orchestrator.start_task(text, pre, on_done=on_done)
 
 
 def _report(result: orchestrator.CommandResult, speech_end_at: float, pre: dict[str, int]) -> None:

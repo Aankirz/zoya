@@ -93,7 +93,7 @@ VOLUME_DOWN = re.compile(
 MEDIA = re.compile(
     r"^(?P<action>play|pause|resume|stop|next|skip|previous)"
     r"(?:\s+(?:the\s+)?(?:music|song|track|playback))?"
-    r"(?:\s+(?:on|in)?\s*(?P<app>spotify|music))?$",
+    r"(?:\s+(?:on|in|from)?\s*(?P<app>spotify|music))?$",
     _I,
 )
 MEDIA_ACTIONS = {"resume": "play", "stop": "pause", "skip": "next"}

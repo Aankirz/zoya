@@ -86,7 +86,9 @@ def test_words_after_wake_name_are_the_command():
     assert after_wake("He's Zoya") == ""
 
 
-@pytest.mark.parametrize("heard", ["you", "Thank you.", "ん", "예소야", "", "Hey Zoya!"])
+@pytest.mark.parametrize(
+    "heard", ["you", "Thank you.", "ん", "예소야", "", "Hey Zoya!", "um", "Uh."]
+)
 def test_hallucinations_and_empty_commands_are_dropped(heard):
     assert not is_usable_command(heard)
 

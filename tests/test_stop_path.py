@@ -70,7 +70,10 @@ def test_cancelled_run_is_reported_as_stopped_not_success(monkeypatch):
     spoken, ok = orchestrator._execute(decision, {})
 
     assert (spoken, ok) == (orchestrator.STOPPED_MESSAGE, False)
-    assert orchestrator._conversation == []
+    # Only what the user heard is kept, marked interrupted, so "continue" works (owner's run).
+    last_reply = orchestrator._conversation[-1][1]["content"][0]["text"]
+    assert last_reply.endswith("[interrupted by the user]")
+    orchestrator._conversation.clear()
     orchestrator._cancel.clear()
 
 

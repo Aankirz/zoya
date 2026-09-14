@@ -157,12 +157,14 @@ def build_orchestrator(
     )
 
 
-def _speak_stream(sentences: SentenceStream) -> Any:
+def _speak_stream(sentences: SentenceStream, spoken: list[str] | None = None) -> Any:
     def handler(**kwargs: Any) -> None:
         if _cancel.is_set():
             return  # stopped: Strands ends the stream at its next checkpoint; say nothing more
         for sentence in sentences.feed(kwargs.get("data", "")):
             speech.narrate(sentence)
+            if spoken is not None:
+                spoken.append(sentence)
 
     return handler
 
@@ -178,8 +180,10 @@ def _record_usage(agent: Agent, timings: dict[str, int]) -> None:
 def run_orchestrator(command: str, timings: dict[str, int] | None = None) -> str:
     """Speak the brain's answer sentence by sentence as it streams; return the full text."""
     history = [message for turn in _conversation for message in turn]
-    sentences = SentenceStream()
-    agent = build_orchestrator(messages=list(history), callback_handler=_speak_stream(sentences))
+    sentences, spoken = SentenceStream(), []
+    agent = build_orchestrator(
+        messages=list(history), callback_handler=_speak_stream(sentences, spoken)
+    )
     try:
         # Native cancellation (strands 1.55.1 Agent.__call__ cancel_signal): stops mid-stream,
         # before tool execution and between steps, returning stop_reason="cancelled" (§11.3).
@@ -191,11 +195,28 @@ def run_orchestrator(command: str, timings: dict[str, int] | None = None) -> str
         return LIMIT_MESSAGE
     _record_usage(agent, timings if timings is not None else {})
     if result.stop_reason == "cancelled" or _cancel.is_set():
-        raise TaskCancelled  # half-finished turn: not kept in the conversation
+        _remember_interrupted(command, spoken)
+        raise TaskCancelled
     speech.narrate(sentences.flush())
     _conversation.append(agent.messages[len(history) :])
     del _conversation[:-MAX_CONVERSATION_TURNS]
     return str(result).strip() or "Done."
+
+
+def _remember_interrupted(command: str, spoken: list[str]) -> None:
+    """Keep what the user actually heard, so "continue" works after "Zoya, stop".
+
+    ponytail: sentences queued for speech, not exactly what played before the cut (LiveKit syncs
+    to playback); a half-heard last sentence is kept whole.
+    """
+    heard = " ".join(spoken) or "(nothing yet)"
+    _conversation.append(
+        [
+            {"role": "user", "content": [{"text": command}]},
+            {"role": "assistant", "content": [{"text": f"{heard} [interrupted by the user]"}]},
+        ]
+    )
+    del _conversation[:-MAX_CONVERSATION_TURNS]
 
 
 # --- Fast path and entry point ----------------------------------------------------

@@ -14,6 +14,7 @@ from zoya.tools.fast import media_control, normalise_url
     ("command", "tool", "args"),
     [
         ("open Spotify", "open_app", {"app_name": "Spotify"}),
+        ("Play music from Spotify.", "media_control", {"action": "play", "app": "spotify"}),
         ("Hey Zoya, open Spotify!", "open_app", {"app_name": "Spotify"}),
         ("uh, launch the Notes app please", "open_app", {"app_name": "Notes"}),
         ("Spotify khol do", "open_app", {"app_name": "Spotify"}),
