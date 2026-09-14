@@ -28,3 +28,6 @@ output/
 # Local agent settings
 .claude/settings.local.json
 .claude/worktrees/
+
+# Owner voice recordings (personal biometric audio) stay local
+tests/evals/fixtures/commands/*.wav

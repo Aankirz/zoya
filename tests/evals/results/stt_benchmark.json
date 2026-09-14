@@ -2,170 +2,335 @@
   "is_smoke_test": false,
   "note": "Real owner recordings.",
   "whisper": {
-    "keyword_accuracy": 1.0,
-    "avg_latency_s": 0.687,
+    "keyword_accuracy": 0.9583,
+    "avg_latency_s": 0.765,
     "rows": [
       {
-        "file": "00.mp3",
+        "file": "00.wav",
         "expected": "Remind me to call Priya at six pm",
-        "transcribed": "Remind me to call Priya at 6 PM.",
+        "transcribed": "Remind me to call Priya at 6 pm.",
         "keyword_hits": 2,
         "keyword_total": 2,
-        "latency_s": 1.327
+        "latency_s": 1.896
       },
       {
-        "file": "01.mp3",
+        "file": "01.wav",
         "expected": "Message Rohan and tell him I'm running late",
-        "transcribed": "Message Rohan and tell him I'm running late.",
+        "transcribed": "Message Rohan and tell him I am running late.",
         "keyword_hits": 1,
         "keyword_total": 1,
-        "latency_s": 0.629
+        "latency_s": 0.653
       },
       {
-        "file": "02.mp3",
+        "file": "02.wav",
         "expected": "My order total is two thousand eight hundred and forty seven rupees",
-        "transcribed": "My order total is Rs. 2847.",
+        "transcribed": "My order total is 2847.",
         "keyword_hits": 1,
         "keyword_total": 1,
-        "latency_s": 0.624
+        "latency_s": 0.638
       },
       {
-        "file": "03.mp3",
+        "file": "03.wav",
         "expected": "Set a reminder for the team meeting at three pm",
-        "transcribed": "Set a reminder for the team meeting at 3 pm.",
+        "transcribed": "Set a reminder for the team meeting at 3 p.m.",
         "keyword_hits": 1,
         "keyword_total": 1,
-        "latency_s": 0.625
+        "latency_s": 0.655
       },
       {
-        "file": "04.mp3",
+        "file": "04.wav",
         "expected": "Send fifteen thousand rupees to Ankit Sharma",
-        "transcribed": "Sent Rs. 15,000 to Ankit Sharma.",
+        "transcribed": "Send 15,000 rupees to Ankit Sharma.",
         "keyword_hits": 2,
         "keyword_total": 2,
-        "latency_s": 0.63
+        "latency_s": 0.751
       },
       {
-        "file": "05.mp3",
+        "file": "05.wav",
         "expected": "Aapka Swiggy order pandrah minute mein aa jayega",
-        "transcribed": "आपका स्विगी ओर्डर 15 मिनिट में आ जाएगा.",
+        "transcribed": "आपका स्विगी ओर्डर 15 मिनिट में आ जाएगा",
         "keyword_hits": 1,
         "keyword_total": 1,
-        "latency_s": 0.736
+        "latency_s": 0.789
       },
       {
-        "file": "06.mp3",
+        "file": "06.wav",
         "expected": "Spotify khol do aur mera playlist bajao",
         "transcribed": "Spotify खोल दो और मेरा प्लेलिस्ट बजाओ",
         "keyword_hits": 1,
         "keyword_total": 1,
-        "latency_s": 0.698
+        "latency_s": 0.741
       },
       {
-        "file": "07.mp3",
+        "file": "07.wav",
         "expected": "Remind me to pay the electricity bill of twelve hundred rupees",
         "transcribed": "Remind me to pay the electricity bill of 1200 rupees.",
         "keyword_hits": 1,
         "keyword_total": 1,
-        "latency_s": 0.631
+        "latency_s": 0.653
       },
       {
-        "file": "08.mp3",
+        "file": "08.wav",
         "expected": "Message Sneha and ask if she's free tonight",
-        "transcribed": "Message Snehaan, ask if she's free tonight.",
+        "transcribed": "Message Sneha and ask if she is free tonight.",
         "keyword_hits": 1,
         "keyword_total": 1,
-        "latency_s": 0.639
+        "latency_s": 0.663
       },
       {
-        "file": "09.mp3",
+        "file": "09.wav",
         "expected": "Mummy ko message bhejo ki main ghar aa raha hoon",
-        "transcribed": "मामी को मेसेज भेजो कि मैं घर आ रहा हूँ",
+        "transcribed": "मम्मी को मेसेज भेजो कि मैं घर आ रहा हूँ",
         "keyword_hits": 1,
         "keyword_total": 1,
-        "latency_s": 0.72
+        "latency_s": 0.78
       },
       {
-        "file": "10.mp3",
+        "file": "10.wav",
         "expected": "What's the weather in Bangalore today",
         "transcribed": "What's the weather in Bangalore today?",
         "keyword_hits": 1,
         "keyword_total": 1,
-        "latency_s": 0.624
+        "latency_s": 0.735
       },
       {
-        "file": "11.mp3",
+        "file": "11.wav",
         "expected": "Set a reminder to take medicine at nine pm",
         "transcribed": "Set a reminder to take medicine at 9 pm.",
         "keyword_hits": 1,
         "keyword_total": 1,
-        "latency_s": 0.625
+        "latency_s": 0.74
       },
       {
-        "file": "12.mp3",
+        "file": "12.wav",
         "expected": "Search the web for the best biryani near me",
-        "transcribed": "Search the web for the best biryani near me.",
-        "keyword_hits": 1,
+        "transcribed": "Search the web for best biriyani near me.",
+        "keyword_hits": 0,
         "keyword_total": 1,
-        "latency_s": 0.639
+        "latency_s": 0.723
       },
       {
-        "file": "13.mp3",
+        "file": "13.wav",
         "expected": "Open WhatsApp and read my latest message from Karthik",
-        "transcribed": "Open WhatsApp and read my latest message from Kartik.",
+        "transcribed": "Open WhatsApp and read my latest message from Karthik.",
         "keyword_hits": 2,
         "keyword_total": 2,
-        "latency_s": 0.633
+        "latency_s": 0.657
       },
       {
-        "file": "14.mp3",
+        "file": "14.wav",
         "expected": "Bataiye mera cart mein kitne items hai",
-        "transcribed": "बताईए मेरा कार्ट में कितने आइटम्स है।",
+        "transcribed": "बताईए मेरे कार्ट में कितने आइटम्स हैं",
         "keyword_hits": 1,
         "keyword_total": 1,
-        "latency_s": 0.719
+        "latency_s": 0.755
       },
       {
-        "file": "15.mp3",
+        "file": "15.wav",
         "expected": "Add discount code FESTIVE and check the new total",
-        "transcribed": "Add discount code festive and check the new total.",
+        "transcribed": "Add discount code Festive and check the new total.",
         "keyword_hits": 1,
         "keyword_total": 1,
-        "latency_s": 0.624
+        "latency_s": 0.65
       },
       {
-        "file": "16.mp3",
+        "file": "16.wav",
         "expected": "Deliver this order to Sneha Reddy at MG Road",
         "transcribed": "Deliver this order to Sneha Reddy at MG Road.",
         "keyword_hits": 2,
         "keyword_total": 2,
-        "latency_s": 0.633
+        "latency_s": 0.725
       },
       {
-        "file": "17.mp3",
+        "file": "17.wav",
         "expected": "Zoya stop, cancel what you're doing",
-        "transcribed": "Zoya stop, cancel what you are doing.",
+        "transcribed": "Zoya stop cancel what you are doing",
         "keyword_hits": 1,
         "keyword_total": 1,
-        "latency_s": 0.622
+        "latency_s": 0.682
       },
       {
-        "file": "18.mp3",
+        "file": "18.wav",
         "expected": "Ruk jao Zoya, mujhe kuch aur bolna hai",
-        "transcribed": "रुप जाओ जोया, मुझे कुछ और बोलना है।",
+        "transcribed": "रुक जाओ जोया मुझे कुछ और बोलना है",
         "keyword_hits": 1,
         "keyword_total": 1,
-        "latency_s": 0.726
+        "latency_s": 0.758
       },
       {
-        "file": "19.mp3",
+        "file": "19.wav",
         "expected": "Confirm the transfer of two thousand rupees to my sister",
-        "transcribed": "Confirm the transfer of Rs. 2000 to my sister.",
+        "transcribed": "Confirm the transfer of 2000 rupees to my sister.",
         "keyword_hits": 1,
         "keyword_total": 1,
-        "latency_s": 0.64
+        "latency_s": 0.651
       }
     ]
   },
-  "amazon_transcribe": null
+  "amazon_transcribe": {
+    "keyword_accuracy": 0.9167,
+    "avg_latency_s": 2.218,
+    "rows": [
+      {
+        "file": "00.wav",
+        "expected": "Remind me to call Priya at six pm",
+        "transcribed": "Remind me to call Priya at 6:00 p.m.",
+        "keyword_hits": 2,
+        "keyword_total": 2,
+        "latency_s": 2.327
+      },
+      {
+        "file": "01.wav",
+        "expected": "Message Rohan and tell him I'm running late",
+        "transcribed": "Message Rohan and tell him I am running late.",
+        "keyword_hits": 1,
+        "keyword_total": 1,
+        "latency_s": 2.213
+      },
+      {
+        "file": "02.wav",
+        "expected": "My order total is two thousand eight hundred and forty seven rupees",
+        "transcribed": "My order total is ₹2,847.",
+        "keyword_hits": 1,
+        "keyword_total": 1,
+        "latency_s": 2.202
+      },
+      {
+        "file": "03.wav",
+        "expected": "Set a reminder for the team meeting at three pm",
+        "transcribed": "Set a reminder for the team meeting at 3:00 p.m.",
+        "keyword_hits": 1,
+        "keyword_total": 1,
+        "latency_s": 2.21
+      },
+      {
+        "file": "04.wav",
+        "expected": "Send fifteen thousand rupees to Ankit Sharma",
+        "transcribed": "Send ₹15,000 to Ankit Sharma.",
+        "keyword_hits": 2,
+        "keyword_total": 2,
+        "latency_s": 2.209
+      },
+      {
+        "file": "05.wav",
+        "expected": "Aapka Swiggy order pandrah minute mein aa jayega",
+        "transcribed": "Apka Swegi Oder Pandra Minute Mein Ajayega.",
+        "keyword_hits": 0,
+        "keyword_total": 1,
+        "latency_s": 2.211
+      },
+      {
+        "file": "06.wav",
+        "expected": "Spotify khol do aur mera playlist bajao",
+        "transcribed": "Spotify Koldo or Meera playlist Bajao.",
+        "keyword_hits": 1,
+        "keyword_total": 1,
+        "latency_s": 2.209
+      },
+      {
+        "file": "07.wav",
+        "expected": "Remind me to pay the electricity bill of twelve hundred rupees",
+        "transcribed": "Remind me to pay the electricity bill of ₹1200.",
+        "keyword_hits": 1,
+        "keyword_total": 1,
+        "latency_s": 2.215
+      },
+      {
+        "file": "08.wav",
+        "expected": "Message Sneha and ask if she's free tonight",
+        "transcribed": "Message Sneha and ask if she is free tonight.",
+        "keyword_hits": 1,
+        "keyword_total": 1,
+        "latency_s": 2.204
+      },
+      {
+        "file": "09.wav",
+        "expected": "Mummy ko message bhejo ki main ghar aa raha hoon",
+        "transcribed": "Mamiko Message Bejoki Meghararao.",
+        "keyword_hits": 0,
+        "keyword_total": 1,
+        "latency_s": 2.248
+      },
+      {
+        "file": "10.wav",
+        "expected": "What's the weather in Bangalore today",
+        "transcribed": "What's the weather in Bangalore today?",
+        "keyword_hits": 1,
+        "keyword_total": 1,
+        "latency_s": 2.199
+      },
+      {
+        "file": "11.wav",
+        "expected": "Set a reminder to take medicine at nine pm",
+        "transcribed": "Set a reminder to take medicine at 9:00 p.m.",
+        "keyword_hits": 1,
+        "keyword_total": 1,
+        "latency_s": 2.203
+      },
+      {
+        "file": "12.wav",
+        "expected": "Search the web for the best biryani near me",
+        "transcribed": "Search the web for best biryani near me.",
+        "keyword_hits": 1,
+        "keyword_total": 1,
+        "latency_s": 2.208
+      },
+      {
+        "file": "13.wav",
+        "expected": "Open WhatsApp and read my latest message from Karthik",
+        "transcribed": "Open WhatsApp and read my latest message from Kartik.",
+        "keyword_hits": 2,
+        "keyword_total": 2,
+        "latency_s": 2.198
+      },
+      {
+        "file": "14.wav",
+        "expected": "Bataiye mera cart mein kitne items hai",
+        "transcribed": "But I am Meria cart make it any items here.",
+        "keyword_hits": 1,
+        "keyword_total": 1,
+        "latency_s": 2.201
+      },
+      {
+        "file": "15.wav",
+        "expected": "Add discount code FESTIVE and check the new total",
+        "transcribed": "Add discount code Festive and check the new total.",
+        "keyword_hits": 1,
+        "keyword_total": 1,
+        "latency_s": 2.212
+      },
+      {
+        "file": "16.wav",
+        "expected": "Deliver this order to Sneha Reddy at MG Road",
+        "transcribed": "Deliver this order to Sneha Reddy at MG Road.",
+        "keyword_hits": 2,
+        "keyword_total": 2,
+        "latency_s": 2.243
+      },
+      {
+        "file": "17.wav",
+        "expected": "Zoya stop, cancel what you're doing",
+        "transcribed": "Zoea, stop! Cancel what you're doing!",
+        "keyword_hits": 1,
+        "keyword_total": 1,
+        "latency_s": 2.22
+      },
+      {
+        "file": "18.wav",
+        "expected": "Ruk jao Zoya, mujhe kuch aur bolna hai",
+        "transcribed": "Rukjao Zoya Mujekuchaur Bolnai.",
+        "keyword_hits": 1,
+        "keyword_total": 1,
+        "latency_s": 2.21
+      },
+      {
+        "file": "19.wav",
+        "expected": "Confirm the transfer of two thousand rupees to my sister",
+        "transcribed": "Confirm the transfer of ₹2000 to my sister.",
+        "keyword_hits": 1,
+        "keyword_total": 1,
+        "latency_s": 2.219
+      }
+    ]
+  }
 }

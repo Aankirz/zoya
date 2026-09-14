@@ -117,3 +117,6 @@
 
 ## 2026-09-14 — Phase 1 review fixes
 - Removed free-form run_applescript (¬ line-continuation bypass) in favour of fixed media_control; multi-step commands skip the router model; AWS failures warn once per session; otel-collector.yaml for CloudWatch/X-Ray; .gitignore .claude/worktrees/.
+
+## 2026-09-14 — Close Phase 0: STT decision, IAM user, benchmark bucket
+- D48 Whisper primary/Transcribe fallback from owner recordings; D49 zoya-app least-privilege IAM (infra/iam/zoya-app-policy.json); stt_benchmark.py reads Transcribe output via S3 client; owner .wav recordings git-ignored.

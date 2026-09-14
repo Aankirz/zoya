@@ -1,0 +1,71 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "SpeechAndVisionApis",
+      "Effect": "Allow",
+      "Action": [
+        "polly:SynthesizeSpeech",
+        "polly:DescribeVoices",
+        "translate:TranslateText",
+        "comprehend:DetectDominantLanguage",
+        "transcribe:StartTranscriptionJob",
+        "transcribe:GetTranscriptionJob",
+        "transcribe:DeleteTranscriptionJob",
+        "transcribe:StartStreamTranscription",
+        "rekognition:DetectText",
+        "textract:DetectDocumentText",
+        "textract:AnalyzeDocument",
+        "xray:PutTraceSegments",
+        "xray:PutTelemetryRecords"
+      ],
+      "Resource": "*",
+      "Condition": {"StringEquals": {"aws:RequestedRegion": "ap-south-1"}}
+    },
+    {
+      "Sid": "TaskHistoryTables",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem",
+        "dynamodb:DeleteItem",
+        "dynamodb:Query",
+        "dynamodb:Scan",
+        "dynamodb:BatchWriteItem",
+        "dynamodb:DescribeTable"
+      ],
+      "Resource": "arn:aws:dynamodb:ap-south-1:567487920371:table/zoya-*"
+    },
+    {
+      "Sid": "ProviderSecrets",
+      "Effect": "Allow",
+      "Action": "secretsmanager:GetSecretValue",
+      "Resource": "arn:aws:secretsmanager:ap-south-1:567487920371:secret:zoya/*"
+    },
+    {
+      "Sid": "ZoyaBuckets",
+      "Effect": "Allow",
+      "Action": ["s3:ListBucket"],
+      "Resource": "arn:aws:s3:::zoya-*"
+    },
+    {
+      "Sid": "ZoyaObjects",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+      "Resource": "arn:aws:s3:::zoya-*/*"
+    },
+    {
+      "Sid": "TrustedContactAlerts",
+      "Effect": "Allow",
+      "Action": "sns:Publish",
+      "Resource": "arn:aws:sns:ap-south-1:567487920371:zoya-*"
+    },
+    {
+      "Sid": "ZoyaLogs",
+      "Effect": "Allow",
+      "Action": ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
+      "Resource": "arn:aws:logs:ap-south-1:567487920371:log-group:zoya*"
+    }
+  ]
+}

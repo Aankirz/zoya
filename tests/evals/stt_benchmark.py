@@ -163,10 +163,9 @@ def run_transcribe(clips: dict[str, str]) -> list[dict[str, Any]] | None:
             )
             continue
 
-        import urllib.request
-
-        with urllib.request.urlopen(job["Transcript"]["TranscriptFileUri"]) as resp:
-            transcript_json = json.loads(resp.read())
+        # Private bucket: the TranscriptFileUri is unsigned, so read it through the S3 client.
+        output = s3.get_object(Bucket=bucket, Key=f"{job_name}.json")
+        transcript_json = json.loads(output["Body"].read())
         transcript = transcript_json["results"]["transcripts"][0]["transcript"]
         keywords = next(c["keywords"] for c in TARGET_COMMANDS if c["text"] == expected_text)
         hits, total = _keywords_present(transcript, keywords)
