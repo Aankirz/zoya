@@ -232,7 +232,6 @@ AX_READ_MAX_ITEMS = 120  # elements listed by ax_read
 OCR_CROP_HALF_WIDTH_PT = 240  # OCR backstop crop around a native target: 480×160 pt
 OCR_CROP_HALF_HEIGHT_PT = 80
 AX_MAX_ANCESTORS = 12  # Guard 2 walks this far up for the pressable control; cut short → asks
-AX_MAX_ANCESTORS = 12  # Guard 2 walks this far up for the pressable control; cut short → asks
 AX_WALK_DEADLINE_S = 2.0  # whole-tree walk bound
 AX_NEARBY_MAX_CHARS = 2000  # sibling text used to spot a price next to a button
 TYPE_CHUNK_CHARS = 16  # UTF-16 units per unicode keyboard event
