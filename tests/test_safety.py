@@ -464,6 +464,21 @@ def test_plain_totals_use_the_largest():
     assert not safety.amount_on_screen(Decimal("1"), ["Total 1", "Total 2,847"])
 
 
+def test_struck_out_price_on_the_total_row_is_skipped():
+    rows = ["Bill Summary", "You pay Inclusive of taxes ₹243 ₹331"]
+
+    assert safety.amount_on_screen(Decimal("243"), rows, struck=frozenset({Decimal("331")}))
+    assert not safety.amount_on_screen(Decimal("243"), rows)  # without the DOM hint: fail closed
+    assert not safety.amount_on_screen(Decimal("331"), rows, struck=frozenset({Decimal("331")}))
+
+
+def test_struck_prices_never_empty_a_row_or_hide_a_disagreeing_total():
+    struck = frozenset({Decimal("243")})
+
+    assert not safety.amount_on_screen(Decimal("100"), ["To pay ₹243"], struck)
+    assert not safety.amount_on_screen(Decimal("243"), ["You pay ₹243", "Order total ₹900"], struck)
+
+
 def test_no_total_on_screen_fails_closed():
     assert not safety.amount_on_screen(Decimal("2847"), ["Review your order", "₹2,847"])
     assert not safety.amount_on_screen(Decimal("2847"), [])
@@ -851,6 +866,7 @@ def fake_page(monkeypatch):
     }
     monkeypatch.setattr(browser_tools, "_on_browser", lambda call: call())
     monkeypatch.setattr(browser_tools, "_screen_rows", lambda target: page["rows"])
+    monkeypatch.setattr(browser_tools, "_struck_amounts", frozenset)
     monkeypatch.setattr(
         browser_tools, "_click", lambda handle: page.update(clicks=page["clicks"] + 1)
     )

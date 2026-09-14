@@ -263,6 +263,19 @@ def _screen_rows(target: Target) -> list[str]:
     return rows
 
 
+# Leaf elements drawn with a line through them (old prices). Page JavaScript answers this, so it can
+# only hide a number from the row rule, never add one; every strong total must still agree.
+STRUCK_JS = """() => [...document.querySelectorAll('del, s, strike, span, div')]
+  .filter(e => e.children.length === 0 && /\\d/.test(e.textContent)
+    && getComputedStyle(e).textDecorationLine.includes('line-through'))
+  .slice(0, 200).map(e => e.textContent)"""
+
+
+def _struck_amounts() -> frozenset[Decimal]:
+    texts = _page().evaluate(STRUCK_JS)
+    return frozenset(value for text in texts for value in safety.parse_amounts(str(text)))
+
+
 def order_limit() -> Decimal | None:
     """Done-when #5 test runs only: `--order-limit 300` sets it; unset means no limit."""
     raw = os.environ.get(ORDER_LIMIT_ENV, "").strip()
@@ -283,6 +296,7 @@ def _verified_action(
             "the item, recipient or file exactly as shown."
         )
     rows = _screen_rows(target)
+    struck = _on_browser(_struck_amounts)
     if not safety.target_on_screen(item, rows):
         raise ToolError(f"I can't see {item} on the screen. Read the page again.")
     if risky.kind != "purchase":
@@ -293,7 +307,7 @@ def _verified_action(
             "Before paying, read the order total and call browser_click again with `amount` set "
             "to it, e.g. ₹2,847."
         )
-    if not safety.amount_on_screen(claimed[0], rows):
+    if not safety.amount_on_screen(claimed[0], rows, struck):
         raise ToolError(
             f"The total on the screen doesn't match {amount}. Read the order total again."
         )

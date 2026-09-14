@@ -431,21 +431,39 @@ def rows_from_ocr(lines: list[tuple[str, float, float, float]]) -> list[str]:
     return [" ".join(item[0] for item in sorted(row, key=lambda item: item[1])) for row in rows]
 
 
-def amount_on_screen(claimed: Decimal, rows: list[str]) -> bool:
+def _row_total(row: str, struck: frozenset[Decimal]) -> Decimal | None:
+    values = parse_amounts(row)
+    shown = [value for value in values if value not in struck] or values  # never empty a row
+    return max(shown) if shown else None
+
+
+def amount_on_screen(
+    claimed: Decimal, rows: list[str], struck: frozenset[Decimal] = frozenset()
+) -> bool:
     """The agent's amount must be THE total the screen shows (independent OCR, not page DOM).
 
     Every strong row ("order total", "pay ₹…", "payable") must show exactly the claimed amount:
     an injected second total disagreeing with the real one is a mismatch (coordinator review).
     With no strong row, the largest plain "total" must be it ("Items total" is a subtotal).
     No total at all → mismatch → never confirm.
+    `struck`: struck-out prices on the page (Phase 4: Amazon Now shows "You pay ₹243 ~~₹331~~" on
+    one row, and OCR can't see the line). They are skipped unless nothing else is on the row.
     ponytail: a row's largest number is its total ("Order total ₹2,847 incl. ₹48 delivery").
     """
     strong = [
-        max(values) for row in rows if STRONG_TOTAL.search(row) if (values := parse_amounts(row))
+        total
+        for row in rows
+        if STRONG_TOTAL.search(row)
+        if (total := _row_total(row, struck)) is not None
     ]
     if strong:
         return all(value == claimed for value in strong)
-    weak = [max(values) for row in rows if WEAK_TOTAL.search(row) if (values := parse_amounts(row))]
+    weak = [
+        total
+        for row in rows
+        if WEAK_TOTAL.search(row)
+        if (total := _row_total(row, struck)) is not None
+    ]
     return bool(weak) and max(weak) == claimed
 
 
