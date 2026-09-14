@@ -31,7 +31,7 @@ from datetime import UTC, datetime
 
 import numpy as np
 
-from zoya import aec, audio, orchestrator, safety, speech
+from zoya import aec, audio, orchestrator, safety, speech, tasks
 from zoya.config import (
     AEC_ENABLED,
     AFTER_WAKE_WAIT_S,
@@ -57,6 +57,7 @@ from zoya.config import (
     TURN_CHECK_SILENCE_S,
     TURN_COMPLETE_PROBABILITY,
     TURN_WINDOW_S,
+    USER_QUIET_S,
     VAD_BLOCK,
     VAD_THRESHOLD,
     WAKE_END_SILENCE_S,
@@ -120,6 +121,13 @@ SOUND_ALIKES = {"zoe", "joya", "sonia", "sonya", "so", "siri", "सोनिय�
 STOP_WORDS = {"stop", "cancel", "quiet", "ruko", "ruk", "bas", "chup"}
 MAX_STOP_PHRASE_WORDS = 6
 STATUS = re.compile(r"\bwhat(?:'s| is| are you)\s+(?:running|doing|working on)\b", re.I)
+# Phase 6 (§9.13 voice controls), matched on the cleaned command.
+TASK_STATUS = re.compile(
+    r"^how(?:'s| is| are)\s+(?P<name>.+?)(?:\s+(?:going|doing|coming along))?\??$", re.I
+)
+QUEUE_IT = re.compile(r"^(?:yes,?\s+)?queue(?:\s+(?:it|that))?(?:\s+please)?\.?$", re.I)
+# With several tasks, a partial "Zoya, stop…" waits this long for "…the presentation".
+STOP_NAME_PAUSE_S = 0.35
 
 
 def words(text: str) -> list[str]:
@@ -198,6 +206,36 @@ def is_stop(text: str) -> bool:
     if not spoken or len(spoken) > MAX_STOP_PHRASE_WORDS:
         return False
     return any(is_name(w) for w in spoken) and any(w in STOP_WORDS for w in spoken)
+
+
+STOP_FILLER = {
+    "the",
+    "my",
+    "zoya",
+    "please",
+    "now",
+    "it",
+    "that",
+    "this",
+    "what",
+    "you",
+    "re",
+    "doing",
+}
+
+
+def stop_name(text: str) -> str:
+    """ "Zoya, stop the presentation" → "presentation"; "stop everything" → "everything"; a bare
+    stop → "". Only names of running tasks (or everything) count, so "stop the music" stays a
+    media command."""
+    spoken = words(text)
+    first = next((i for i, w in enumerate(spoken) if w in STOP_WORDS | {"end"}), None)
+    if first is None:
+        return ""
+    rest = " ".join(w for w in spoken[first + 1 :] if w not in STOP_FILLER)
+    if rest in tasks.ALL_WORDS:
+        return "everything"
+    return rest if rest and tasks.find(rest) else ""
 
 
 def is_stop_command(text: str) -> bool:
@@ -414,6 +452,7 @@ class VoiceLoop:
         self.ptt: Segment | None = None
         self.task: threading.Thread | None = None
         self.confirmations = safety.claim_voice_channel()  # Phase 3: only this loop mints tokens
+        tasks.user_speaking = self._user_speaking  # Phase 6: announcements wait for the user
         self.last_spoke_at = 0.0
         self.canceller: aec.LiveCanceller | None = None
         self.onset: aec.OnsetDetector | None = None
@@ -503,7 +542,7 @@ class VoiceLoop:
         if speech.is_speaking():
             self.last_spoke_at = time.monotonic()
         self._check_stop(arrival)
-        if self.follow_up_pending and not self._zoya_busy():
+        if self.follow_up_pending and not self._zoya_talking():
             self._open_follow_up()
         if audio.is_ducked() and self._idle_since_wake():
             audio.restore()
@@ -513,7 +552,7 @@ class VoiceLoop:
             self.pre_roll.append(block)
             if voiced:
                 self.segment = Segment([*self.pre_roll, block], arrival)
-                self.segment.began_while_busy = self._zoya_busy()
+                self.segment.began_while_busy = self._zoya_talking()
                 if time.monotonic() < self.awaiting_command_until or safety.awaiting_reply():
                     self.segment.woke_at = time.monotonic()  # already awake: this is the command
                     self.segment.awaited = True
@@ -557,8 +596,17 @@ class VoiceLoop:
     # --- spotting: "stop" always, the wake word only when Zoya is quiet ----------------------
 
     def _zoya_busy(self) -> bool:
+        return self._zoya_talking() or self._task_running()
+
+    def _zoya_talking(self) -> bool:
+        """Echo protection only: tasks running in the background don't stop "Hey Zoya" (§9.13)."""
         recently_spoke = time.monotonic() - self.last_spoke_at < ECHO_TAIL_S
-        return speech.is_speaking() or recently_spoke or self._task_running()
+        return speech.is_speaking() or recently_spoke
+
+    def _user_speaking(self) -> bool:
+        """The user is mid-utterance (or just paused): nothing may be announced over them."""
+        capturing = self.segment is not None or self.ptt is not None
+        return capturing or time.monotonic() - self.last_voice_at < USER_QUIET_S
 
     def _check_stop(self, arrival: float) -> None:
         """While Zoya talks or works, re-read the last 2 s every 150 ms (false stops fail safe)."""
@@ -570,6 +618,8 @@ class VoiceLoop:
             or len(self.recent) * BLOCK_S < PARTIAL_MIN_S
         ):
             return
+        if len(tasks.running()) > 1 and arrival - self.last_voice_at < STOP_NAME_PAUSE_S:
+            return  # "Zoya, stop the presentation" must not stop on its first two words
         self.last_stop_check = now
         if now - self.last_stop_at < STOP_COOLDOWN_S:
             return  # Zoya saying "Okay, stopped." must not stop her again
@@ -587,7 +637,7 @@ class VoiceLoop:
         if segment.woke_at is not None:
             self._command(segment)
             return
-        if self._zoya_busy() or segment.began_while_busy or not self.wake_enabled:
+        if self._zoya_talking() or segment.began_while_busy or not self.wake_enabled:
             return  # echo protection (Done-when #2): only the stop spotter listens now
         # Whole utterance only: partial audio makes Whisper hallucinate the "Zoya" prompt.
         text = self._spot(segment.samples(WAKE_WINDOW_S))
@@ -631,6 +681,9 @@ class VoiceLoop:
         print(f"LISTENING for a follow-up ({FOLLOW_UP_WINDOW_S:.0f} s, no wake word needed)")
 
     def _on_task_done(self, result: orchestrator.CommandResult) -> None:
+        task = tasks.current()
+        if task is not None and task.shared:
+            return  # a background task finishing must not open a no-wake-word window
         stopped = result.decision.route == "stop" or result.spoken == orchestrator.STOPPED_MESSAGE
         # After "play …" the window would only capture the music ("Tadam!", "Lose out").
         started_playback = "play" in words(result.decision.text)
@@ -653,9 +706,14 @@ class VoiceLoop:
         _log_voice({"event": "wake", "phrase_end_to_earcon_ms": after_end, "heard": text})
 
     def _stop(self, voice_end_at: float, text: str, partial: bool) -> None:
+        name = stop_name(text)
+        if name:
+            self._stop_named(name)
+            return
         stopped_at = time.monotonic()
         was_busy = self._zoya_busy()
-        orchestrator.stop_task()
+        had_tasks = self._task_running()
+        said = orchestrator.stop_task()
         audio.engine().silence_all()
         self._end_barge_in()
         audio.earcon("stop")
@@ -667,6 +725,8 @@ class VoiceLoop:
         self.utterances = 0
         self.awaiting_command_until = 0.0
         audio.restore()
+        if had_tasks and said:
+            speech.narrate(said)  # the stopped task stays quiet; "Stopped the grocery order."
         print(f"STOP {after_end} ms after last voice (partial={partial}) — heard {text!r}")
         _log_voice(
             {
@@ -677,6 +737,17 @@ class VoiceLoop:
             }
         )
 
+    def _stop_named(self, name: str) -> None:
+        """ "Stop the presentation": only that task. No silence_all or speech.cancel: another
+        task's confirmation prompt may be playing and must be heard whole (D61)."""
+        audio.earcon("stop")
+        said = orchestrator.stop_task(name)
+        self.recent.clear()
+        self.last_stop_at = time.monotonic()
+        speech.narrate(said)
+        print(f"STOP {name!r} → {said}")
+        _log_voice({"event": "stop_named"})
+
     # --- push-to-talk ----------------------------------------------------------------------
 
     def _push_to_talk(self, arrival: float, block: np.ndarray) -> bool:
@@ -685,7 +756,10 @@ class VoiceLoop:
             return False
         if self.ptt is None:
             if self._zoya_busy() and not safety.awaiting_reply():  # keys answer a confirmation
-                orchestrator.stop_task()  # pressing the keys interrupts Zoya, like Wispr's fn key
+                if self._task_running():
+                    speech.cancel()  # keys cut speech; tasks go on ("Zoya, stop" ends them)
+                else:
+                    orchestrator.stop_task()  # the keys interrupt Zoya, like Wispr's fn key
                 audio.engine().silence_all()
             self.ptt = Segment([*self.pre_roll, block], arrival, woke_at=time.monotonic())
             self.segment = None
@@ -705,7 +779,7 @@ class VoiceLoop:
     # --- commands ---------------------------------------------------------------------------
 
     def _task_running(self) -> bool:
-        return self.task is not None and self.task.is_alive()
+        return bool(tasks.running())
 
     def _transcribe(self, segment: Segment) -> tuple[str, int]:
         started = time.monotonic()
@@ -748,7 +822,14 @@ class VoiceLoop:
         if is_stop(text):
             self._stop(segment.last_voice_at, text, partial=False)  # "Zoya, stop" cancels it too
             return
-        self.confirmations.reply(text, heard_from=segment.woke_at or 0.0)
+        pending = safety.pending_task_id()
+        answer = tasks.answer_for(text, pending)
+        if answer is None:  # names another task: never an answer to this confirmation (D61)
+            others = [task for task in tasks.named_tasks(text) if task.id != pending]
+            if set(words(text)) & STOP_WORDS:
+                self._stop_named(others[0].name)  # "cancel the presentation": that task only
+            return
+        self.confirmations.reply(answer, heard_from=segment.woke_at or 0.0)
 
     def _is_repeated_wake(self, segment: Segment) -> bool:
         """Turbo writes a repeated "Hey Zoya" as "He's real." / "He is aware." (owner's run)."""
@@ -762,6 +843,8 @@ class VoiceLoop:
         if not is_usable_command(text):
             audio.engine().silence_all()  # nothing heard: end the working loop quietly
             return
+        if self._task_command(clean_command(text)):
+            return
         if is_stop_command(text):
             self._stop(speech_end_at, text, partial=False)
             return
@@ -769,16 +852,34 @@ class VoiceLoop:
             audio.earcon("success")
             speech.narrate(orchestrator.task_status())
             return
-        if self._task_running():
-            audio.earcon("error")
-            speech.narrate("I'm still on the last task. Say Zoya, stop, to cancel it.")
-            return
 
         def on_done(result: orchestrator.CommandResult) -> None:
             self._on_task_done(result)
             _report(result, speech_end_at, pre)
 
-        self.task = orchestrator.start_task(text, pre, on_done=on_done)
+        task = orchestrator.start_task(text, pre, on_done=on_done)
+        if task is None:
+            audio.earcon("attention")
+            speech.narrate(tasks.FULL_MESSAGE)
+        elif task.shared:
+            speech.narrate(f"{task.spoken_name()} started.")
+
+    def _task_command(self, command: str) -> bool:
+        """§9.13 voice controls with tasks running: queue it, stop the <task>, how's the <task>."""
+        if tasks.has_offer() and QUEUE_IT.match(command):
+            speech.narrate(tasks.answer_offer())
+            return True
+        if not self._task_running():
+            return False
+        if stop_name(command):
+            self._stop_named(stop_name(command))
+            return True
+        status = TASK_STATUS.match(command)
+        if status and tasks.find(status["name"]):
+            audio.earcon("success")
+            speech.narrate(orchestrator.task_status(status["name"]))
+            return True
+        return False
 
 
 def _report(result: orchestrator.CommandResult, speech_end_at: float, pre: dict[str, int]) -> None:

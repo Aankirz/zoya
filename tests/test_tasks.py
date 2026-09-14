@@ -343,3 +343,88 @@ def test_money_parser_used_for_sheet_totals():
     assert to_number("₹1,200.50") == Decimal("1200.50")
     assert to_number("Rs 300") == Decimal("300")
     assert to_number("rent") is None
+
+
+# --- Voice loop: task-named replies and stops (D61) ----------------------------------------
+
+
+@pytest.fixture
+def loop(monkeypatch):
+    from zoya import audio, voice
+
+    instance = object.__new__(voice.VoiceLoop)
+    instance.confirmations = SimpleNamespace(replies=[])
+    instance.confirmations.reply = lambda text, heard_from: instance.confirmations.replies.append(
+        text
+    )
+    instance.recent = []
+    instance.ptt, instance.segment, instance.pre_roll = None, None, []
+    monkeypatch.setattr(audio, "earcon", lambda _kind: None)
+    monkeypatch.setattr(voice, "_log_voice", lambda _record: None)
+    return instance
+
+
+def _segment():
+    from zoya import voice
+
+    return voice.Segment([], time.monotonic(), woke_at=time.monotonic())
+
+
+def test_voice_reply_naming_another_task_never_reaches_the_confirmation(loop, monkeypatch):
+    grocery, presentation = _task("grocery order"), _task("presentation")
+    monkeypatch.setattr(safety, "pending_task_id", lambda: grocery.id)
+
+    loop._confirmation_reply(_segment(), "confirm the presentation")
+
+    assert loop.confirmations.replies == []
+    assert not grocery.cancel.is_set() and not presentation.cancel.is_set()
+
+
+def test_voice_cancel_naming_another_task_stops_that_task_not_the_waiting_one(loop, monkeypatch):
+    grocery, presentation = _task("grocery order"), _task("presentation")
+    monkeypatch.setattr(safety, "pending_task_id", lambda: grocery.id)
+
+    loop._confirmation_reply(_segment(), "cancel the presentation")
+
+    assert loop.confirmations.replies == []
+    assert presentation.cancel.is_set() and not grocery.cancel.is_set()
+
+
+def test_voice_confirm_naming_the_waiting_task_is_passed_on(loop, monkeypatch):
+    grocery, _presentation = _task("grocery order"), _task("presentation")
+    monkeypatch.setattr(safety, "pending_task_id", lambda: grocery.id)
+
+    loop._confirmation_reply(_segment(), "confirm the grocery order")
+
+    assert loop.confirmations.replies == ["confirm"]
+
+
+def test_spoken_stop_with_a_task_name_is_a_named_stop():
+    from zoya import voice
+
+    _task("presentation")
+
+    assert voice.stop_name("Zoya, stop the presentation") == "presentation"
+    assert voice.stop_name("Zoya, stop everything") == "everything"
+    assert voice.stop_name("Zoya, stop") == ""
+    assert voice.stop_name("stop the music") == ""  # not a task: stays a media command
+
+
+def test_push_to_talk_with_tasks_running_cuts_speech_but_stops_no_task(loop, monkeypatch):
+    import numpy as np
+
+    from zoya import audio, speech, voice
+
+    presentation = _task("presentation")
+    stopped = []
+    monkeypatch.setattr(voice, "push_to_talk_held", lambda: True)
+    monkeypatch.setattr(voice.VoiceLoop, "_zoya_busy", lambda self: True)
+    monkeypatch.setattr(safety, "awaiting_reply", lambda: False)
+    monkeypatch.setattr(orchestrator, "stop_task", lambda *a: stopped.append(a))
+    monkeypatch.setattr(speech, "cancel", lambda: stopped.append("speech"))
+    monkeypatch.setattr(audio, "engine", lambda: SimpleNamespace(silence_all=lambda: None))
+    monkeypatch.setattr(audio, "duck", lambda: None)
+
+    loop._push_to_talk(time.monotonic(), np.zeros(512, dtype="float32"))
+
+    assert stopped == ["speech"] and not presentation.cancel.is_set()
