@@ -96,17 +96,29 @@ def _on_browser[T](call: Callable[[], T]) -> T:
         raise ToolError(f"The browser couldn't do that ({type(error).__name__}).") from error
 
 
+def warm() -> None:
+    """Startup: Playwright's driver only. Chrome opens on the first browser use, straight to that
+    page: launching it here showed an empty about:blank window (owner's run 2026-09-15); a
+    persistent context always opens one, and `--no-startup-window` makes the launch hang 11 s.
+    First use costs the launch, ~0.4 s with a warm disk."""
+    _on_browser(_driver)
+
+
+def _driver() -> Any:
+    if "playwright" not in _state:
+        from playwright.sync_api import sync_playwright
+
+        _state["playwright"] = sync_playwright().start()
+    return _state["playwright"]
+
+
 def _page() -> Any:
-    """The dedicated Zoya Chrome profile (D11), launched once, on the browser thread."""
+    """The dedicated Zoya Chrome profile (D11), launched on first use, on the browser thread."""
     page = _state.get("page")
     if page is not None and not page.is_closed():
         return page
-    from playwright.sync_api import sync_playwright
-
-    if "playwright" not in _state:
-        _state["playwright"] = sync_playwright().start()
     try:
-        context = _state["playwright"].chromium.launch_persistent_context(
+        context = _driver().chromium.launch_persistent_context(
             user_data_dir=str(BROWSER_PROFILE_DIR),
             channel="chrome",
             headless=False,

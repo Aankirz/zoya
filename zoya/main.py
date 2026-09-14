@@ -52,14 +52,14 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
 
 
 def _warm_browser() -> None:
-    """§9.7: launch the Zoya Chrome profile once at startup (first skill 7.1 s cold vs 0.7 s warm),
-    plus the skill catalogue and trigger index."""
+    """§9.7: the skill catalogue, trigger index and Playwright driver at startup; Chrome itself
+    opens on first use (browser.warm)."""
     from zoya import harness
     from zoya.tools import ToolError, browser
 
     harness.trigger_index()
     try:
-        browser.on_page(lambda _page: None)
+        browser.warm()
     except ToolError as error:
         print(f"Zoya's browser didn't start: {error}")
 
