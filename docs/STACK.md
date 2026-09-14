@@ -138,7 +138,7 @@ Verified prices, 2026-09-14 (per 1M tokens, input / output): **gpt-5.6-luna $0.2
 | **Amazon Textract** | "Read this PDF / letter / bill to me" — document text and tables read aloud | 5 |
 | **Amazon SNS** (email) | Trusted-contact alerts: Zoya is blocked (CAPTCHA/login), order placed, emergency "tell my sister I need help" | 4 |
 | **Amazon S3** | Stores created documents for sharing (pre-signed link sent via SNS), benchmark results, demo recordings | 0, 6 |
-| **Amazon EventBridge Scheduler + AWS Lambda** | Reminders and routines ("remind me to take my medicine at 9 pm") → Lambda → SNS email + Zoya speaks when it fires | 6 |
+| **Amazon EventBridge Scheduler** | Reminders and routines ("remind me to take my medicine at 9 pm") → one-time schedule with the templated SNS Publish target (no Lambda, D67) → email; Zoya speaks it from a local timer | 6 |
 | **Amazon Location Service** | "What's the nearest pharmacy?" / place search tool | 4 |
 | **Amazon Bedrock** | Brain / vision models | ⏳ after the support case (§5) |
 

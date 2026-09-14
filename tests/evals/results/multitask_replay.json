@@ -1,0 +1,77 @@
+[
+ {
+  "scenario": "together",
+  "status_reply": "Two things. Presentation: using create document. Grocery order: adding milk to the cart.",
+  "prompt": "Grocery order: I'm about to place order for 3 grocery items total 412 rupees. Say confirm, or cancel.",
+  "prompt_started_after_user_stopped_s": 10.99,
+  "user_talked_s": 5.22,
+  "user_talk_ended_at_s": 63.8,
+  "grocery": "placed",
+  "spoken": [
+   "  28.5s Grocery order started.",
+   "  44.8s Two things. Presentation: using create document. Grocery order: adding milk to the cart.",
+   "  74.7s Grocery order: I'm about to place order for 3 grocery items total 412 rupees. Say confirm, or cancel.",
+   "  83.9s Presentation: Created the PowerPoint presentation at /Users/ankitkiran/Documents/Zoya/renewable-energy-powering-a-cleaner-future-2.pptx.",
+   "  86.2s It has 6 slides: Renewable Energy; What Is Renewable Energy?; Main Types of Renewable Energy; Benefits for People and Planet; Challenges and Smart Solutions; Our Clean-Energy Future.",
+   "  95.2s Want me to open it or read a part?",
+   "  98.2s Grocery order: Order placed."
+  ],
+  "files": [
+   "history-of-cricket.pptx",
+   "renewable-energy-for-our-future-2.pptx",
+   "renewable-energy-for-our-future.pptx",
+   "renewable-energy-for-students.pptx",
+   "renewable-energy-powering-a-cleaner-future-2.pptx",
+   "renewable-energy-powering-a-cleaner-future.pptx",
+   "renewable-energy-powering-a-sustainable-future.pptx"
+  ],
+  "pass": true
+ },
+ {
+  "scenario": "stop_one",
+  "running_after_stop": [
+   "grocery order"
+  ],
+  "cancelled": [
+   "presentation"
+  ],
+  "grocery": "ConfirmationDeclined",
+  "spoken": [
+   "  27.8s Grocery order started.",
+   "  37.9s Stopped the presentation.",
+   "  74.1s Grocery order: I'm about to place order for 3 grocery items total 412 rupees. Say confirm, or cancel.",
+   "  83.2s Grocery order: Cancelled. Nothing was done."
+  ],
+  "pass": true
+ },
+ {
+  "scenario": "fourth",
+  "offered": true,
+  "queued": true,
+  "packing_list_made_after_slot_freed": [
+   "goa-trip-packing-list-2.docx",
+   "goa-trip-packing-list.docx"
+  ],
+  "spoken": [
+   "  23.2s Spreadsheet started.",
+   "  34.5s Document started.",
+   "  46.5s I'm already doing three things. Want me to queue this or stop one?",
+   "  59.7s Okay, I'll start it as soon as one finishes.",
+   " 178.2s Presentation: Created the presentation the-solar-system-3.pptx in your Documents/Zoya folder.",
+   " 181.2s It has 6 slides: The Solar System, Our Place in Space, The Sun: Our Star, The Inner Planets, The Outer Planets, and Small Worlds and Exploration.",
+   " 189.9s Want me to open it or read a part?",
+   " 192.9s Spreadsheet: Created the Excel file at /Users/ankitkiran/Documents/Zoya/monthly-expenses-4.xlsx.",
+   " 195.3s It has columns for Expense, Category, and Amount, with 12 rows including several blank rows to fill in.",
+   " 201.3s The Amount column has an automatic Total row, currently totaling 36,000.",
+   " 205.0s Want me to open it or read a part?",
+   " 208.0s Document: Created five-simple-dinner-ideas.pdf in ~/Documents/Zoya/.",
+   " 209.6s It contains 6 sections: Five Simple Dinner Ideas, Vegetable Stir-Fry with Rice, Lentil Soup with Toast, Pasta with Tomato and Spinach, Chickpea Wraps, and Baked Potato with Beans.",
+   " 219.0s Want me to open it or read a part?",
+   " 360.2s Document 2: Created Goa Trip Packing List and saved it in ~/Documents/Zoya/ as goa-trip-packing-list-2.docx.",
+   " 364.9s It contains 9 sections: Goa Trip Packing List, Essentials, Clothing, Beach Items, Toiletries, Health and Safety, Documents and Money, Electronics, and Before You Leave.",
+   " 372.9s Every packing item has a checkbox.",
+   " 374.9s Want me to open it or read a part?"
+  ],
+  "pass": true
+ }
+]

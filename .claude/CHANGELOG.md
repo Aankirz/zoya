@@ -203,3 +203,8 @@
 - zoya/tools/web.py (TinyFish, D64), memory.py (secret filter, Supermemory + local + DynamoDB), places.py (Amazon Location v2), handoff.py (Flow 10 + SNS), cache.py; browser.py launch switches + guarded recipe helpers (D66).
 - safety: Phase 4 registry, YouTube final buttons, Amazon Add to Cart allowlist, row-bound struck-price rule; earcons progress-step/add-to-cart/purchase/checkpoint/blocked; --login, --order-limit.
 - tests/test_memory_filter.py, tests/test_harness.py, tests/evals/phase4_live.py, phase4_gate_replay.py; docs §9.7/§9.8/§9.12 as built.
+
+## 2026-09-14 — Phase 6: multitasking, document agent, reminders
+- zoya/tasks.py Task Manager; task-bound confirmations in safety.py (D61 extended, D67); voice controls (named stop, what's running, queue it).
+- document_agent (as_tool delegate) + office/share tools; set_reminder (EventBridge Scheduler → SNS, no Lambda); earcons queued/complete.
+- Tests: tests/test_tasks.py, tests/test_office_reminders.py; eval tests/evals/multitask_replay.py (3/3 pass). Docs: D67, STACK §8 row.
