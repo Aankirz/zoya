@@ -19,6 +19,7 @@ import os
 import re
 import threading
 import time
+import unicodedata
 import uuid
 from datetime import UTC, datetime
 from functools import cache
@@ -47,21 +48,55 @@ REJECTED = "I can't remember that: it looks like a card number, password or one-
 # --- Secret filter (tests/test_memory_filter.py) --------------------------------------------
 
 CARD_DIGITS = re.compile(r"(?<!\d)(?:\d[ -]?){12,18}\d(?!\d)")
+# Latin, Hinglish and Devanagari secret words. Devanagari has no reliable \b (vowel signs aren't
+# \w), so those words match anywhere. "pin code", "zip code" and friends are addresses, not secrets.
 SECRET_WORD = re.compile(
     r"\b(?:otp|one[- ]?time (?:password|code|pin)|verification code|security code|"
     r"auth(?:entication)? code|passcode|password|passwd|pass ?word|cvv|cvc|cvv2|upi pin|atm pin|"
-    r"card pin|mpin|"
-    r"netbanking|net banking|pin(?! ?code))\b",
+    r"card pin|mpin|netbanking|net banking|card (?:number|no)|pin(?! ?code)|"
+    r"(?<!pin )(?<!zip )(?<!postal )(?<!area )(?<!promo )(?<!coupon )(?<!dress )(?<!country )"
+    r"(?<!qr )(?<!source )code)\b"
+    r"|ओटीपी|पासवर्ड|सीवीवी|यूपीआई पिन|कार्ड नंबर|पिन(?! ?कोड)|(?<!पिन )(?<!पिन)कोड",
     re.I,
 )
-SPELLED_DIGITS = re.compile(
-    r"\b(?:zero|one|two|three|four|five|six|seven|eight|nine)(?:[\s,-]+(?:zero|one|two|three|four|"
-    r"five|six|seven|eight|nine)){3,}\b",
-    re.I,
-)
-CARD_WORDS = re.compile(r"\b(?:card|debit|credit|visa|mastercard|rupay|amex)\b", re.I)
+CARD_WORDS = re.compile(r"\b(?:card|debit|credit|visa|mastercard|rupay|amex)\b|कार्ड", re.I)
 SHORT_NUMBER = re.compile(r"(?<!\d)\d{3,8}(?!\d)")
 EXPIRY = re.compile(r"(?<!\d)(?:0[1-9]|1[0-2])\s*/\s*\d{2}(?:\d{2})?(?!\d)")
+DIGIT_WORDS = {
+    **dict.fromkeys(["zero", "oh", "शून्य"], "0"),
+    **dict.fromkeys(["one", "एक"], "1"),
+    **dict.fromkeys(["two", "दो"], "2"),
+    **dict.fromkeys(["three", "तीन"], "3"),
+    **dict.fromkeys(["four", "चार"], "4"),
+    **dict.fromkeys(["five", "पांच", "पाँच"], "5"),
+    **dict.fromkeys(["six", "छह", "छः", "छे"], "6"),
+    **dict.fromkeys(["seven", "सात"], "7"),
+    **dict.fromkeys(["eight", "आठ"], "8"),
+    **dict.fromkeys(["nine", "नौ"], "9"),
+}
+REPEATS = {"double": 2, "triple": 3}
+TOKEN = re.compile(r"[^\s,.;:!?()\-]+")
+SPACED_DIGITS = re.compile(r"(?<!\d)\d(?:[\s,-]+\d){3,}(?!\d)")  # "4 8 2 9", from any spelling
+
+
+def _ascii_digits(text: str) -> str:
+    """Every Unicode decimal digit (Devanagari ४, fullwidth ４…) as 0–9."""
+    return "".join(str(unicodedata.decimal(ch)) if ch.isdecimal() else ch for ch in text)
+
+
+def spoken_digits(text: str) -> str:
+    """Digit words and "double/triple N" become spaced digits: "double four one" → "4 4 1"."""
+    out: list[str] = []
+    repeat = 1
+    for token in TOKEN.findall(_ascii_digits(unicodedata.normalize("NFKC", text))):
+        word = token.casefold()
+        if word in REPEATS:
+            repeat = REPEATS[word]
+            continue
+        digit = DIGIT_WORDS.get(word) or (token if token.isdigit() and len(token) == 1 else None)
+        out += [digit] * repeat if digit else [word]
+        repeat = 1
+    return " ".join(out)
 
 
 def _luhn(digits: str) -> bool:
@@ -75,18 +110,21 @@ def _luhn(digits: str) -> bool:
 def secret_reason(text: str) -> str | None:
     """Why `text` must never be stored, or None. Errs toward refusing (a lost memory is cheap).
 
-    Blocks: a Luhn-valid 13–19 digit number; any secret word (OTP, password, PIN but not "pin code",
-    CVV, net banking); card words with a short number or an expiry date; 4+ spelled-out digits.
+    Digits are normalised first (Devanagari/fullwidth → 0–9). Blocks: a Luhn-valid 13–19 digit
+    number; any secret word (OTP, password, PIN but not "pin code", CVV, code, card number; English,
+    Hinglish, Devanagari); card words with a short number or an expiry date; 4+ digits said one by
+    one ("four eight two nine", "double four double one", "चार आठ दो नौ", "4 8 2 9").
     """
-    for match in CARD_DIGITS.finditer(text):
+    plain = _ascii_digits(unicodedata.normalize("NFKC", text))
+    for match in CARD_DIGITS.finditer(plain):
         digits = re.sub(r"\D", "", match.group())
         if 13 <= len(digits) <= 19 and _luhn(digits):
             return "card number"
-    if SECRET_WORD.search(text):
+    if SECRET_WORD.search(plain):
         return "secret word"
-    if CARD_WORDS.search(text) and (SHORT_NUMBER.search(text) or EXPIRY.search(text)):
+    if CARD_WORDS.search(plain) and (SHORT_NUMBER.search(plain) or EXPIRY.search(plain)):
         return "card details"
-    if SPELLED_DIGITS.search(text):
+    if SPACED_DIGITS.search(spoken_digits(text)):
         return "spelled-out code"
     return None
 
