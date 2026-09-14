@@ -162,3 +162,6 @@
 
 ## 2026-09-14 — Media keys for browser playback
 - media_control posts system media keys (browser tabs + apps); AppleScript only for explicit app; Accessibility permission prompt.
+
+## 2026-09-14 — Open fallback + fast-turn context (D59)
+- open_app miss → orchestrator; fuzzy app lookup ≥ 3 chars; fast turns in conversation; skills-directory idea logged for Phase 4.
