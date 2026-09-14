@@ -565,6 +565,14 @@ def ppt_agent(topic: str, audience: str, slide_count: int = 6) -> str:
 - **Prefer DOM over pixels:** `page.inner_text()`, `get_by_role("button", name="Add to Cart")` → text tokens are ~10× cheaper and faster than screenshots.
 - Screenshot fallback for pages where selectors fail.
 
+**As built (Phase 4, D66)** — facts found while building, keep them:
+- Playwright 1.62 adds switches in `chromiumSwitches` (driver/package/lib/coreBundle.js). Two break real use and are dropped with `ignore_default_args`: `--use-mock-keychain` hides the cookies the owner saved by signing in with normal Chrome on the same profile, and `--disable-component-update` stops the Widevine CDM from loading, so Spotify web plays nothing (`requestMediaKeySystemAccess('com.widevine.alpha')` → NotSupportedError). `--autoplay-policy=no-user-gesture-required` is added: a YouTube watch page Zoya opened stayed paused at 0:00 without it. No anti-bot switches.
+- Google refuses sign-in inside the Playwright-launched window, so onboarding (`python -m zoya.main --login`) opens normal Chrome on the Zoya profile; Zoya's Playwright launch then reads those logins.
+- Recipes navigate in the background (no `bring_to_front`): a blind user's foreground app must not jump. Only the OCR check and the sign-in handoff bring the window forward.
+- Selectors checked on the owner's signed-in profile (2026-09-14): YouTube `ytd-channel-renderer a#main-link`, `ytd-video-renderer a#video-title`, "Subscribe to <channel>." aria-label; Spotify `[data-testid=tracklist-row]` play button "Play <title> by <artists>" (takes the pointer only while the row is hovered), `[data-testid=now-playing-widget]`; Amazon result rows `div[data-component-type=s-search-result]` with brand and name in separate `<h2>`s.
+- Amazon groceries live in a separate Amazon Now cart (`proceedToALMCheckout-<id>` → `/tez/browse/cart`, client-rendered: wait for "Bill Summary"). Grocery product pages have no `#add-to-cart-button`; the result row's `input[name=submit.addToCart]` is used. With too little Amazon Pay balance the final button is "Add Money to Place Order", which Zoya refuses.
+- Measured (typed commands, `tests/evals/phase4_live.py`): "Open the MrBeast channel on YouTube" trigger → 7.1 s cold (Chrome launch) / 0.7 s repeat, 0 model calls; "Play Love Me Not on Spotify" 5.0 s, 0 calls, verified by the now-playing bar; command → confirmation question 1.5 s (subscribe) and 3.1 s (comment, incl. typing) vs ≈ 10 s in Phase 3.
+
 ### 9.8 Memory — Supermemory
 - **Integration cost:** 2 tools, <1 hour. SDK: `pip install supermemory`.
 - **Pricing:** free plan ($0/month) includes $5 of usage per month. Memory ingest ≈ $0.005 per 1K tokens and search ≈ $0.005 per 1K queries, so a hackathon uses a tiny fraction of the free allowance. Needs an API key from https://console.supermemory.ai (`SUPERMEMORY_API_KEY`).
@@ -579,6 +587,8 @@ def ppt_agent(topic: str, audience: str, slide_count: int = 6) -> str:
 - **When memory is read:** orchestrator prompt says *"Before asking a preference question, call memory_search."*
 - **Privacy:** never store passwords, OTPs, card numbers — enforced by a regex filter in `memory_add` (card-number / OTP patterns rejected).
 - **AWS-native alternative:** AgentCore Memory (more AWS points, more setup). Decision: **Supermemory** for speed; swap later behind the same 2 tool signatures.
+
+**As built (Phase 4):** `zoya/tools/memory.py`. The secret filter runs before anything is stored: a Luhn-valid 13–19 digit number, any secret word (OTP, password, PIN but not "pin code", CVV, net banking), card words with a short number or expiry, or four spelled-out digits → refused (tests/test_memory_filter.py). Every memory also goes to `~/.zoya/memory.json` and DynamoDB `zoya-memory` (pk `memory#user_owner` / `order#user_owner`, sk `<time>#<id>`); search falls back Supermemory → local file → DynamoDB. "Remember my …" and "what do you remember about …" are skill triggers (0 model calls): save 1.6 s, search 0.9 s live. Supermemory rewrites memories ("User's usual grocery items are …"), which proves the hybrid search hit it. Corrections (`category=correction`) ride with the brain's request, never in the cached prefix. Orders are saved after a confirmed `amazon_place_order` (no order ID: a long ID can pass the card check).
 
 ### 9.9 Safety layer
 Two **code-level** guards (not prompt-level):
@@ -650,6 +660,8 @@ Reference: https://github.com/anthropics/commerce-agents (Apache-2.0).
 | **Shopping flows as skills** (search → compare → cart → order questions) | `browser_agent` gets a shopping skill prompt: search, compare top 3 by price/rating/delivery, add to cart, read back cart, check out |
 | **Customer memory** | Already covered by Supermemory (§9.8) |
 | **Commerce evals** | Borrow the idea for a small scripted test: "usual groceries" order stops at confirmation with correct total |
+
+**As built (Phase 4, D66):** the shopping skill (`zoya/skills/shopping/`) reads the checkout's items and bill only (`checkout_summary` drops the address and recommendations) and places the order only through `browser.click_checked(require="purchase")`: OCR total check, visible item, voice token. Live: "Order my usual groceries from Amazon" → memory → 3 items added (row "Add to cart", the one exact-host allowlisted click) → Amazon Now checkout "You pay ₹243" read from the page → refused at "Add Money to Place Order" (balance ₹123). Amazon Now prints "You pay ₹243 ~~₹331~~" on one row, and OCR can't see the line, so the total check skips a struck price only when the DOM shows it rendered with its own line-through on that same OCR row, it is the row's only struck number, and it is higher than the kept price by at most 80% (coordinator attacks of f283fbc/0a83a3d); the skipped value goes into the confirmation audit row. `--order-limit` refuses to offer bigger orders in test runs.
 
 
 ### 9.13 Task Manager — multitasking by voice
