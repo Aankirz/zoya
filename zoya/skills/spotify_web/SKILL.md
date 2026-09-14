@@ -6,6 +6,9 @@ metadata:
   triggers:
     - action: spotify_play_song
       pattern: '^play\s+(?:the\s+)?(?:song\s+)?(?P<song>.+?)(?:\s+by\s+(?P<artist>.+?))?\s+(?:on|in|from)\s+spotify(?:\s+web)?$'
+    # "Can you play a song Loser?" (owner's run): "song" names the service-free case; ~4.8 s router call without it.
+    - action: spotify_play_song
+      pattern: '^play\s+(?!.*\byoutube\b)(?:me\s+)?(?:(?:a|the)\s+)?(?:song|track)\s+(?P<song>.+?)(?:\s+by\s+(?P<artist>.+?))?$'
     - action: spotify_search
       pattern: '^(?:search|look up|find)\s+(?:for\s+)?(?P<query>.+?)\s+(?:on|in)\s+spotify$'
 ---

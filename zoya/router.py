@@ -148,8 +148,9 @@ PAGE_ACTION = re.compile(
 )
 # Flow 10: "done" after signing in resumes a pending handoff, and only then (coordinator).
 DONE = re.compile(
-    r"^(?:(?:i'?m|i am|i have|i'?ve|all|it'?s)\s+)?(?:done|finished|signed in|logged in|ho gaya"
-    r"|ho gya|kar liya)(?:\s+(?:now|signing in|logging in))?$",
+    r"^(?:(?:i'?m|i am|i have|i'?ve|all|it'?s)\s+)?(?:already\s+)?"
+    r"(?:done|finished|signed in|logged in|ho gaya|ho gya|kar liya)"
+    r"(?:\s+(?:now|signing in|logging in))?$",
     _I,
 )
 OPEN_HINGLISH = re.compile(

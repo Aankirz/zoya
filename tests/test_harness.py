@@ -28,6 +28,12 @@ from zoya.tools import ToolError, handoff
             "spotify_play_song",
             {"song": "Love Me Not", "artist": "Ravyn Lenae"},
         ),
+        ("play a song Loser", "spotify_play_song", {"song": "Loser"}),
+        (
+            "play the song Loser by Tame Impala",
+            "spotify_play_song",
+            {"song": "Loser", "artist": "Tame Impala"},
+        ),
         ("play Escape 100 Cops on YouTube", "youtube_play_video", {"title": "Escape 100 Cops"}),
         ("search lofi beats on youtube", "youtube_search", {"query": "lofi beats"}),
         ("what's the weather in New Delhi", "get_weather", {"city": "New Delhi"}),
@@ -54,6 +60,16 @@ def test_skill_route_uses_no_model_call():
 
     assert (decision.route, decision.source, decision.skill) == ("skill", "trigger", "youtube")
     assert "model_ms" not in decision.timings_ms
+
+
+def test_spoken_play_a_song_skips_the_router_model():
+    decision = router.route("Can you play a song Loser?")  # owner's run: 4.8 s router call
+
+    assert (decision.tool, decision.args, decision.source) == (
+        "spotify_play_song",
+        {"song": "Loser"},
+        "trigger",
+    )
 
 
 def test_a_trigger_naming_an_unknown_argument_is_rejected(monkeypatch):
@@ -284,6 +300,15 @@ def test_done_resumes_only_a_pending_handoff(monkeypatch):
     assert decision.route == "orchestrator"
     assert decision.text.endswith("order my usual groceries")
     assert handoff.pending_handoff() is None  # consumed once
+
+
+def test_already_signed_in_resumes_the_handoff():
+    handoff._pending.update(command="play a song Loser", at=__import__("time").monotonic())
+    decision = router.route(
+        "It's already signed in."
+    )  # owner's run: 2.2 s router call + fresh turn
+
+    assert decision.text.endswith("play a song Loser")
 
 
 @pytest.mark.parametrize("reply", ["done", "I'm done", "signed in", "ho gaya"])
