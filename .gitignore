@@ -27,3 +27,4 @@ output/
 
 # Local agent settings
 .claude/settings.local.json
+.claude/worktrees/

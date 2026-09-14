@@ -1,0 +1,41 @@
+# ADOT collector: Zoya's OpenTelemetry traces → CloudWatch / X-Ray (STACK §8, Phase 1).
+#
+# Zoya exports OTLP/HTTP to this collector (OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318);
+# the collector signs requests with SigV4 and forwards them to the X-Ray OTLP endpoint.
+#
+# Start (after `aws login --profile zoya`), from the repo root:
+#   eval "$(aws configure export-credentials --profile zoya --format env)" && docker run --rm -p 4318:4318 -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_SESSION_TOKEN -v "$PWD/otel-collector.yaml:/etc/otel-collector.yaml" public.ecr.aws/aws-observability/aws-otel-collector:latest --config=/etc/otel-collector.yaml
+# The exported credentials are temporary: re-run the command after they expire.
+#
+# Docs:
+# - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-OTLPEndpoint.html
+# - https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/extension/sigv4authextension/README.md
+# - https://gallery.ecr.aws/aws-observability/aws-otel-collector
+
+extensions:
+  sigv4auth:
+    region: ap-south-1
+    service: xray
+
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+
+exporters:
+  otlphttp:
+    traces_endpoint: https://xray.ap-south-1.amazonaws.com/v1/traces
+    auth:
+      authenticator: sigv4auth
+
+service:
+  extensions: [sigv4auth]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp]
