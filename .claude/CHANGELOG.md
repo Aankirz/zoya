@@ -123,3 +123,9 @@
 
 ## 2026-09-14 — Phase 7 overlay design direction
 - Phase 7 brief + §9.11: AgentPet-style agent presence states and Apple HIG look (materials, motion, SF type, Reduce Motion/Transparency), 3 new Done-when items.
+
+## 2026-09-14 — Phase 2 voice + sound (builder)
+- zoya/audio.py mixer engine + zen earcons (scripts/build_sounds.sh, sounds/*.wav); zoya/speech.py streams Polly into the mixer with cancel() barge-in and ZOYA_DISABLE_TTS fallback testing.
+- zoya/voice.py + zoya/main.py: VAD → mlx base.en wake/stop spotter (D51) → large-v3-turbo → router/brain; push-to-talk Control+Option; --test-wake/--no-wake/--disable-tts; voice timings in logs/timing.log.
+- zoya/orchestrator.py: streamed sentence-by-sentence speech, native Strands cancel_signal stop, 6-turn follow-up context, start_task/stop_task/task_status; router sends questions straight to the brain.
+- zoya/tools/weather.py (Open-Meteo, D50); tests for spotter parsers and stop path.
