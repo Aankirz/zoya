@@ -301,12 +301,7 @@ def capture_display() -> Shot:
         raise ToolError("I need Screen Recording permission to see the screen.")
     front = AppKit.NSWorkspace.sharedWorkspace().frontmostApplication()
     display = _front_display(content, front.processIdentifier() if front else -1)
-    mine = [a for a in content.applications() if a.processID() == os.getpid()]
-    content_filter = (
-        SCK.SCContentFilter.alloc().initWithDisplay_excludingApplications_exceptingWindows_(
-            display, mine, []
-        )
-    )
+    content_filter = display_filter(content, display)
     rect = display.frame()
     frame = (rect.origin.x, rect.origin.y, rect.size.width, rect.size.height)
     width, height = capture_size(frame[2], frame[3], SCREENSHOT_MAX_WIDTH)
@@ -347,17 +342,34 @@ def capture_region_jpeg(x: float, y: float, half_width: float, half_height: floa
     top = max(0.0, y - rect.origin.y - half_height)
     width = min(rect.size.width - left, 2 * half_width)
     height = min(rect.size.height - top, 2 * half_height)
-    mine = [a for a in content.applications() if a.processID() == os.getpid()]
-    content_filter = (
-        SCK.SCContentFilter.alloc().initWithDisplay_excludingApplications_exceptingWindows_(
-            display, mine, []
-        )
-    )
+    content_filter = display_filter(content, display)
     scale = content_filter.pointPixelScale()
     image = _capture_image(
         content_filter, width * scale, height * scale, (left, top, width, height)
     )
     return _jpeg(image)
+
+
+def own_pids() -> set[int]:
+    """Zoya and its stage overlay (Phase 7): never in a screenshot a model or OCR reads."""
+    from zoya import overlay
+
+    return {os.getpid(), *overlay.pids()}
+
+
+def display_filter(content: Any, display: Any) -> Any:
+    """The ONLY way screen.py builds a display filter: Zoya's apps (overlay, ring) left out.
+
+    Window captures (`capture_window_jpeg`) need no exclusion: a desktop-independent window filter
+    renders that one window only, whatever floats above it.
+    """
+    import ScreenCaptureKit as SCK
+
+    pids = own_pids()
+    mine = [a for a in content.applications() if a.processID() in pids]
+    return SCK.SCContentFilter.alloc().initWithDisplay_excludingApplications_exceptingWindows_(
+        display, mine, []
+    )
 
 
 def _front_display(content: Any, pid: int) -> Any:

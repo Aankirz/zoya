@@ -34,7 +34,7 @@ from typing import Any
 
 from strands import tool
 
-from zoya import safety, screen
+from zoya import overlay, safety, screen
 from zoya.config import (
     ACTION_SETTLE_S,
     CHANGE_BOX_PX,
@@ -175,6 +175,8 @@ def press_element(element: Any, frame: tuple[float, float, float, float] | None)
     import ApplicationServices as AS
 
     centre = (frame[0] + frame[2] / 2, frame[1] + frame[3] / 2) if frame else None
+    if frame:
+        overlay.show_ring(*frame)
     if centre:
         _move(*centre)
     if AS.AXUIElementPerformAction(element, "AXPress") == ax.AX_SUCCESS:
@@ -438,6 +440,7 @@ def click(x: float, y: float, button: str = "left", double: bool = False) -> dic
     if risky is not None:
         session.asked = True
         _confirm_input(risky, probe)
+    overlay.show_ring(*point)  # after the screenshot the model saw; excluded from the next one
     _mouse_click(*point, button=button, double=double)
     session.last_click = {"labels": facts.labels, "size": [shot.width, shot.height], "app": app}
     confirmed = " The user confirmed it out loud." if risky else ""

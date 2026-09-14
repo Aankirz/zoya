@@ -28,6 +28,7 @@ No anti-bot-detection switches.
 from __future__ import annotations
 
 import concurrent.futures
+import logging
 import os
 import re
 import time
@@ -39,7 +40,7 @@ from urllib.parse import urlparse
 
 from strands import tool
 
-from zoya import safety, screen
+from zoya import overlay, safety, screen
 from zoya.config import (
     BROWSER_ACTION_TIMEOUT_S,
     BROWSER_PROFILE_DIR,
@@ -49,6 +50,7 @@ from zoya.config import (
 from zoya.tools import ToolError
 from zoya.tools.fast import normalise_url
 
+log = logging.getLogger(__name__)
 MS_PER_S = 1000
 PLAYWRIGHT_TIMEOUT_MS = int(BROWSER_ACTION_TIMEOUT_S * MS_PER_S)
 WORKER_SLACK_S = 5.0  # a Playwright call times out on its own first
@@ -337,7 +339,18 @@ def _verified_action(
     )
 
 
+# Element box in global screen points: window origin + browser chrome height + viewport rect.
+# ponytail: assumes no bottom chrome (true for Zoya's Chrome window); off by a few pt otherwise.
+SCREEN_RECT_JS = """el => { el.scrollIntoViewIfNeeded(); const r = el.getBoundingClientRect();
+  return [screenX + r.left, screenY + (outerHeight - innerHeight) + r.top, r.width, r.height]; }"""
+
+
 def _click(handle: Any) -> None:
+    if overlay.running():  # stage ring (Phase 7), after every evidence capture for this click
+        try:
+            overlay.show_ring(*_on_browser(lambda: handle.evaluate(SCREEN_RECT_JS)))
+        except Exception:  # noqa: BLE001 — the ring is decoration; the click must still happen
+            log.debug("ring position unavailable", exc_info=True)
     _on_browser(lambda: handle.click(timeout=PLAYWRIGHT_TIMEOUT_MS))
 
 
