@@ -11,14 +11,19 @@ Every stage's timing is printed and appended to logs/timing.log. Ctrl+C quits.
 
 from __future__ import annotations
 
-import argparse
-import logging
 import os
-import sys
-import threading
-import time
 
-from zoya.config import DISABLE_TTS_ENV, TIMING_LOG, load_env
+# Before any Hugging Face / mlx import: models load from the local cache only. A Hub revision check
+# over a black-holed IPv6 route hung startup forever (AUDIT §6). Download: zoya.setup_models.
+os.environ["HF_HUB_OFFLINE"] = "1"
+
+import argparse  # noqa: E402
+import logging  # noqa: E402
+import sys  # noqa: E402
+import threading  # noqa: E402
+import time  # noqa: E402
+
+from zoya.config import DISABLE_TTS_ENV, TIMING_LOG, load_env  # noqa: E402
 
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
@@ -60,8 +65,13 @@ def main(argv: list[str] | None = None) -> int:
     logging.getLogger("botocore.credentials").setLevel(logging.CRITICAL)
 
     from zoya import audio, speech
+    from zoya.setup_models import ModelsMissing
 
-    loop = _start(args)
+    try:
+        loop = _start(args)
+    except ModelsMissing as missing:
+        print(f"Zoya can't start: {missing}")
+        return 1
     from zoya.voice import push_to_talk_label
 
     keys = push_to_talk_label()

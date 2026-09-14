@@ -47,7 +47,6 @@ from zoya.config import (
     PUSH_TO_TALK_KEYS,
     SMART_TURN_FILE,
     SMART_TURN_REPO,
-    SMART_TURN_REVISION,
     SMART_TURN_SHA256,
     SPOTTER_ENGINE,
     STT_MODEL_REPO,
@@ -208,7 +207,10 @@ def load_whisper(repo: str, **options: str) -> Callable[[np.ndarray], str]:
     from mlx_whisper.load_models import load_model
     from mlx_whisper.transcribe import ModelHolder
 
-    model = load_model(repo, dtype=mx.float16)  # transcribe()'s default fp16 dtype
+    from zoya.setup_models import local_model_dir
+
+    # A local path: mlx-whisper would otherwise ask the Hub for a revision (startup hang, AUDIT §6).
+    model = load_model(local_model_dir(repo), dtype=mx.float16)  # transcribe()'s default fp16
 
     def transcribe(samples: np.ndarray) -> str:
         # ponytail: mlx-whisper 0.4.3 caches ONE model, so alternating base.en and turbo reloaded
@@ -238,10 +240,11 @@ def load_smart_turn() -> Callable[[np.ndarray], bool] | None:
 
     import onnxruntime as ort
     from faster_whisper.feature_extractor import FeatureExtractor
-    from huggingface_hub import hf_hub_download
+
+    from zoya.setup_models import local_model_dir
 
     try:
-        path = hf_hub_download(SMART_TURN_REPO, SMART_TURN_FILE, revision=SMART_TURN_REVISION)
+        path = f"{local_model_dir(SMART_TURN_REPO)}/{SMART_TURN_FILE}"
         with open(path, "rb") as model_file:
             if hashlib.sha256(model_file.read()).hexdigest() != SMART_TURN_SHA256:
                 raise ValueError("Smart Turn model checksum mismatch")

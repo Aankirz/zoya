@@ -102,3 +102,21 @@ Segments end correctly (the D53 loudness gate works); the spotter mishears the n
 - AEC3 CPU at 16 kHz, and whether 16 kHz works at all (livekit defaults to 48 kHz, so resample if needed).
 - Tap-to-mic latency, and behaviour when the output device changes (headphones plugged in).
 - **Measure before committing:** dB of echo removed and wake rate at each music level above, plus stop latency while TTS plays on speakers.
+
+## 6. Startup hang: Hugging Face revision checks over a black-holed IPv6 route (2026-09-14)
+
+**Found by the coordinator during the owner's run:** `python -m zoya.main` froze after the "tracing:" line. The main thread was blocked in `sock_connect` with an IPv6 SYN_SENT to 2600:9000:… (CloudFront, the Hugging Face CDN). mlx-whisper's `load_model(repo)` calls `snapshot_download(repo)`, and huggingface-hub checks the latest revision **even when the model is cached**. This network drops IPv6 silently, so Python waited for the TCP timeout: an unbounded startup hang, breaking the "bound every blocking call" rule.
+
+**Fix (verified):**
+- `zoya/main.py` sets `HF_HUB_OFFLINE=1` before any HF/mlx import.
+- Models load from `snapshot_download(repo, revision=<pinned>, local_files_only=True)`, and the local path goes to mlx-whisper.
+- All models are pinned in `zoya/config.py` `MODEL_PINS` (revision + weights sha256) and downloaded once by `python -m zoya.setup_models`, which bounds calls with `HF_HUB_ETAG_TIMEOUT=5` and `HF_HUB_DOWNLOAD_TIMEOUT=30` and verifies checksums.
+- A missing model fails fast: "Zoya can't start: Model … is not downloaded. Run once: .venv/bin/python -m zoya.setup_models". Smart Turn falls back to the 0.5 s silence rule.
+- `tests/evals/wake_junk_replay.py` runs offline too.
+
+**Checks:**
+- `HF_ENDPOINT=http://10.255.255.1` (unroutable) → "ready in 10.3 s".
+- Empty `HF_HUB_CACHE` → the fail-fast message.
+- Setup → all three pinned weights "ok".
+
+**Rule for later phases:** no model or library may reach the network at startup or on the voice path without an explicit timeout; downloads belong in setup.

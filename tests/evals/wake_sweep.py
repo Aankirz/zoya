@@ -10,16 +10,22 @@ Usage: .venv/bin/python -u tests/evals/wake_sweep.py
 
 from __future__ import annotations
 
-import json
-import sys
-import time
-from pathlib import Path
+import os
 
-import numpy as np
-import soundfile as sf
+# Dev tool that may download extra models: bound Hub calls instead of going offline (AUDIT §6).
+os.environ.setdefault("HF_HUB_ETAG_TIMEOUT", "5")
+os.environ.setdefault("HF_HUB_DOWNLOAD_TIMEOUT", "30")
 
-from zoya.config import LOG_DIR, MIC_SAMPLE_RATE_HZ, WAKE_WINDOW_S
-from zoya.voice import NAME, is_wake, words
+import json  # noqa: E402
+import sys  # noqa: E402
+import time  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+import numpy as np  # noqa: E402
+import soundfile as sf  # noqa: E402
+
+from zoya.config import LOG_DIR, MIC_SAMPLE_RATE_HZ, WAKE_WINDOW_S  # noqa: E402
+from zoya.voice import NAME, is_wake, words  # noqa: E402
 
 CLIPS = LOG_DIR / "wake_clips"
 RESULTS = Path(__file__).parent / "results" / "wake_sweep.json"

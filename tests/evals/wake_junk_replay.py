@@ -12,18 +12,22 @@ Usage: .venv/bin/python -u tests/evals/wake_junk_replay.py
 
 from __future__ import annotations
 
-import subprocess
-import sys
-import tempfile
-import threading
-import time
-from pathlib import Path
+import os
 
-import numpy as np
-import soundfile as sf
+os.environ["HF_HUB_OFFLINE"] = "1"  # pinned models from the cache only (AUDIT §6)
 
-from zoya import audio, orchestrator, speech, voice
-from zoya.config import MIC_SAMPLE_RATE_HZ, SOUNDS_DIR
+import subprocess  # noqa: E402
+import sys  # noqa: E402
+import tempfile  # noqa: E402
+import threading  # noqa: E402
+import time  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+import numpy as np  # noqa: E402
+import soundfile as sf  # noqa: E402
+
+from zoya import audio, orchestrator, speech, voice  # noqa: E402
+from zoya.config import MIC_SAMPLE_RATE_HZ, SOUNDS_DIR  # noqa: E402
 
 SUBPROCESS_TIMEOUT_S = 30
 RADIO_GAIN = 0.15  # background vocals quieter than the user at the mic (louder defeats the gate)

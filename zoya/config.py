@@ -99,11 +99,26 @@ COMMAND_END_SILENCE_S = 0.5  # STACK §2: a turn ends after ~0.5 s silence (fall
 ENDPOINT_MODE = "smart_turn"  # "silence" = the fixed COMMAND_END_SILENCE_S rule only
 SMART_TURN_REPO = "pipecat-ai/smart-turn-v3"
 SMART_TURN_FILE = "smart-turn-v3.2-cpu.onnx"
-SMART_TURN_REVISION = "f766f81d3cfdf7737ac64aad813d91bbfd56bf93"
 SMART_TURN_SHA256 = "2bb026316b14a660486a75b1733cd3fbab8c2fd0314dc9af7be49f8cca967e4f"
 TURN_CHECK_SILENCE_S = 0.2
 TURN_COMPLETE_PROBABILITY = 0.5
 TURN_WINDOW_S = 8  # the model reads the last 8 s
+# Every local model, pinned: repo → (revision, {file: sha256}). Downloaded once by
+# `python -m zoya.setup_models`; at runtime Zoya is offline for models (AUDIT §6).
+MODEL_PINS = {
+    "mlx-community/whisper-base.en-mlx": (
+        "aa0678c3466ed62c5c6114ec600a0e1f96820089",
+        {"weights.npz": "b6c8ee500656e04e8e57c2949a5253f0dda002ba36cd1561846574dbcf01132e"},
+    ),
+    "mlx-community/whisper-large-v3-turbo": (
+        "a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb",
+        {"weights.safetensors": "951ed3fc1203e6a62467abb2144a96ce7eafca8fa77e3704fdb8635ff3e7f8a6"},
+    ),
+    "pipecat-ai/smart-turn-v3": (
+        "f766f81d3cfdf7737ac64aad813d91bbfd56bf93",
+        {"smart-turn-v3.2-cpu.onnx": SMART_TURN_SHA256},
+    ),
+}
 PARTIAL_EVERY_S = 0.15  # re-check for "Zoya, stop" this often while Zoya talks or works
 PARTIAL_MIN_S = 0.35
 WAKE_WINDOW_S = 2.5  # the name must come in the first 3 words: spot only this much audio
