@@ -227,6 +227,17 @@ def test_bare_stop_targets_the_task_whose_confirmation_is_waiting():
     thread.join(WAIT_S)
 
 
+def test_bare_stop_with_a_single_task_stops_it(monkeypatch):
+    from zoya import speech
+
+    monkeypatch.setattr(speech, "cancel", lambda: None)
+    presentation = _task("presentation", shared=False)
+
+    said = orchestrator.stop_task()
+
+    assert presentation.cancel.is_set() and said == orchestrator.STOPPED_MESSAGE
+
+
 def test_an_ambiguous_stop_asks_which_task():
     _task("grocery order"), _task("medicine order")
 

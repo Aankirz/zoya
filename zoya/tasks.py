@@ -301,7 +301,8 @@ def stop_last() -> str:
     task = stop_target()
     if task is None:
         return ""
-    return f"Stopped the {_stop_one(task)}." if task.shared else ""
+    name = _stop_one(task)
+    return f"Stopped the {name}." if task.shared else ""  # alone: the caller says "Okay, stopped."
 
 
 # --- Steps, resources, spend --------------------------------------------------------------------
