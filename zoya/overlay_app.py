@@ -22,6 +22,7 @@ PANEL_HEIGHT_PT = 148.0
 PANEL_MARGIN_PT = 24.0
 CORNER_RADIUS_PT = 28.0
 ORB_PT = 64.0
+SYMBOL_PT = 26.0
 TITLE_PT = 15.0
 CAPTION_PT = 20.0  # readable on a projector from the back of a room
 RING_LINE_PT = 4.0
@@ -164,6 +165,11 @@ class Presence:
         layer.setShadowOffset_((0, 0))
         symbol = AppKit.NSImageView.alloc().initWithFrame_(((16, 16), (ORB_PT - 32, ORB_PT - 32)))
         symbol.setContentTintColor_(AppKit.NSColor.whiteColor())
+        symbol.setSymbolConfiguration_(
+            AppKit.NSImageSymbolConfiguration.configurationWithPointSize_weight_(
+                SYMBOL_PT, AppKit.NSFontWeightSemibold
+            )
+        )
         orb.addSubview_(symbol)
         return orb, symbol
 
@@ -266,6 +272,14 @@ def _read_stdin(presence: Presence) -> None:
         except json.JSONDecodeError:
             continue
         AppHelper.callAfter(presence.apply, message)
+    latencies = presence.latencies_ms
+    if latencies:  # printed here: stopping the AppKit loop exits without flushing Python
+        print(
+            f"overlay: {len(latencies)} updates, event→applied median "
+            f"{statistics.median(latencies):.1f} ms, max {max(latencies):.1f} ms",
+            file=sys.stderr,
+            flush=True,
+        )
     AppHelper.callAfter(AppHelper.stopEventLoop)  # Zoya quit or crashed: the pipe closed
 
 
@@ -277,11 +291,4 @@ def run() -> int:
         target=_read_stdin, args=(presence,), name="overlay-stdin", daemon=True
     ).start()
     AppHelper.runEventLoop(installInterrupt=True)
-    if presence.latencies_ms:
-        latencies = presence.latencies_ms
-        print(
-            f"overlay: {len(latencies)} updates, event→drawn median "
-            f"{statistics.median(latencies):.1f} ms, max {max(latencies):.1f} ms",
-            file=sys.stderr,
-        )
     return 0
