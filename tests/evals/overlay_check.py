@@ -103,9 +103,12 @@ def _grab(excluded: bool, rect: tuple[float, float, float, float]) -> np.ndarray
 
 
 def _ring_blue(pixels: np.ndarray) -> int:
-    """Pixels of the ring's systemBlue (BGRA rows): content under it (a video) rarely matches."""
-    blue, green, red = pixels[..., 0], pixels[..., 1], pixels[..., 2]
-    return int(((blue > 200) & (red < 70) & (green > 90) & (green < 170)).sum())
+    """Pixels close to the ring's colour (BGRA rows): content under it rarely matches exactly."""
+    from zoya.overlay_app import RING_RGB
+
+    red, green, blue = RING_RGB
+    target = np.array([blue, green, red])
+    return int((np.abs(pixels - target).max(axis=2) < 18).sum())
 
 
 def _diff(a: np.ndarray, b: np.ndarray) -> float:
@@ -151,7 +154,11 @@ def capture() -> None:
     events.emit(events.NarrateEvent("Adding eggs to the cart."))
     time.sleep(0.5)
     print("panel region: display_filter diff", _diff(_grab(True, panel), base))
-    print("panel region: unfiltered diff   ", _diff(_grab(False, panel), base), "(panel visible)")
+    unfiltered, filtered = _grab(False, panel), _grab(True, panel)
+    print("panel region: unfiltered diff   ", _diff(unfiltered, base), "(panel visible)")
+    # Zoya-violet pixels: a moving video behind the panel changes the diff, not this count.
+    print("panel Zoya-violet pixels: before", _ring_blue(base), end=" ")
+    print("unfiltered", _ring_blue(unfiltered), "display_filter", _ring_blue(filtered))
     width, height = _main_size()
     ring = (width / 2 - RING[0] / 2, height / 2 - RING[1] / 2, *RING)
     pad = 2 * overlay.RING_PAD_PT  # show_ring pads the target: capture around the drawn border

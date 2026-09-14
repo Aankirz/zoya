@@ -28,7 +28,7 @@ import AppKit
 import Quartz
 from PyObjCTools import AppHelper
 
-from zoya.overlay_pet import PET_PT, Pet
+from zoya.overlay_pet import PET_PT, ZOYA_VIOLET, Pet
 
 WINDOW_W_PT = 520.0
 WINDOW_H_PT = 190.0
@@ -46,6 +46,7 @@ CAPTION_LINES = 3
 IDLE_HIDE_S = 5.0  # the bubble lingers this long after a task ends, then only the pet remains
 FADE_S = 0.15
 RING_LINE_PT = 4.0
+RING_RGB = ZOYA_VIOLET[1]
 RING_SHOW_S = 1.4
 RING_ENTER_SCALE = 1.08
 RING_ENTER_S = 0.2
@@ -315,11 +316,13 @@ class Presence:
         layer = Quartz.CALayer.layer()  # own layer: scales about its centre
         layer.setBounds_(((0, 0), (width, height)))
         layer.setPosition_((pad + width / 2, pad + height / 2))
-        blue = AppKit.NSColor.systemBlueColor().CGColor()
+        tone = AppKit.NSColor.colorWithSRGBRed_green_blue_alpha_(
+            *(c / 255 for c in RING_RGB), 1.0
+        ).CGColor()  # the ring wears Zoya's colour too
         layer.setBorderWidth_(RING_LINE_PT)  # the ring is the state itself, not faked depth
-        layer.setBorderColor_(blue)
+        layer.setBorderColor_(tone)
         layer.setCornerRadius_(min(12.0, height / 2))
-        layer.setShadowColor_(blue)
+        layer.setShadowColor_(tone)
         layer.setShadowOpacity_(0.5)
         layer.setShadowRadius_(6.0)
         layer.setShadowOffset_((0, 0))

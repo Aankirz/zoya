@@ -35,16 +35,22 @@ POSE_S = 0.32
 EASE_OUT_QUINT = (0.22, 1.0, 0.36, 1.0)
 CROSSFADE_S = 0.2
 
-# state → (top-left colour, bottom-right colour) as sRGB 0..255; tinted, never pure black/white
+# One signature colour, so the room remembers Zoya: states are told by the eyes, motion and the
+# label, never by hue. Only "stopped" dims. sRGB 0..255, top-left → bottom-right.
+ZOYA_VIOLET = ((170, 136, 255), (98, 64, 228))
+ZOYA_VIOLET_DIM = ((150, 142, 186), (96, 90, 136))
 PALETTE: dict[str, tuple[tuple[int, int, int], tuple[int, int, int]]] = {
-    "idle": ((150, 146, 184), (96, 92, 132)),
-    "listening": ((104, 176, 255), (46, 104, 240)),
-    "thinking": ((164, 132, 255), (92, 70, 226)),
-    "acting": ((72, 212, 190), (18, 138, 128)),
-    "speaking": ((108, 220, 158), (28, 156, 100)),
-    "waiting": ((255, 196, 102), (236, 132, 40)),
-    "stopped": ((170, 171, 180), (118, 119, 128)),
-    "error": ((255, 128, 112), (214, 58, 60)),
+    state: ZOYA_VIOLET_DIM if state == "stopped" else ZOYA_VIOLET
+    for state in (
+        "idle",
+        "listening",
+        "thinking",
+        "acting",
+        "speaking",
+        "waiting",
+        "stopped",
+        "error",
+    )
 }
 EYE_COLOUR = (250, 250, 255)
 
@@ -237,7 +243,7 @@ class Pet:
         for layer in (self.face, self.body):
             layer.setTransform_(Quartz.CATransform3DIdentity)
         tilt = ERROR_TILT_RAD if state == "error" else 0.0
-        for eye, sign in zip(self.eyes, (-1, 1), strict=True):  # left eye "\", right eye "/"
+        for eye, sign in zip(self.eyes, (1, -1), strict=True):  # eyes droop outward: sorry
             eye.setTransform_(Quartz.CATransform3DMakeRotation(sign * tilt, 0, 0, 1))
         Quartz.CATransaction.commit()
 
