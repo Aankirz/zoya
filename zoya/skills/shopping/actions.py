@@ -34,7 +34,8 @@ WAIT_MS = 8000
 MAX_RESULTS = 5
 SELECTORS = {
     "result": "div[data-component-type='s-search-result'][data-asin]:not([data-asin=''])",
-    "result_title": "h2",
+    "result_title": "h2",  # brand and name are separate <h2>s: "Amul" + "Taaza … 1 L Carton"
+    "result_add_to_cart": "input[name='submit.addToCart']",  # grocery rows; their /dp page has none
     "price": ".a-price .a-offscreen",
     "rating": ".a-icon-alt",
     "add_to_cart": "#add-to-cart-button",
@@ -52,6 +53,7 @@ MAX_SPOKEN_ITEMS = 5
 CONFIRMATION_PAGE_WAIT_MS = 3000
 
 _last_results: list[dict[str, str]] = []  # the most recent search, so "add the second one" works
+_last_query: list[str] = [""]
 
 
 def search_url(query: str) -> str:
@@ -72,7 +74,9 @@ def _read_results(page: Any) -> list[dict[str, str]]:
         results.append(
             {
                 "asin": row.get_attribute("data-asin") or "",
-                "title": _text(row.locator(SELECTORS["result_title"])),
+                "title": " ".join(
+                    " ".join(h.inner_text().split()) for h in row.locator("h2").all()
+                ),
                 "price": (price.first.text_content() or "").strip() if price.count() else "",
                 "rating": (rating.first.text_content() or "").strip() if rating.count() else "",
             }
@@ -93,6 +97,7 @@ def amazon_search(query: str) -> str:
         return "Amazon wants a check before showing results."
     results = browser.on_page(_read_results)
     _last_results[:] = results
+    _last_query[0] = query
     events.emit(events.EarconEvent("progress-step"))
     lines = [
         f"{n}. {r['title']} — {r['price'] or 'no price shown'}"
@@ -118,12 +123,19 @@ def amazon_add_to_cart(result_number: int) -> str:
     if not 1 <= result_number <= len(_last_results):
         raise ToolError("Search Amazon first, then tell me which result to add.")
     chosen = _last_results[result_number - 1]
-    browser.goto(product_url(chosen["asin"]))
-    if browser.on_page(browser.sign_in_wall):
-        handoff_to_user("sign_in")
-        return "Amazon needs you to sign in first."
+    product_url(chosen["asin"])  # validates the ASIN before it goes into a selector
+    row_selector = f"{SELECTORS['result']}[data-asin='{chosen['asin']}']"
+    if not browser.on_page(lambda page: page.locator(row_selector).count()):
+        browser.goto(search_url(_last_query[0]))
 
     def find(page: Any) -> Any:
+        """The row's own "Add to cart" (groceries), else the product page's button."""
+        row_button = page.locator(row_selector).locator(SELECTORS["result_add_to_cart"])
+        if row_button.filter(visible=True).count():
+            return row_button.filter(visible=True).first
+        page.goto(product_url(chosen["asin"]), wait_until="domcontentloaded")
+        if browser.sign_in_wall(page):
+            raise ToolError("Amazon needs you to sign in first.")
         button = page.locator(SELECTORS["add_to_cart"]).filter(visible=True)
         if not button.count():
             raise ToolError("This product can't be added to the cart right now.")
