@@ -1,9 +1,9 @@
 """Zoya's presence (Phase 7 redesign): a small character drawn with Core Animation only.
 
-A flat, matte eight-point badge (two rounded squares, one turned 45°) in Zoya violet, three darker
-translucent planes turning slowly inside it, and two small eyes set low whose shape and motion
-carry the state. Visual language from Plane's Agent Avatar Lab (https://agents.plane.so: flat
-silhouette, turning planes, low eyes; reference only, no assets or paths copied).
+A flat, matte rounded square in Zoya violet, three darker translucent planes turning slowly
+inside it, and two small eyes set low whose shape and motion carry the state. Visual language
+from Plane's Agent Avatar Lab (https://agents.plane.so: flat silhouette, turning planes, low
+eyes; reference only, no assets or paths copied).
 
 Everything is GPU-composited layer animation: no timers, no per-frame Python. Transitions start
 from the presentation value, so bursts of events retarget instead of jumping. Reduce Motion: no
@@ -19,8 +19,8 @@ import AppKit
 import Quartz
 
 PET_PT = 76.0
-BADGE_SQUARE_PT = 55.0  # each of the two rounded squares that make the badge
-BADGE_RADIUS_PT = 12.0
+BODY_PT = 66.0  # the rounded square, inside the 76 pt layer (room for the turning planes' edge)
+BODY_RADIUS_PT = 17.0
 EYE_W, EYE_H, EYE_R = 8.0, 12.0, 2.0
 EYE_GAP = 20.0  # centre to centre
 EYE_Y = 30.0  # low in the body, like a face looking out
@@ -71,23 +71,12 @@ def _cg(rgb: tuple[int, int, int], alpha: float = 1.0) -> Any:
     return AppKit.NSColor.colorWithSRGBRed_green_blue_alpha_(red, green, blue, alpha).CGColor()
 
 
-def _badge_path() -> Any:
-    """The eight-point badge: a rounded square united with the same square turned 45°."""
-    path = Quartz.CGPathCreateMutable()
-    side = BADGE_SQUARE_PT
-    origin = (PET_PT - side) / 2
-    rect = ((origin, origin), (side, side))
-    centre = PET_PT / 2
-    turned = Quartz.CGAffineTransformTranslate(
-        Quartz.CGAffineTransformRotate(
-            Quartz.CGAffineTransformMakeTranslation(centre, centre), math.pi / 4
-        ),
-        -centre,
-        -centre,
+def _body_path() -> Any:
+    """A rounded square: the most familiar, most remembered silhouette (an app icon with a face)."""
+    inset = (PET_PT - BODY_PT) / 2
+    return Quartz.CGPathCreateWithRoundedRect(
+        ((inset, inset), (BODY_PT, BODY_PT)), BODY_RADIUS_PT, BODY_RADIUS_PT, None
     )
-    Quartz.CGPathAddRoundedRect(path, None, rect, BADGE_RADIUS_PT, BADGE_RADIUS_PT)
-    Quartz.CGPathAddRoundedRect(path, turned, rect, BADGE_RADIUS_PT, BADGE_RADIUS_PT)
-    return path
 
 
 def _ease() -> Any:
@@ -129,8 +118,8 @@ class Pet:
     def __init__(self, reduce_motion: bool, contrast: bool) -> None:
         self.reduce_motion = reduce_motion
         self.state = ""
-        path = _badge_path()
-        self.layer = Quartz.CALayer.layer()  # host: soft ambient shadow in the badge's shape
+        path = _body_path()
+        self.layer = Quartz.CALayer.layer()  # host: soft ambient shadow in the body's shape
         self.layer.setBounds_(((0, 0), (PET_PT, PET_PT)))
         self.layer.setShadowPath_(path)
         self.layer.setShadowColor_(_cg((20, 16, 44)))
