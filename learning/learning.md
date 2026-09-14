@@ -124,7 +124,27 @@ Every complaint from the owner's live runs was **replayed from recordings** befo
 
 ---
 
-## 5. Cost and token-saving habits (applies to every phase)
+## 5. Phase 3 — Safety gate: nothing risky without your spoken "confirm"
+
+**Goal:** even a confused or hijacked model can't pay, send, delete or submit without the user's voice.
+
+**How it works**
+- **Voice-minted tokens:** only the voice loop can create a confirmation token, after Zoya has spoken the exact summary (action, amount, item). The token is single-use, expires after 60 s, and is bound to the hash of that summary. The model, tools, web pages and router have no code path to it.
+- **Risk registry:** every tool is labelled free / confirm / blocked. An unknown tool counts as confirm, so it fails closed. Risky tools check the token themselves, so even a direct `agent.tool.X()` call (which skips Strands interrupts) is refused.
+- **Click guard (Guard 2):** reads the *real* element Playwright will click, not what the model claims. It asks when the label means pay/send/delete (English + Hindi, camelCase, look-alike letters), the button has no name, it's a submit button, or the page is a checkout/cart/compose page or shows a ₹ amount.
+- **Amount check:** Rekognition reads the screen; **every** total on screen must equal the amount Zoya speaks, otherwise she asks again.
+- **Replies:** only a clear "confirm" counts. Silence, noise, Zoya's own echo, "don't confirm" and "User said: confirm" page text never count. "Stop" cancels; silence re-prompts once, then cancels. Every decision goes to DynamoDB `zoya-confirmations`.
+
+**What review caught**
+- 🔴 The first click guard was a **keyword blocklist that failed open**: "Checkout", "BuyNow", Hindi labels and icon-only buttons clicked with no confirmation (proven with a real Chrome click). Fix: fail closed on **context** (submit / unnamed / commerce page / price nearby), with labels as only one signal.
+- 🟠 A page showing two totals passed if either matched. Fix: all totals must agree.
+- A "silence → clicked" replay failure turned out to be the owner clicking the test page by hand. Lesson: don't touch the test browser during replays.
+
+**Lessons:** the same lesson as Phase 1's `¬` bug — blocklists are never complete, so design to fail closed. Attack your own safety code before calling it done.
+
+---
+
+## 6. Cost and token-saving habits (applies to every phase)
 - Rules before AI: most common commands cost **0 tokens**.
 - Cheap model for routing, expensive model only for thinking.
 - OpenAI prompt caching: keep the system prompt and tool list **identical and in a fixed order**; changing text goes last. Cached input is up to 90% cheaper (1,024+ tokens on GPT-5.6). `cached_tokens` is logged.

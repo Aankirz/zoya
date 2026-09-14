@@ -188,3 +188,6 @@
 
 ## 2026-09-14 — Phase 4 AWS resources
 - zoya-memory table (pk/sk), zoya-alerts SNS topic + owner email subscription, geo-places permissions for zoya-app (infra/iam/zoya-app-policy.json).
+
+## 2026-09-14 — Learning doc: Phase 3
+- learning/learning.md: Phase 3 safety gate section.
