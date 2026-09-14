@@ -31,11 +31,16 @@ _lock = threading.Lock()
 _pending: dict[str, object] = {}
 
 
-def _current_host() -> str:
+def _front_host() -> str:
+    """Bring Zoya's browser forward so the user can type there, and name the site."""
     from zoya.tools import browser
 
+    def front(page: object) -> str:
+        page.bring_to_front()
+        return urlparse(page.url).netloc
+
     try:
-        return browser.on_page(lambda page: urlparse(page.url).netloc) or "a website"
+        return browser.on_page(front) or "a website"
     except Exception:  # noqa: BLE001 — the host only makes the message nicer
         return "a website"
 
@@ -86,7 +91,7 @@ def handoff_to_user(reason: str = "sign_in") -> str:
     from zoya.orchestrator import current_command
 
     reason = reason if reason in REASONS else "sign_in"
-    host = _current_host()
+    host = _front_host()
     with _lock:
         _pending.update(command=current_command(), at=time.monotonic())
     events.emit(events.EarconEvent("blocked"))
@@ -96,7 +101,10 @@ def handoff_to_user(reason: str = "sign_in") -> str:
         "say done when you've finished."
     )
     threading.Thread(target=_alert, args=(host, reason), daemon=True).start()
-    return "The user was told and the trusted contact emailed. Stop now and wait for them."
+    return (
+        "Already said out loud and the trusted contact emailed. Stop now: your final answer is "
+        "only the word Waiting."
+    )
 
 
 TOOLS = [handoff_to_user]
