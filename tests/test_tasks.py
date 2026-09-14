@@ -428,3 +428,80 @@ def test_push_to_talk_with_tasks_running_cuts_speech_but_stops_no_task(loop, mon
     loop._push_to_talk(time.monotonic(), np.zeros(512, dtype="float32"))
 
     assert stopped == ["speech"] and not presentation.cancel.is_set()
+
+
+# --- share_file is a SEND: always asked, file and recipient named, on every call path ------------
+
+
+@pytest.fixture
+def shareable(tmp_path, monkeypatch):
+    from zoya.tools import office, share
+
+    monkeypatch.setattr(office, "DOCUMENTS_DIR", tmp_path)
+    monkeypatch.setattr(share, "SHARE_CONTACTS", ("sister",))
+    sent = []
+    monkeypatch.setattr(share, "_upload", lambda file: sent.append(file.name) or "https://link")
+    monkeypatch.setattr(share, "_publish", lambda *args: sent.append("email"))
+    deck = tmp_path / "deck.pptx"
+    deck.write_bytes(b"x")
+    return share, deck, sent
+
+
+def test_share_file_called_directly_asks_naming_file_and_recipient(gate, shareable):
+    share, deck, sent = shareable
+    channel = safety.claim_voice_channel()
+    thread, outcome = _in_task(None, share.share_file, str(deck), "my sister")
+
+    _answer(channel, "confirm")
+    thread.join(WAIT_S)
+
+    assert gate["prompts"] == [
+        "I'm about to email a link to deck.pptx to your sister. Say confirm, or cancel."
+    ]
+    assert sent == ["deck.pptx", "email"] and outcome["result"].startswith("Sent your sister")
+
+
+def test_share_file_without_confirm_sends_nothing(gate, shareable):
+    share, deck, sent = shareable
+    channel = safety.claim_voice_channel()
+    thread, outcome = _in_task(None, share.share_file, str(deck), "sister")
+
+    _answer(channel, "cancel")
+    thread.join(WAIT_S)
+
+    assert sent == [] and isinstance(outcome["result"], safety.ConfirmationDeclined)
+
+
+def test_share_file_through_an_agent_direct_tool_call_still_asks(gate, shareable):
+    from strands import Agent
+
+    share, deck, sent = shareable
+    safety.claim_voice_channel()  # nobody answers: silence cancels
+    agent = Agent(
+        tools=[share.share_file], hooks=[safety.ConfirmationGate()], callback_handler=None
+    )
+
+    thread, _ = _in_task(None, lambda: agent.tool.share_file(path=str(deck), recipient="sister"))
+    thread.join(WAIT_S * 2)
+
+    assert sent == [] and len(gate["prompts"]) == 2  # asked, re-prompted, cancelled
+    assert all("deck.pptx" in p and "your sister" in p for p in gate["prompts"])
+
+
+def test_share_file_to_an_unknown_contact_is_refused_before_asking(gate, shareable):
+    share, deck, sent = shareable
+    safety.claim_voice_channel()
+
+    with pytest.raises(ToolError):
+        share.share_file(str(deck), "neighbour")
+    assert gate["prompts"] == [] and sent == []
+
+
+def test_share_file_outside_zoya_documents_is_refused(gate, shareable, tmp_path_factory):
+    share, _deck, sent = shareable
+    secret = tmp_path_factory.mktemp("home") / "id_rsa"
+    secret.write_text("key")
+
+    with pytest.raises(ToolError):
+        share.share_file(str(secret), "sister")
+    assert gate["prompts"] == [] and sent == []

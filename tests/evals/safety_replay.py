@@ -143,9 +143,9 @@ class Tasks:
 
             return real_start(command, pre, on_done=finished)
 
-        def stop_task():
+        def stop_task(name: str = ""):
             self.stops += 1
-            return real_stop()
+            return real_stop(name)
 
         orchestrator.start_task, orchestrator.stop_task = start_task, stop_task
 
