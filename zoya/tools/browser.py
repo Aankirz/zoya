@@ -247,33 +247,44 @@ def probe_with(find: Callable[[Any], Any]) -> Callable[[], Target]:
     return lambda: _probe_locator(_page(), find(_page()))
 
 
-def _screen_rows(target: Target) -> list[str]:
+@dataclass(frozen=True)
+class ScreenEvidence:
+    rows: list[safety.OcrRow]  # OCR of the captured Chrome window
+    struck: list[safety.StruckPrice]  # visible struck-out prices, in the same image coordinates
+
+
+# Raw facts about leaf elements drawn with a line through them (old prices). Page data: Python
+# (`safety.struck_prices`) decides what counts, and a struck price can only be skipped on its own
+# OCR row when it is higher than that row's other number.
+STRUCK_JS = """() => ({
+  outer: window.outerHeight, inner: window.innerHeight, width: window.innerWidth,
+  items: [...document.querySelectorAll('body *')]
+    .filter(e => e.children.length === 0 && /\\d/.test(e.textContent))
+    .filter(e => getComputedStyle(e).textDecorationLine.includes('line-through'))
+    .slice(0, 200)
+    .map(e => { const r = e.getBoundingClientRect(); return {
+      text: e.textContent, top: r.top, bottom: r.bottom, left: r.left, right: r.right,
+      lineThrough: true,
+      visible: r.width > 0 && r.height > 0
+        && e.checkVisibility({opacityProperty: true, visibilityProperty: true}) }; })
+})"""
+
+
+def _screen_rows(target: Target) -> ScreenEvidence:
     started = time.monotonic()
     _on_browser(lambda: _page().bring_to_front())
     jpeg = screen.capture_window_jpeg(CHROME_APP, target.title)
+    struck = safety.struck_prices(_on_browser(lambda: _page().evaluate(STRUCK_JS)))
     captured = time.monotonic()
-    rows = safety.rows_from_ocr(screen.detect_text(jpeg))
-    if not any(target.host and target.host in row.replace(" ", "") for row in rows):
+    rows = safety.ocr_rows(screen.detect_text(jpeg))
+    if not any(target.host and target.host in row.text.replace(" ", "") for row in rows):
         raise ToolError("I couldn't confirm the screenshot shows this page. Let's try again.")
     safety.log_safety_timing(
         event="screen_check",
         capture_ms=round((captured - started) * MS_PER_S),
         ocr_ms=round((time.monotonic() - captured) * MS_PER_S),
     )
-    return rows
-
-
-# Leaf elements drawn with a line through them (old prices). Page JavaScript answers this, so it can
-# only hide a number from the row rule, never add one; every strong total must still agree.
-STRUCK_JS = """() => [...document.querySelectorAll('del, s, strike, span, div')]
-  .filter(e => e.children.length === 0 && /\\d/.test(e.textContent)
-    && getComputedStyle(e).textDecorationLine.includes('line-through'))
-  .slice(0, 200).map(e => e.textContent)"""
-
-
-def _struck_amounts() -> frozenset[Decimal]:
-    texts = _page().evaluate(STRUCK_JS)
-    return frozenset(value for text in texts for value in safety.parse_amounts(str(text)))
+    return ScreenEvidence(rows, struck)
 
 
 def order_limit() -> Decimal | None:
@@ -295,8 +306,8 @@ def _verified_action(
             "Before clicking that, read the page and call browser_click again with `item` set to "
             "the item, recipient or file exactly as shown."
         )
-    rows = _screen_rows(target)
-    struck = _on_browser(_struck_amounts)
+    evidence = _screen_rows(target)
+    rows = [row.text for row in evidence.rows]
     if not safety.target_on_screen(item, rows):
         raise ToolError(f"I can't see {item} on the screen. Read the page again.")
     if risky.kind != "purchase":
@@ -307,7 +318,8 @@ def _verified_action(
             "Before paying, read the order total and call browser_click again with `amount` set "
             "to it, e.g. ₹2,847."
         )
-    if not safety.amount_on_screen(claimed[0], rows, struck):
+    total = safety.check_total(claimed[0], evidence.rows, evidence.struck)
+    if not total.ok:
         raise ToolError(
             f"The total on the screen doesn't match {amount}. Read the order total again."
         )
@@ -316,8 +328,11 @@ def _verified_action(
             f"The total is {safety.spoken_amount(*claimed)}, above the {limit} rupee test limit, "
             "so I won't ask to order it. Nothing was ordered."
         )
+    note = "; ".join(
+        f"skipped struck-out price {value} on the total row" for value in total.dropped
+    )
     return safety.Action(
-        "purchase", risky.say, target=item.strip(), amount=safety.spoken_amount(*claimed)
+        "purchase", risky.say, target=item.strip(), amount=safety.spoken_amount(*claimed), note=note
     )
 
 

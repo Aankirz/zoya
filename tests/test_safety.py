@@ -464,19 +464,76 @@ def test_plain_totals_use_the_largest():
     assert not safety.amount_on_screen(Decimal("1"), ["Total 1", "Total 2,847"])
 
 
-def test_struck_out_price_on_the_total_row_is_skipped():
-    rows = ["Bill Summary", "You pay Inclusive of taxes ₹243 ₹331"]
-
-    assert safety.amount_on_screen(Decimal("243"), rows, struck=frozenset({Decimal("331")}))
-    assert not safety.amount_on_screen(Decimal("243"), rows)  # without the DOM hint: fail closed
-    assert not safety.amount_on_screen(Decimal("331"), rows, struck=frozenset({Decimal("331")}))
+TOTAL_ROW = safety.OcrRow("You pay Inclusive of taxes ₹243 ₹331", 0.80, 0.83)
 
 
-def test_struck_prices_never_empty_a_row_or_hide_a_disagreeing_total():
-    struck = frozenset({Decimal("243")})
+def _struck(amount, top=0.805, bottom=0.825):
+    return safety.StruckPrice(Decimal(amount), top, bottom)
 
-    assert not safety.amount_on_screen(Decimal("100"), ["To pay ₹243"], struck)
-    assert not safety.amount_on_screen(Decimal("243"), ["You pay ₹243", "Order total ₹900"], struck)
+
+def test_amazon_now_struck_mrp_on_the_total_row_is_skipped_and_audited():
+    check = safety.check_total(Decimal("243"), [TOTAL_ROW], [_struck("331")])
+
+    assert check == safety.TotalCheck(True, (Decimal("331"),))
+    assert not safety.check_total(Decimal("243"), [TOTAL_ROW], []).ok  # no DOM hint: fail closed
+    assert not safety.check_total(Decimal("331"), [TOTAL_ROW], [_struck("331")]).ok
+
+
+def test_struck_price_on_another_row_never_hides_the_total():
+    row = safety.OcrRow("Order total ₹1 ₹2,847", 0.80, 0.83)
+
+    assert not safety.check_total(Decimal("1"), [row], [_struck("2847", 0.20, 0.22)]).ok
+
+
+def test_struck_price_lower_than_the_pay_price_is_not_dropped():
+    row = safety.OcrRow("To pay ₹243 ₹100", 0.80, 0.83)
+
+    assert not safety.check_total(Decimal("243"), [row], [_struck("100")]).ok
+
+
+def test_two_struck_prices_on_one_row_are_ambiguous():
+    row = safety.OcrRow("Order total ₹1 ₹900 ₹2,847", 0.80, 0.83)
+
+    assert not safety.check_total(Decimal("1"), [row], [_struck("900"), _struck("2847")]).ok
+
+
+def test_a_struck_price_alone_on_its_row_is_never_the_total():
+    row = safety.OcrRow("Order total ₹2,847", 0.80, 0.83)
+
+    assert not safety.check_total(Decimal("2847"), [row], [_struck("2847")]).ok
+
+
+DOM = {"outer": 1000, "inner": 900, "width": 1200}
+ITEM = {"text": "₹2,847", "top": 700, "bottom": 720, "left": 900, "right": 960}
+
+
+@pytest.mark.parametrize(
+    "item",
+    [
+        {**ITEM, "visible": False, "lineThrough": True},  # hidden, zero-size or opacity 0
+        {**ITEM, "visible": True, "lineThrough": False},
+        {**ITEM, "top": -40, "bottom": -20, "visible": True, "lineThrough": True},  # scrolled off
+        {**ITEM, "left": 1300, "right": 1360, "visible": True, "lineThrough": True},
+        {**ITEM, "text": "₹2,847 ₹1", "visible": True, "lineThrough": True},  # two amounts
+    ],
+)
+def test_hidden_or_off_screen_struck_elements_never_count(item):
+    assert safety.struck_prices({**DOM, "items": [item]}) == []
+
+
+def test_hidden_struck_total_with_a_visible_one_rupee_never_confirms():
+    hidden = {**ITEM, "visible": False, "lineThrough": True}
+    row = safety.OcrRow("Order total ₹1 ₹2,847", 0.79, 0.83)
+
+    struck = safety.struck_prices({**DOM, "items": [hidden]})
+
+    assert not safety.check_total(Decimal("1"), [row], struck).ok
+
+
+def test_visible_struck_price_maps_below_the_browser_toolbar():
+    item = {**ITEM, "visible": True, "lineThrough": True}
+
+    assert safety.struck_prices({**DOM, "items": [item]}) == [_struck("2847", 0.8, 0.82)]
 
 
 def test_no_total_on_screen_fails_closed():
@@ -865,8 +922,11 @@ def fake_page(monkeypatch):
         "nearby": "",
     }
     monkeypatch.setattr(browser_tools, "_on_browser", lambda call: call())
-    monkeypatch.setattr(browser_tools, "_screen_rows", lambda target: page["rows"])
-    monkeypatch.setattr(browser_tools, "_struck_amounts", frozenset)
+    monkeypatch.setattr(
+        browser_tools,
+        "_screen_rows",
+        lambda target: browser_tools.ScreenEvidence([safety.OcrRow(r) for r in page["rows"]], []),
+    )
     monkeypatch.setattr(
         browser_tools, "_click", lambda handle: page.update(clicks=page["clicks"] + 1)
     )
@@ -899,7 +959,7 @@ def test_screenshot_of_a_different_page_is_rejected(monkeypatch):
 
     with pytest.raises(ToolError):
         browser_tools._screen_rows(other)
-    assert "Order total 2,847" in browser_tools._screen_rows(same)
+    assert "Order total 2,847" in [row.text for row in browser_tools._screen_rows(same).rows]
 
 
 @pytest.mark.parametrize(

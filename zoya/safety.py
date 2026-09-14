@@ -413,7 +413,16 @@ def spoken_amount(value: Decimal, currency: str) -> str:
     return f"{number} {currency}"
 
 
-def rows_from_ocr(lines: list[tuple[str, float, float, float]]) -> list[str]:
+@dataclass(frozen=True)
+class OcrRow:
+    """One visual row of OCR text and its vertical extent in the captured image (0..1)."""
+
+    text: str
+    top: float = 0.0
+    bottom: float = 0.0
+
+
+def ocr_rows(lines: list[tuple[str, float, float, float]]) -> list[OcrRow]:
     """Join OCR lines on the same visual row (text, left, top, height), left to right.
 
     "Order total" and its right-aligned "₹2,847" come back from Rekognition as two lines.
@@ -428,43 +437,115 @@ def rows_from_ocr(lines: list[tuple[str, float, float, float]]) -> list[str]:
                 break
         else:
             rows.append([line])
-    return [" ".join(item[0] for item in sorted(row, key=lambda item: item[1])) for row in rows]
+    return [
+        OcrRow(
+            " ".join(item[0] for item in sorted(row, key=lambda item: item[1])),
+            min(item[2] for item in row),
+            max(item[2] + item[3] for item in row),
+        )
+        for row in rows
+    ]
 
 
-def _row_total(row: str, struck: frozenset[Decimal]) -> Decimal | None:
-    values = parse_amounts(row)
-    shown = [value for value in values if value not in struck] or values  # never empty a row
-    return max(shown) if shown else None
+def rows_from_ocr(lines: list[tuple[str, float, float, float]]) -> list[str]:
+    return [row.text for row in ocr_rows(lines)]
 
 
-def amount_on_screen(
-    claimed: Decimal, rows: list[str], struck: frozenset[Decimal] = frozenset()
-) -> bool:
+@dataclass(frozen=True)
+class StruckPrice:
+    """A visible struck-out price ("M.R.P. ~~₹331~~"), placed in the captured window (0..1)."""
+
+    amount: Decimal
+    top: float
+    bottom: float
+
+
+def struck_prices(dom: dict[str, Any]) -> list[StruckPrice]:
+    """Parser for browser.STRUCK_JS (page data, untrusted): keep only elements that are rendered
+    (checkVisibility, non-zero size, inside the viewport), have line-through on themselves, and hold
+    exactly one amount. Maps viewport pixels to the window capture: Chrome's toolbar is the
+    outer-minus-inner height above the viewport."""
+    if not isinstance(dom, dict):
+        return []
+    outer, inner, width = (float(dom.get(k) or 0) for k in ("outer", "inner", "width"))
+    if outer <= 0 or not 0 < inner <= outer:
+        return []
+    found = []
+    for item in dom.get("items") or []:
+        box = [float(item.get(k) or 0) for k in ("top", "bottom", "left", "right")]
+        rendered = item.get("visible") is True and item.get("lineThrough") is True
+        on_screen = 0 <= box[0] < box[1] <= inner and 0 <= box[2] < box[3] <= width
+        values = parse_amounts(str(item.get("text", "")))
+        if rendered and on_screen and len(values) == 1:
+            chrome = outer - inner
+            found.append(
+                StruckPrice(values[0], (chrome + box[0]) / outer, (chrome + box[1]) / outer)
+            )
+    return found
+
+
+AMBIGUOUS = Decimal(-1)  # never equals an amount the agent can claim
+
+
+@dataclass(frozen=True)
+class TotalCheck:
+    ok: bool
+    dropped: tuple[Decimal, ...] = ()  # struck-out prices ignored, for the audit row
+
+
+def _row_total(row: OcrRow, struck: list[StruckPrice]) -> tuple[Decimal | None, Decimal | None]:
+    """(total, dropped struck price). A struck price counts only if it overlaps this row, is one
+    of the row's numbers, is the only one, and is higher than what's left (an old price)."""
+    values = parse_amounts(row.text)
+    if not values:
+        return None, None
+    on_row = {p.amount for p in struck if p.top < row.bottom and p.bottom > row.top}
+    old = on_row & set(values)
+    if not old:
+        return max(values), None
+    if len(old) > 1:
+        return AMBIGUOUS, None
+    price = old.pop()
+    kept = list(values)
+    kept.remove(price)
+    if not kept or price <= max(kept):
+        return AMBIGUOUS, None
+    return max(kept), price
+
+
+def check_total(claimed: Decimal, rows: list[OcrRow], struck: list[StruckPrice]) -> TotalCheck:
     """The agent's amount must be THE total the screen shows (independent OCR, not page DOM).
 
     Every strong row ("order total", "pay ₹…", "payable") must show exactly the claimed amount:
     an injected second total disagreeing with the real one is a mismatch (coordinator review).
     With no strong row, the largest plain "total" must be it ("Items total" is a subtotal).
-    No total at all → mismatch → never confirm.
-    `struck`: struck-out prices on the page (Phase 4: Amazon Now shows "You pay ₹243 ~~₹331~~" on
-    one row, and OCR can't see the line). They are skipped unless nothing else is on the row.
+    No total at all → mismatch → never confirm. Struck-out prices: `_row_total` (Amazon Now shows
+    "You pay ₹243 ~~₹331~~" on one row and OCR can't see the line; coordinator review of f283fbc).
     ponytail: a row's largest number is its total ("Order total ₹2,847 incl. ₹48 delivery").
     """
-    strong = [
-        total
-        for row in rows
-        if STRONG_TOTAL.search(row)
-        if (total := _row_total(row, struck)) is not None
-    ]
-    if strong:
-        return all(value == claimed for value in strong)
-    weak = [
-        total
-        for row in rows
-        if WEAK_TOTAL.search(row)
-        if (total := _row_total(row, struck)) is not None
-    ]
-    return bool(weak) and max(weak) == claimed
+    for pattern in (STRONG_TOTAL, WEAK_TOTAL):
+        found = [
+            total_and_drop
+            for row in rows
+            if pattern.search(row.text)
+            if (total_and_drop := _row_total(row, struck))[0] is not None
+        ]
+        if not found:
+            continue
+        totals = [total for total, _ in found]
+        dropped = tuple(drop for _, drop in found if drop is not None)
+        if AMBIGUOUS in totals:
+            return TotalCheck(False, dropped)
+        ok = (
+            all(t == claimed for t in totals) if pattern is STRONG_TOTAL else max(totals) == claimed
+        )
+        return TotalCheck(ok, dropped)
+    return TotalCheck(False)
+
+
+def amount_on_screen(claimed: Decimal, rows: list[str]) -> bool:
+    """`check_total` on plain OCR rows with no struck prices (native apps, tests)."""
+    return check_total(claimed, [OcrRow(row) for row in rows], []).ok
 
 
 MIN_TARGET_WORD_CHARS = 3
@@ -605,6 +686,7 @@ class Action:
     say: str  # "Place order"
     target: str = ""  # item / recipient / file, verified on screen where possible
     amount: str = ""  # "2,847 rupees", verified on screen for purchases
+    note: str = ""  # audit only, never spoken: e.g. a struck-out price the total check skipped
 
     def summary(self) -> str:
         parts = [f"I'm about to {self.say.lower()}"]
@@ -896,6 +978,7 @@ def _audit(action: Action, decision: str) -> None:
         "action": redact(action.say),
         "amount": redact(action.amount),
         "recipient_or_item": redact(action.target),
+        "note": redact(action.note),
         "decision": decision,  # confirmed | cancel | timeout | stop | changed
     }
     try:
