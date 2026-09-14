@@ -29,5 +29,50 @@
     "wake_clips_session2/028"
    ]
   }
+ },
+ "stop_over_tts": {
+  "voices": "owner",
+  "loudness x1 barge_in=off": {
+   "stops": "6/10",
+   "phrase_end_to_detect_ms": [
+    0,
+    300,
+    300,
+    150,
+    0,
+    0
+   ]
+  },
+  "loudness x1 barge_in=on": {
+   "stops": "8/10",
+   "phrase_end_to_detect_ms": [
+    150,
+    0,
+    150,
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  },
+  "loudness x2 barge_in=off": {
+   "stops": "2/10",
+   "phrase_end_to_detect_ms": [
+    0,
+    300
+   ]
+  },
+  "loudness x2 barge_in=on": {
+   "stops": "6/10",
+   "phrase_end_to_detect_ms": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  }
  }
 }

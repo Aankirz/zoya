@@ -192,7 +192,7 @@ ORDER_LIMIT_ENV = "ZOYA_ORDER_LIMIT_RUPEES"
 
 # D62, zoya/aec.py: WebRTC AEC3 with Zoya's playback + a tap of other apps as
 # the reference, so "Hey Zoya" / "Zoya, stop" work over music and her own voice on laptop speakers.
-AEC_ENABLED = False  # never in front of Whisper (replay: it lowered wakes); barge-in detector only
+AEC_ENABLED = True  # barge-in detector only, never in front of Whisper (D62); False = pre-D62 loop
 AEC_NOISE_SUPPRESSION = False
 AEC_TAP_START_TIMEOUT_S = 3.0
 REFERENCE_LOCK_TIMEOUT_S = 0.002  # audio callbacks never wait longer than this
