@@ -111,7 +111,10 @@ TOOL_RISK: dict[str, RiskClass] = {
     "spotify_play_song": "guarded",
     "amazon_search": "free",
     "amazon_add_to_cart": "guarded",
+    "amazon_buy_now": "guarded",  # the Buy Now form (KNOWN_SAFE_CLICKS), then a no-order check
+    "amazon_buy": "guarded",  # search, Buy Now, then amazon_place_order's spoken confirm
     "amazon_cart": "free",
+    "amazon_cart_remove": "guarded",  # the cart line's own Delete form only (KNOWN_SAFE_CLICKS)
     "amazon_checkout": "guarded",  # presses the fixed "Proceed to Buy" form; nothing is ordered
     "amazon_place_order": "guarded",
     # Browser: reading and navigating are free; clicks and typing check their real target.
@@ -312,8 +315,15 @@ def accessible_name(snapshot: str) -> str:
 # the prefix. "Add to Cart" is reversible (Done-when #4). Amazon's proceed forms only open checkout
 # and amazon_checkout verifies no order page came back (coordinator review, gap A). Names as read
 # from the owner's cart page, 2026-09-14 (value + accessible name).
+# 2026-09-15 (owner-approved, agent-speed probe on the owner's profile): the product page's button
+# now also carries "Add to Shopping Cart"; "Buy Now" (name submit.buy-now) only opens checkout for
+# that one item, and amazon_buy_now verifies no order page came back, like the proceed forms; a
+# cart line's "Delete <title>" (name submit.delete-active.<id>) removes it from the cart only.
+# An allowed name ending in " *" matches that prefix followed by any words (the item's title).
 KNOWN_SAFE_CLICKS = (
-    ("www.amazon.in", frozenset({"add to cart"}), ""),
+    ("www.amazon.in", frozenset({"add to cart", "add to shopping cart"}), ""),
+    ("www.amazon.in", frozenset({"buy now"}), "submit.buy-now"),
+    ("www.amazon.in", frozenset({"delete", "delete *"}), "submit.delete-active."),
     (
         "www.amazon.in",
         frozenset({"proceed to checkout", "proceed to buy now items"}),
@@ -330,8 +340,16 @@ KNOWN_SAFE_CLICKS = (
 def known_safe_click(facts: ClickFacts) -> bool:
     names = {name for label in facts.labels if (name := normalise(label))}
     return bool(names) and any(
-        facts.host.casefold() == host and names <= allowed and facts.control_name.startswith(prefix)
+        facts.host.casefold() == host
+        and all(_allowed_name(name, allowed) for name in names)
+        and facts.control_name.startswith(prefix)
         for host, allowed, prefix in KNOWN_SAFE_CLICKS
+    )
+
+
+def _allowed_name(name: str, allowed: frozenset[str]) -> bool:
+    return name in allowed or any(
+        entry.endswith(" *") and name.startswith(entry[:-1]) for entry in allowed
     )
 
 
