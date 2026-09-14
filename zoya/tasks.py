@@ -32,7 +32,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from strands.hooks import BeforeToolCallEvent, HookProvider, HookRegistry
+from strands.hooks import AfterToolCallEvent, BeforeToolCallEvent, HookProvider, HookRegistry
 
 from zoya import events
 from zoya.config import (
@@ -428,14 +428,29 @@ class StepTracker(HookProvider):
 
     def register_hooks(self, registry: HookRegistry, **_: Any) -> None:
         registry.add_callback(BeforeToolCallEvent, self.before_tool)
+        registry.add_callback(AfterToolCallEvent, self.after_tool)
 
     def before_tool(self, event: BeforeToolCallEvent) -> None:
         name = str(event.tool_use.get("name", ""))
         if name != "narrate":
             set_step(f"using {name.replace('_', ' ')}")
+            _overlay_step(name.replace("_", " "), acting=True)
         refusal = claim(name)
         if refusal:
             event.cancel_tool = refusal
+
+    def after_tool(self, _event: AfterToolCallEvent) -> None:
+        task = current()
+        _overlay_step(task.step if task else "", acting=False)
+
+
+def _overlay_step(step: str, acting: bool) -> None:
+    """Stage overlay (Phase 7): acting while a tool runs, thinking with the step between tools;
+    the task's name only when several run."""
+    task = current()
+    name = task.spoken_name() if task and len(running()) > 1 else ""
+    extra = {"tool": step, "task": name} if acting else {"task": name}
+    events.emit(events.OverlayEvent(step, "working", extra))
 
 
 # --- Announcements: named, queued, never over the user -------------------------------------------

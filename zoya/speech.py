@@ -168,6 +168,8 @@ def _run_worker() -> None:
         finally:
             _busy.clear()
             _queue.task_done()
+            if _queue.empty():  # stage overlay: back from "speaking" (Phase 7)
+                events.emit(events.OverlayEvent("", "idle", {"speech": "done"}))
 
 
 def narrate(text: str) -> None:

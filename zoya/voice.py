@@ -31,7 +31,7 @@ from datetime import UTC, datetime
 
 import numpy as np
 
-from zoya import aec, audio, orchestrator, safety, speech, tasks
+from zoya import aec, audio, events, orchestrator, safety, speech, tasks
 from zoya.config import (
     AEC_ENABLED,
     AFTER_WAKE_WAIT_S,
@@ -814,6 +814,7 @@ class VoiceLoop:
             # Junk in the wait window (music, the chime) keeps the wake, and the music stays ducked.
             return
         self.awaiting_command_until = 0.0
+        events.emit(events.OverlayEvent(text, "listening", {"role": "user"}))  # caption (Phase 7)
         audio.restore()  # the command is in: other audio comes back before Zoya answers
         self._dispatch(text, segment.last_voice_at, {"endpoint_ms": endpoint_ms, "stt_ms": stt_ms})
 
@@ -826,6 +827,7 @@ class VoiceLoop:
             return  # music or noise: not an answer, silence keeps counting toward auto-cancel
         text = transcript if transcript is not None else self._transcribe(segment)[0]
         print(f"REPLY {text!r}")
+        events.emit(events.OverlayEvent(text, "listening", {"role": "user"}))
         if is_stop(text):
             self._stop(segment.last_voice_at, text, partial=False)  # "Zoya, stop" cancels it too
             return

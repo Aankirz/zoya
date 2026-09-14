@@ -9,6 +9,7 @@ Usage:
   python -m zoya.main --page http://127.0.0.1:8765/place_order.html  # open a page in Zoya's browser
   python -m zoya.main --login                 # sign in once: Amazon.in, YouTube, Spotify, Gmail
   python -m zoya.main --order-limit 300       # Done-when #5 test run: never offer a bigger order
+  python -m zoya.main --overlay               # stage overlay: presence, captions, action ring
 Every stage's timing is printed and appended to logs/timing.log. Ctrl+C quits.
 """
 
@@ -44,6 +45,7 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--disable-tts", default="", help="comma list: polly,elevenlabs")
     parser.add_argument("--page", default="", help="open this page in Zoya's browser (Phase 3)")
     parser.add_argument("--login", action="store_true", help="open the Zoya profile to sign in")
+    parser.add_argument("--overlay", action="store_true", help="stage overlay for judges (§9.11)")
     parser.add_argument("--order-limit", default="", help="rupees; bigger orders are never offered")
     return parser.parse_args(argv)
 
@@ -70,6 +72,10 @@ def _start(args: argparse.Namespace):  # noqa: ANN202 — returns VoiceLoop, imp
 
     print(f"keys: {aws.load_provider_secrets()}")
     print(f"tracing: {setup_tracing()}")
+    if args.overlay:
+        from zoya import overlay
+
+        print(f"overlay: {overlay.start()}")
     audio.engine()
     _warm_up()
     if not args.page:  # --page launches it right away below
