@@ -75,7 +75,11 @@ WORD = re.compile(r"[a-z]+")
 WAKE_NAME_WORDS = 3
 # Only greetings may come before the name: "I bought soya milk" transcribes as "I bought
 # Zoya milk" even on the whole clip (Phase 2 test), so "name anywhere in 3 words" isn't enough.
-GREETINGS = {"hey", "hi", "hay", "he", "hello", "ok", "okay", "oh", "a"}
+# "here"/"he's" (→ "he", "s"): how base.en heard the owner's real "Hey Zoya" (Phase 2 voice test).
+GREETINGS = {"hey", "hi", "hay", "he", "here", "hear", "s", "hello", "ok", "okay", "oh", "a"}
+# Whisper's classic outputs on near-silence (seen live: "you", "ん", "예소야").
+HALLUCINATIONS = {"you", "thank you", "thanks for watching", "bye", "so", "okay"}
+SUPPORTED_SCRIPT = re.compile(r"[A-Za-z\u0900-\u097F]")  # Latin or Devanagari (D42)
 STOP_WORDS = {"stop", "cancel", "quiet", "ruko", "ruk", "bas", "chup"}
 MAX_STOP_PHRASE_WORDS = 6
 STATUS = re.compile(r"\bwhat(?:'s| is| are you)\s+(?:running|doing|working on)\b", re.I)
@@ -92,6 +96,23 @@ def is_wake(text: str) -> bool:
         if NAME.match(word) or MERGED_WAKE.match(word):
             return all(earlier in GREETINGS for earlier in spoken[:index])
     return False
+
+
+def after_wake(text: str) -> str:
+    """The words after the wake name: "Here Zoya, open Spotify" → "open spotify"."""
+    spoken = words(text)
+    for index, word in enumerate(spoken[:WAKE_NAME_WORDS]):
+        if NAME.match(word) or MERGED_WAKE.match(word):
+            return " ".join(spoken[index + 1 :])
+    return ""
+
+
+def is_usable_command(text: str) -> bool:
+    """Drop Whisper hallucinations and scripts Zoya can't route (Japanese/Korean on noise)."""
+    command = clean_command(text)
+    if not command or not SUPPORTED_SCRIPT.search(command):
+        return False
+    return " ".join(words(command)) not in HALLUCINATIONS
 
 
 def is_stop(text: str) -> bool:
@@ -217,6 +238,7 @@ class VoiceLoop:
         self.last_voice_at = 0.0
         self.last_stop_check = 0.0
         self.name_heard_at = 0.0
+        self.utterances = 0
         self.segment: Segment | None = None
         self.awaiting_command_until = 0.0  # "Hey Zoya" … pause … command
         self.ptt: Segment | None = None
@@ -312,16 +334,19 @@ class VoiceLoop:
             return  # echo protection: only the stop spotter listens now
         # Whole utterance only: partial audio makes Whisper hallucinate the "Zoya" prompt.
         text = self._spot(segment.samples(WAKE_WINDOW_S))
+        self.utterances += 1
         if is_stop(text):
             self._stop(segment.last_voice_at, text, partial=False)
         elif is_wake(text):
             self._wake(segment, text)
-            if clean_command(text):
+            if self.test_wake:
+                return  # score every utterance on its own
+            if after_wake(text):
                 self._command(segment)  # "Hey Zoya, open Spotify" in one breath
             else:
                 self._await_command()  # "Hey Zoya" … pause … command
-        elif self.test_wake and text:
-            print(f"  no wake: {text!r}")
+        elif self.test_wake:
+            print(f"#{self.utterances} no wake — heard {text!r}")
 
     def _await_command(self) -> None:
         self.awaiting_command_until = time.monotonic() + AFTER_WAKE_WAIT_S
@@ -330,7 +355,7 @@ class VoiceLoop:
         segment.woke_at = time.monotonic()
         audio.earcon("listening")
         after_end = round((segment.woke_at - segment.last_voice_at) * MS_PER_S)
-        print(f"WAKE {after_end} ms after the phrase ended — heard {text!r}")
+        print(f"#{self.utterances} WAKE {after_end} ms after the phrase ended — heard {text!r}")
         _log_voice({"event": "wake", "phrase_end_to_earcon_ms": after_end, "heard": text})
 
     def _stop(self, voice_end_at: float, text: str, partial: bool) -> None:
@@ -343,6 +368,7 @@ class VoiceLoop:
         self.segment = None
         self.recent.clear()  # don't hear the same "stop" twice
         self.name_heard_at = 0.0
+        self.utterances = 0
         self.awaiting_command_until = 0.0
         print(f"STOP {after_end} ms after last voice (partial={partial}) — heard {text!r}")
         _log_voice(
@@ -390,10 +416,7 @@ class VoiceLoop:
         stt_ms = round((time.monotonic() - started) * MS_PER_S)
         endpoint_ms = round((endpointed_at - segment.last_voice_at) * MS_PER_S)
         print(f"HEARD {text!r} (endpoint {endpoint_ms} ms, stt {stt_ms} ms)")
-        if self.test_wake:
-            audio.earcon("success")
-            return
-        if not clean_command(text) and time.monotonic() >= self.awaiting_command_until:
+        if not is_usable_command(text) and time.monotonic() >= self.awaiting_command_until:
             self._await_command()  # push-to-talk or wake with nothing after it yet
             audio.engine().silence_all()  # end the working loop
             return
@@ -401,7 +424,7 @@ class VoiceLoop:
         self._dispatch(text, segment.last_voice_at, {"endpoint_ms": endpoint_ms, "stt_ms": stt_ms})
 
     def _dispatch(self, text: str, speech_end_at: float, pre: dict[str, int]) -> None:
-        if not clean_command(text):
+        if not is_usable_command(text):
             audio.engine().silence_all()  # nothing heard: end the working loop quietly
             return
         if is_stop_command(text):

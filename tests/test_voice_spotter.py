@@ -5,7 +5,7 @@ A miss means Zoya can't be stopped; a false hit means she wakes or stops on her 
 
 import pytest
 
-from zoya.voice import is_stop, is_stop_command, is_wake
+from zoya.voice import after_wake, is_stop, is_stop_command, is_usable_command, is_wake
 
 
 @pytest.mark.parametrize(
@@ -17,6 +17,8 @@ from zoya.voice import is_stop, is_stop_command, is_wake
         "Zoa?",
         "Hi, Zoyah!",
         "Hizoya.",  # Whisper merged the greeting
+        "Here Zoya.",  # how base.en heard the owner's real "Hey Zoya"
+        "He's Zoya",
         "Zoya, what's the weather?",
     ],
 )
@@ -76,3 +78,20 @@ def test_no_stop_without_name_or_in_long_speech(heard):
 def test_captured_stop_command_without_name_still_stops():
     assert is_stop_command("Hey Zoya, cancel")
     assert is_stop_command("ruk jao")
+
+
+def test_words_after_wake_name_are_the_command():
+    assert after_wake("Here Zoya, open Spotify.") == "open spotify"
+    assert after_wake("He's Zoya") == ""
+
+
+@pytest.mark.parametrize("heard", ["you", "Thank you.", "ん", "예소야", "", "Hey Zoya!"])
+def test_hallucinations_and_empty_commands_are_dropped(heard):
+    assert not is_usable_command(heard)
+
+
+@pytest.mark.parametrize(
+    "heard", ["Hey Zoya, open Spotify", "स्पॉटिफ़ाई खोल दो", "and its population?"]
+)
+def test_real_commands_are_kept(heard):
+    assert is_usable_command(heard)
