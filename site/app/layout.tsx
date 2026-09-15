@@ -14,7 +14,8 @@ export const metadata: Metadata = {
   metadataBase: productionHost ? new URL(`https://${productionHost}`) : undefined,
   title: META.title,
   description: META.description,
-  openGraph: { title: META.title, description: META.description, type: "website" },
+  openGraph: { title: META.ogTitle, description: META.description, type: "website" },
+  twitter: { card: "summary_large_image", title: META.ogTitle, description: META.description },
 };
 
 export const viewport: Viewport = {
