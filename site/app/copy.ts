@@ -15,6 +15,7 @@ export const MENU = {
   brand: "zoya",
   links: [
     { href: "#abilities", label: "what zoya does" },
+    { href: "#get-zoya", label: "get zoya" },
     { href: "#faq", label: "faq" },
   ],
   cta: "join the waitlist",
@@ -114,6 +115,54 @@ export const APP_WINDOWS = {
   password: { title: "sign in", waiting: "zoya is waiting" },
 };
 
+// The real install flow is ../start.sh. Every command here must work on a fresh Apple Silicon Mac.
+export const GET_ZOYA = {
+  label: "get zoya",
+  title: "one command. then just talk.",
+  needs: "you need a mac with apple silicon, google chrome, and an openai api key.",
+  windowTitle: "terminal",
+  command: "git clone https://github.com/Aankirz/zoya.git && cd zoya && ./start.sh",
+  copyLabel: "copy install command",
+  copy: "copy",
+  copied: "copied",
+  stepLabel: "step",
+  steps: [
+    {
+      title: "open terminal and paste this.",
+      line: "if your mac offers to install developer tools, say yes, then paste it again.",
+      showCommand: true,
+    },
+    {
+      title: "paste your keys when asked.",
+      line: "only the openai key is required. your keys stay in a file on your mac.",
+      showCommand: false,
+    },
+    {
+      title: "let zoya hear, see and click.",
+      // A reopened terminal starts in the home folder, so the rerun needs `cd zoya` too.
+      line: "in system settings, privacy & security, allow terminal for microphone, accessibility and screen recording. quit terminal, open it again, and type cd zoya && ./start.sh",
+      showCommand: false,
+    },
+  ],
+  after: "every day after: open terminal, type cd zoya && ./start.sh",
+};
+
+// Each phrase checked against zoya/router.py, the skill triggers and zoya/shutdown.py.
+export const TALK = {
+  label: "talk to zoya",
+  title: "say “hey zoya”. then say what you want.",
+  line: "or hold fn and shift while you talk.",
+  phrases: [
+    { say: "hey zoya, open youtube", result: "opens it in your browser." },
+    { say: "hey zoya, what's the weather in bangalore?", result: "tells you, out loud." },
+    { say: "hey zoya, write a note: call mom at six", result: "saves it to notes." },
+    // The spotify skill plays one named song; "a song by…" would search for the words "a song".
+    { say: "hey zoya, play tum hi ho by arijit singh on spotify", result: "starts the song." },
+    { say: "zoya, stop", result: "stops what it's doing." },
+    { say: "zoya, quit", result: "closes zoya. so does control, shift and escape." },
+  ],
+};
+
 export const FAQ = {
   label: "faq",
   title: "questions, answered",
@@ -133,7 +182,7 @@ export const FAQ = {
     { q: "which mac do i need?", a: "a mac with apple silicon and an internet connection." },
     {
       q: "when can i get it?",
-      a: "zoya works today on our own macs. join the waitlist and we'll email you the moment it's ready for yours.",
+      a: "today. it's open source. follow the steps in get zoya, or join the waitlist to hear when installing gets even easier.",
     },
   ],
 };

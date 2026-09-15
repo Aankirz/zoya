@@ -1407,6 +1407,64 @@ a:hover {
   height: 1.4em;
 }
 
+/* ---------- Get zoya and talk to zoya (the feature-row pattern, stacked and centered) ---------- */
+
+.install-needs {
+  max-width: 40ch;
+  margin: 1.5rem auto 0;
+  color: var(--muted);
+  font-size: var(--text-subline);
+  line-height: 1.5;
+}
+
+.install-step .ability-title {
+  margin-top: 0;
+}
+
+.install-step .ability-line {
+  max-width: 44ch;
+}
+
+.install-window {
+  width: min(100%, 46rem);
+}
+
+.install-pre {
+  margin: 0;
+  padding: 1.25rem;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: var(--text-small);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.install-actions {
+  display: flex;
+  justify-content: center;
+  padding: 0 1.25rem 1.25rem;
+}
+
+.install .wave {
+  margin-top: 2.5rem;
+}
+
+.phrase-list {
+  display: grid;
+  gap: clamp(2.25rem, 1.75rem + 2vw, 3rem);
+  margin-top: 2.5rem;
+}
+
+.phrase {
+  display: grid;
+  justify-items: center;
+  gap: 1.25rem;
+}
+
+.phrase .ability-line {
+  margin-top: 0;
+}
+
 /* ---------- FAQ ---------- */
 
 .faq {
