@@ -1417,6 +1417,15 @@ a:hover {
   line-height: 1.5;
 }
 
+.install-steps {
+  margin-top: clamp(1.5rem, 1rem + 2vw, 2.5rem);
+}
+
+/* Text-only steps: tighter than the window-carrying feature rows, so they read as one sequence. */
+.install-step {
+  padding-block: clamp(1.25rem, 1rem + 1vw, 2rem);
+}
+
 .install-step .ability-title {
   margin-top: 0;
 }
@@ -1425,24 +1434,42 @@ a:hover {
   max-width: 44ch;
 }
 
+.install-after {
+  max-width: 44ch;
+  margin: clamp(1.25rem, 1rem + 1vw, 2rem) auto 0;
+}
+
+.inline-command,
+.install-pre {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+.inline-command {
+  font-size: 0.9em;
+  color: var(--text);
+  white-space: nowrap;
+}
+
 .install-window {
   width: min(100%, 46rem);
+}
+
+.copy-pill {
+  position: relative;
+  z-index: 1;
+  margin-left: auto;
+  padding-block: 0.15em;
+  font-family: inherit;
+  cursor: pointer;
 }
 
 .install-pre {
   margin: 0;
   padding: 1.25rem;
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  overflow-x: auto;
   font-size: var(--text-small);
   line-height: 1.6;
   white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.install-actions {
-  display: flex;
-  justify-content: center;
-  padding: 0 1.25rem 1.25rem;
 }
 
 .install .wave {

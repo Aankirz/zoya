@@ -10,6 +10,9 @@ const COPIED_RESET_MS = 2000;
 export function InstallCommand() {
   const codeRef = useRef<HTMLElement>(null);
   const [status, setStatus] = useState("");
+  const splitAt = GET_ZOYA.command.indexOf(GET_ZOYA.commandBreakAfter) + GET_ZOYA.commandBreakAfter.length;
+  const head = GET_ZOYA.command.slice(0, splitAt);
+  const tail = GET_ZOYA.command.slice(splitAt);
 
   function selectCommand() {
     const code = codeRef.current;
@@ -34,21 +37,27 @@ export function InstallCommand() {
 
   return (
     <div className="mac-window install-window">
-      <div className="mac-titlebar" aria-hidden="true">
-        <MacLights />
-        <span className="mac-title">{GET_ZOYA.windowTitle}</span>
-      </div>
-      <pre className="install-pre">
-        <code ref={codeRef}>{GET_ZOYA.command}</code>
-      </pre>
-      <div className="install-actions">
-        <button type="button" className="pill-glossy" aria-label={GET_ZOYA.copyLabel} onClick={copy}>
+      <div className="mac-titlebar">
+        <span aria-hidden="true">
+          <MacLights />
+        </span>
+        <span className="mac-title" aria-hidden="true">
+          {GET_ZOYA.windowTitle}
+        </span>
+        <button type="button" className="say-pill copy-pill" aria-label={GET_ZOYA.copyLabel} onClick={copy}>
           {status || GET_ZOYA.copy}
         </button>
         <span className="sr-only" aria-live="polite">
           {status}
         </span>
       </div>
+      <pre className="install-pre">
+        <code ref={codeRef}>
+          {head}
+          <wbr />
+          {tail}
+        </code>
+      </pre>
     </div>
   );
 }

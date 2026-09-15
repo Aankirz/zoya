@@ -86,7 +86,7 @@ export default async function Home() {
           </p>
           <h2 className="section-title">{GET_ZOYA.title}</h2>
           <p className="install-needs">{GET_ZOYA.needs}</p>
-          <ol className="ability-list">
+          <ol className="ability-list install-steps">
             {GET_ZOYA.steps.map((step, index) => (
               <li className="ability install-step" key={step.title}>
                 <span className="capsule" aria-hidden="true">
@@ -94,11 +94,21 @@ export default async function Home() {
                 </span>
                 <h3 className="ability-title">{step.title}</h3>
                 {step.showCommand ? <InstallCommand /> : null}
-                <p className="ability-line">{step.line}</p>
+                <p className="ability-line">
+                  {step.line}
+                  {step.command ? (
+                    <>
+                      {" "}
+                      <code className="inline-command">{step.command}</code>
+                    </>
+                  ) : null}
+                </p>
               </li>
             ))}
           </ol>
-          <p className="why-closer">{GET_ZOYA.after}</p>
+          <p className="ability-line install-after">
+            {GET_ZOYA.after} <code className="inline-command">{GET_ZOYA.afterCommand}</code>
+          </p>
         </section>
 
         <section className="abilities install" id="talk">
