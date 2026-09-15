@@ -1407,6 +1407,38 @@ a:hover {
   height: 1.4em;
 }
 
+/* ---------- Watch zoya (click-to-load demo, same window as the terminal) ---------- */
+
+.demo-window {
+  width: min(100%, 46rem);
+  margin: clamp(2rem, 1.5rem + 2vw, 3rem) auto 0;
+}
+
+.demo-frame {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 9;
+  background: var(--bg);
+}
+
+.demo-frame img,
+.demo-frame iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.demo-play {
+  position: relative;
+}
+
+.demo-link {
+  margin-top: 1.5rem;
+}
+
 /* ---------- Get zoya and talk to zoya (the feature-row pattern, stacked and centered) ---------- */
 
 .install-needs {

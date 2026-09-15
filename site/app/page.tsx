@@ -1,4 +1,5 @@
 import { AppWindow } from "./components/AppWindows";
+import { DemoVideo } from "./components/DemoVideo";
 import { FolderWordmark } from "./components/FolderWordmark";
 import { HelloWindow } from "./components/HelloWindow";
 import { InstallCommand } from "./components/InstallCommand";
@@ -9,7 +10,7 @@ import { TypingBubble } from "./components/TypingBubble";
 import { VisitorCount } from "./components/VisitorCount";
 import { WaitlistForm } from "./components/WaitlistForm";
 import { AppKind } from "./components/AppWindows";
-import { ABILITIES, CHARGE, CONTACT_EMAIL, FAQ, FOOTER, GET_ZOYA, HERO, SKIP_LINK, TALK, WHY } from "./copy";
+import { ABILITIES, CHARGE, CONTACT_EMAIL, DEMO, FAQ, FOOTER, GET_ZOYA, HERO, SKIP_LINK, TALK, WHY } from "./copy";
 import { OutlinePlus } from "./icons/rune";
 import { getVisitorCount } from "@/lib/visitors";
 
@@ -68,6 +69,17 @@ export default async function Home() {
           <h2 className="section-title why-title">{WHY.title}</h2>
           <p className="why-body">{WHY.body}</p>
           <p className="why-closer">{WHY.closer}</p>
+        </section>
+
+        <section className="abilities demo" id="demo">
+          <p className="capsule" aria-hidden="true">
+            {DEMO.label}
+          </p>
+          <h2 className="section-title">{DEMO.title}</h2>
+          <DemoVideo />
+          <p className="demo-link">
+            <a href={DEMO.href}>{DEMO.linkLabel}</a>
+          </p>
         </section>
 
         <section className="abilities" id="abilities">

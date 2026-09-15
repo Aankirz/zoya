@@ -14,6 +14,7 @@ export const SKIP_LINK = "skip to the waitlist";
 export const MENU = {
   brand: "zoya",
   links: [
+    { href: "#demo", label: "watch" },
     { href: "#abilities", label: "what zoya does" },
     { href: "#get-zoya", label: "get zoya" },
     { href: "#faq", label: "faq" },
@@ -31,6 +32,22 @@ export const WHY = {
   title: "the computer was built for people who can see.",
   body: "apps, the internet, and now ai agents. all of it assumes you can see the screen. zoya hands that power to people who can't. say what you want, and zoya does it for you.",
   closer: "a screen reader tells you what's there. zoya does what you meant.",
+};
+
+// The owner's own demo (youtube oEmbed: "Zoya Demo", Ankit Kiran). The thumbnail is served from
+// public/ so the page makes no youtube request until the visitor presses play.
+export const DEMO = {
+  label: "watch zoya",
+  title: "see it for yourself.",
+  windowTitle: "zoya demo",
+  thumbnail: "/zoya-demo.jpg",
+  thumbnailAlt: "a mac screen showing the zoya website, with ankit speaking in the corner of the video.",
+  play: "play",
+  playLabel: "play the zoya demo video",
+  frameTitle: "Zoya demo video",
+  embedSrc: "https://www.youtube-nocookie.com/embed/5xJdxuAq51Y?autoplay=1&rel=0",
+  linkLabel: "watch on youtube",
+  href: "https://youtu.be/5xJdxuAq51Y",
 };
 
 export const HELLO = {
