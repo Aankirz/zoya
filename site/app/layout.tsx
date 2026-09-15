@@ -7,7 +7,11 @@ import "./globals.css";
 // Inter matches heyclicky exactly; the owner's "exactly like heyclicky" wins over the usual reject list (BRIEF-v3 §1).
 const inter = Inter({ subsets: ["latin"], display: "swap", variable: "--font-inter" });
 
+// Social previews need absolute image URLs; on Vercel use the production domain.
+const productionHost = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+
 export const metadata: Metadata = {
+  metadataBase: productionHost ? new URL(`https://${productionHost}`) : undefined,
   title: META.title,
   description: META.description,
   openGraph: { title: META.title, description: META.description, type: "website" },
