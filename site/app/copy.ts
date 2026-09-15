@@ -6,6 +6,7 @@ export const CONTACT_EMAIL = "sahuankit453@gmail.com";
 export const META = {
   title: "zoya · your mac, by voice, for people who can't see the screen",
   ogTitle: "zoya · your mac, by voice",
+  ogImageAlt: "zoya: your mac, by voice. made for people who can't see the screen.",
   description:
     "zoya lets people who can't see the screen use their mac by voice: say what you want done, and zoya does it.",
 };

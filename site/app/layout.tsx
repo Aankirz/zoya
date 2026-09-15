@@ -14,8 +14,21 @@ export const metadata: Metadata = {
   metadataBase: productionHost ? new URL(`https://${productionHost}`) : undefined,
   title: META.title,
   description: META.description,
-  openGraph: { title: META.ogTitle, description: META.description, type: "website" },
-  twitter: { card: "summary_large_image", title: META.ogTitle, description: META.description },
+  openGraph: {
+    title: META.ogTitle,
+    description: META.description,
+    type: "website",
+    url: "/",
+    siteName: "zoya",
+    // Plain JPEG with no query string: WhatsApp drops large PNG or query-string preview images.
+    images: [{ url: "/og.jpg", width: 1200, height: 630, type: "image/jpeg", alt: META.ogImageAlt }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: META.ogTitle,
+    description: META.description,
+    images: [{ url: "/og.jpg", alt: META.ogImageAlt }],
+  },
 };
 
 export const viewport: Viewport = {
