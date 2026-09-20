@@ -55,6 +55,7 @@ from strands import tool
 
 from zoya import overlay, safety, screen
 from zoya.config import (
+    ACTION_SETTLE_S,
     AGENT_BROWSER_BIN,
     AGENT_BROWSER_SESSION,
     AGENT_BROWSER_TIMEOUT_S,
@@ -364,7 +365,6 @@ def _probe_locator(page: Any, locator: Any) -> Target:
             surroundings.first.inner_text()[:NEARBY_MAX_CHARS] if surroundings.count() else ""
         ),
         host=url.netloc,
-        control_name=(clickable.first.get_attribute("name") or "") if clickable.count() else "",
     )
     return Target(locator.element_handle(), facts, page.title(), url.netloc)
 
@@ -474,6 +474,29 @@ SCREEN_RECT_JS = """el => { el.scrollIntoViewIfNeeded(); const r = el.getBoundin
   return [screenX + r.left, screenY + (outerHeight - innerHeight) + r.top, r.width, r.height]; }"""
 
 
+PAGE_STATE_JS = "() => [location.href, document.title, document.body.innerText.length]"
+UNCHANGED_SAY = "Clicked {what}, but nothing on the page changed."
+UNDONE_SAY = "Clicked {what}. To undo, say {undo}."
+
+
+def _page_state() -> Any:
+    """Cheap fingerprint of the page: where it is, what it's called, how much text it shows."""
+    try:
+        return _on_browser(lambda: _page().evaluate(PAGE_STATE_JS))
+    except Exception:  # noqa: BLE001 — an unreadable page means "can't tell", not a failed click
+        log.debug("page state unavailable", exc_info=True)
+        return None
+
+
+def _reversible_said(what: str, undo: str, before: Any) -> str:
+    """D75 legs 2 and 3: say what the undo is, once the page has actually changed."""
+    time.sleep(ACTION_SETTLE_S)
+    after = _page_state()
+    if before is not None and after == before:
+        return UNCHANGED_SAY.format(what=what)
+    return UNDONE_SAY.format(what=what, undo=undo)
+
+
 def _click(handle: Any) -> None:
     if overlay.running():  # stage ring (Phase 7), after every evidence capture for this click
         try:
@@ -493,7 +516,7 @@ def click_checked(
     """Guard 2 on the element `probe` finds (on the browser thread), then click it, asking first
     when risky. `require` (e.g. "purchase"): refuse before clicking unless the guard sees that kind.
 
-    Returns (what was clicked, the risk that was confirmed or None). Raises ToolError or
+    Returns (the sentence to speak, the risk that was confirmed or None). Raises ToolError or
     ConfirmationDeclined; returning means the click happened exactly once.
     """
     target = _on_browser(probe)
@@ -502,8 +525,12 @@ def click_checked(
     if require and (risky is None or risky.kind != require):
         raise ToolError(f"That button isn't the {what} button, so I stopped.")
     if risky is None:
+        reversible = safety.reversible_click(target.facts)
+        before = _page_state() if reversible else None
         _click(target.handle)
-        return what, None
+        if reversible is None:
+            return f"Clicked {what}.", None
+        return _reversible_said(what, reversible.undo, before), None
     action = _verified_action(risky, target, amount, item)
 
     def live() -> safety.Action:
@@ -554,7 +581,7 @@ def browser_click(text: str, amount: str = "", item: str = "") -> str:
     """
     said, risky = click_checked(lambda: _probe(text), text, amount, item)
     if risky is None:
-        return f"Clicked {said}."
+        return said
     return f"Clicked {said}. The user confirmed it out loud."
 
 
@@ -771,7 +798,6 @@ def _ref_probe(ref: str, approved: str) -> Target:
         path=address.path,
         nearby_text=focused.get("near") or _nearby_text(lines, index),
         host=address.netloc,
-        control_name=str(focused.get("name") or ""),
     )
     title = _batch_value(answers[1], "title") or ""
     return Target(focused.get("rect"), facts, title, address.netloc)
@@ -817,9 +843,13 @@ def click_ref(ref: str, approved_name: str, amount: str = "", item: str = "") ->
     risky = safety.click_risk(target.facts)
     safety.log_safety_timing(event="ref_click", risk=risky.kind if risky else "free")
     if risky is None:
+        reversible = safety.reversible_click(target.facts)
+        before = _page_state() if reversible else None
         _ring(target)
         _agent_browser("click", f"@{ref}")
-        return f"Clicked {approved_name}."
+        if reversible is None:
+            return f"Clicked {approved_name}."
+        return _reversible_said(approved_name, reversible.undo, before)
     action = _verified_action(risky, target, amount, item)
 
     def live() -> safety.Action:

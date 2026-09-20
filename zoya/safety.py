@@ -298,8 +298,7 @@ class ClickFacts:
     is_submit: bool = False  # button type=submit / default inside a <form>, input submit/image
     path: str = ""  # URL path (no query: a search for "buy shoes" is not a checkout)
     nearby_text: str = ""  # text around the target (its form or a few ancestors)
-    host: str = ""  # page host, for KNOWN_SAFE_CLICKS only
-    control_name: str = ""  # the clickable's name attribute, for KNOWN_SAFE_CLICKS only
+    host: str = ""  # page host, for the payment-blocked check only
 
 
 def spoken_name(labels: list[str]) -> str:
@@ -317,58 +316,59 @@ def accessible_name(snapshot: str) -> str:
     return (match.group(1) or "") if match else snapshot
 
 
-# Buttons on shops Zoya automates that never pay, which the context rules would otherwise ask about
-# every time (Flow 6 "ticks per item"). (host, allowed names, name-attribute prefix): exact host,
-# every label normalises to one of those exact names, and the element's name attribute starts with
-# the prefix. "Add to Cart" is reversible (Done-when #4). Amazon's proceed forms only open checkout
-# and amazon_checkout verifies no order page came back (coordinator review, gap A). Names as read
-# from the owner's cart page, 2026-09-14 (value + accessible name).
-# 2026-09-15 (owner-approved, agent-speed probe on the owner's profile): the product page's button
-# now also carries "Add to Shopping Cart"; "Buy Now" (name submit.buy-now) only opens checkout for
-# that one item, and amazon_buy_now verifies no order page came back, like the proceed forms; a
-# cart line's "Delete <title>" (name submit.delete-active.<id>) removes it from the cart only.
-# An allowed name ending in " *" matches that prefix followed by any words (the item's title).
-KNOWN_SAFE_CLICKS = (
-    ("www.amazon.in", frozenset({"add to cart", "add to shopping cart"}), ""),
-    ("www.amazon.in", frozenset({"buy now"}), "submit.buy-now"),
-    ("www.amazon.in", frozenset({"delete", "delete *"}), "submit.delete-active."),
+REVERSIBLE_INTENTS: tuple[tuple[str, str, str], ...] = (
     (
-        "www.amazon.in",
-        frozenset({"proceed to checkout", "proceed to buy now items"}),
-        "proceedToALMCheckout",
+        "cart",
+        r"add to (?:the |my )?(?:shopping )?(?:cart|basket|bag|trolley)|add to cart|"
+        r"cart me dal\w*|add item",
+        "take it out of the cart",
     ),
     (
-        "www.amazon.in",
-        frozenset({"proceed to checkout", "proceed to buy buy amazon items"}),
-        "proceedToRetailCheckout",
+        "search",
+        r"search|find|look up|खोज\S*|search kar\w*|dhoond\w*",
+        "search for something else",
     ),
-    # Booking.com (hotels_web): the room table's "I'll reserve" and the guest form's "Next: Final
-    # details" (name="book") only move to the next form; the final step is payment (blocked below).
-    # Labels as read from www.booking.com, 2026-09-15.
-    ("www.booking.com", frozenset({"i ll reserve"}), ""),
-    ("www.booking.com", frozenset({"next final details"}), "book"),
-    ("secure.booking.com", frozenset({"next final details"}), "book"),
+    ("play", r"play|pause|resume|listen|watch|preview", "stop it"),
+    (
+        "open",
+        r"open|view|show|see|read more|learn more|expand|back|home|" r"khol\w*|dekh\w*|dikha\w*",
+        "go back",
+    ),
 )
+_REVERSIBLE = [
+    (intent, re.compile(rf"(?:^| )(?:{pattern})(?: |$)"), undo)
+    for intent, pattern, undo in REVERSIBLE_INTENTS
+]
 # Hotel sites where Zoya stops at the payment page: a purchase click there is never asked, only
-# refused (owner: "Payment needs you"). Checked before KNOWN_SAFE_CLICKS, by exact host suffix.
+# refused (owner: "Payment needs you"). Checked before the reversibility contract, by host suffix.
 PAYMENT_BLOCKED_HOSTS = ("booking.com",)
 PAYMENT_BLOCKED_SAY = "I don't make payments or complete bookings. Payment needs you."
 
 
-def known_safe_click(facts: ClickFacts) -> bool:
-    names = {name for label in facts.labels if (name := normalise(label))}
-    return bool(names) and any(
-        facts.host.casefold() == host
-        and all(_allowed_name(name, allowed) for name in names)
-        and facts.control_name.startswith(prefix)
-        for host, allowed, prefix in KNOWN_SAFE_CLICKS
-    )
+@dataclass(frozen=True)
+class Reversible:
+    """A click the contract lets through: what it means, and the undo Zoya states out loud."""
+
+    intent: str
+    undo: str
 
 
-def _allowed_name(name: str, allowed: frozenset[str]) -> bool:
-    return name in allowed or any(
-        entry.endswith(" *") and name.startswith(entry[:-1]) for entry in allowed
-    )
+def reversible_click(facts: ClickFacts) -> Reversible | None:
+    """D75 leg 1: every name this control publishes says the same reversible thing, on any host.
+
+    `click_risk` consults this only after `risky_label` has found nothing, so money, sending,
+    posting and deleting always ask, everywhere. Every label must match, so a control reading
+    both "Add to cart" and "Buy now" is not reversible; a control with no name falls through to
+    the unknown rule. Legs 2 and 3 — verifying what changed and stating the undo out loud — are
+    the caller's, in `zoya/tools/browser.py`.
+    """
+    names = [name for label in facts.labels if (name := normalise(label))]
+    if not names:
+        return None
+    for intent, pattern, undo in _REVERSIBLE:
+        if all(pattern.search(name) for name in names):
+            return Reversible(intent, undo)
+    return None
 
 
 def payment_blocked_host(host: str) -> bool:
@@ -383,18 +383,19 @@ def click_risk(facts: ClickFacts) -> RiskyLabel | None:
     name (icon-only / unknown), a submit control, or a commerce/compose page (URL path words, or
     a currency amount near the target). Coordinator review of cb10192 found the label-only guard
     failing open ("Checkout", "BuyNow", "खरीदें", icon-only).
+
+    A risky label always wins (D75), so the reversibility contract can only overrule the three
+    weaker signals — submit, commerce context, unnamed — never money, sending, posting, deleting.
     ponytail: a JS-handled <div> with a harmless name ("Continue") on a page with no amount and a
-    neutral URL still passes. Phase 4 skills must list their known final buttons as risky.
+    neutral URL still passes.
     """
     hit = risky_label(facts.labels)
     if hit and hit.kind == "purchase" and payment_blocked_host(facts.host):
         raise ConfirmationDeclined(PAYMENT_BLOCKED_SAY)
-    if known_safe_click(
-        facts
-    ):  # exact entries only; "Proceed to buy" would otherwise read as risky
-        return None
     if hit:
         return hit
+    if reversible_click(facts) is not None:
+        return None
     name = spoken_name(facts.labels)
     if not name:
         return RiskyLabel("unknown", "click a button with no name")

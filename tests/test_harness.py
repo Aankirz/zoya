@@ -208,11 +208,11 @@ def test_known_final_buttons_are_risky(label):
     assert safety.risky_label([label]) is not None
 
 
-def test_add_to_cart_is_safe_only_on_amazon_with_that_exact_name():
+def test_add_to_cart_is_safe_by_what_it_means_not_by_its_host():
     cart = safety.ClickFacts(["Add to Cart"], is_submit=True, path="/dp/B0", host="www.amazon.in")
 
     assert safety.click_risk(cart) is None
-    assert safety.click_risk(safety.ClickFacts(**{**cart.__dict__, "host": "amazon.in.evil.test"}))
+    assert safety.click_risk(safety.ClickFacts(**{**cart.__dict__, "host": "shop.example"})) is None
     assert safety.click_risk(
         safety.ClickFacts(**{**cart.__dict__, "labels": ["Add to Cart", "Buy Now"]})
     )
@@ -335,20 +335,17 @@ PROCEED = safety.ClickFacts(
     path="/gp/cart/view.html",
     nearby_text="Subtotal ₹243",
     host="www.amazon.in",
-    control_name="proceedToALMCheckout-qqfsWw9RkO",
 )
 
 
-def test_amazon_proceed_form_is_the_only_exact_safe_checkout_click():
-    assert safety.click_risk(PROCEED) is None
+def test_proceeding_to_checkout_now_asks_on_every_host():
+    """D75 removed the one-host whitelist: opening checkout is a checkout label, so it asks."""
+    assert safety.click_risk(PROCEED).kind == "purchase"
     for change in (
-        {"control_name": "placeYourOrder1"},
-        {"control_name": ""},
+        {"host": "shop.example"},
         {"host": "www.amazon.in.evil.test"},
         {"labels": ["Proceed to checkout", "Place your order"]},
         {"labels": ["Buy now"]},
-        {"labels": ["Proceed to Buy Buy Amazon items"]},  # the retail name on the grocery form
-        {"control_name": "proceedToRetailCheckout", "labels": ["Proceed to Buy Now Items"]},
     ):
         assert safety.click_risk(safety.ClickFacts(**{**PROCEED.__dict__, **change})), change
 
