@@ -80,6 +80,7 @@ WORKER_SLACK_S = 5.0  # a Playwright call times out on its own first
 LABEL_ATTRIBUTES = ("aria-label", "title", "value", "alt", "placeholder")
 # The nearest clickable ancestor-or-self: clicking a <span> inside "Place order" presses the button.
 CLICKABLE = "xpath=ancestor-or-self::*[self::button or self::a or @role='button' or self::input][1]"
+HYPERLINK = "xpath=self::a[@href]"
 CHROME_APP = "Chrome"
 CDP_VERSION_PATH = "/json/version"
 INTERNAL = "chrome://"
@@ -365,6 +366,7 @@ def _probe_locator(page: Any, locator: Any) -> Target:
             surroundings.first.inner_text()[:NEARBY_MAX_CHARS] if surroundings.count() else ""
         ),
         host=url.netloc,
+        is_link=bool(clickable.count() and clickable.locator(HYPERLINK).count()),
     )
     return Target(locator.element_handle(), facts, page.title(), url.netloc)
 
@@ -402,6 +404,19 @@ STRUCK_JS = """() => ({
 })"""
 
 
+WWW = "www."
+
+
+def omnibox_host(host: str) -> str:
+    """The host as Chrome's address bar draws it, for the money path's screenshot check.
+
+    Chrome elides a leading "www.", so OCR of the cart page reads "boat-lifestyle.com/#cart"
+    while the page's host is "www.boat-lifestyle.com". The rest of the host must still appear
+    in the screenshot, and a purchase still refuses when it does not.
+    """
+    return host[len(WWW) :] if host.casefold().startswith(WWW) else host
+
+
 def _screen_rows(target: Target) -> ScreenEvidence:
     started = time.monotonic()
     _on_browser(lambda: _page().bring_to_front())
@@ -409,7 +424,8 @@ def _screen_rows(target: Target) -> ScreenEvidence:
     struck = safety.struck_prices(_on_browser(lambda: _page().evaluate(STRUCK_JS)))
     captured = time.monotonic()
     rows = safety.ocr_rows(screen.detect_text(jpeg))
-    if not any(target.host and target.host in row.text.replace(" ", "") for row in rows):
+    shown = omnibox_host(target.host)
+    if not any(shown and shown in row.text.replace(" ", "") for row in rows):
         raise ToolError("I couldn't confirm the screenshot shows this page. Let's try again.")
     safety.log_safety_timing(
         event="screen_check",
@@ -638,6 +654,7 @@ FOCUS_FACTS_JS = """(() => {
     id: e.id || '',
     submit: !!(e.form && (e.type === 'submit' || e.type === 'image'
       || (e.tagName === 'BUTTON' && !e.getAttribute('type')))),
+    link: e.tagName === 'A' && e.hasAttribute('href'),
     near: (near.innerText || '').slice(0, NEARBY_LIMIT),
     rect: [screenX + r.left, screenY + (outerHeight - innerHeight) + r.top, r.width, r.height]
   });
@@ -798,6 +815,7 @@ def _ref_probe(ref: str, approved: str) -> Target:
         path=address.path,
         nearby_text=focused.get("near") or _nearby_text(lines, index),
         host=address.netloc,
+        is_link=bool(focused.get("link")),
     )
     title = _batch_value(answers[1], "title") or ""
     return Target(focused.get("rect"), facts, title, address.netloc)

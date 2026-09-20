@@ -83,6 +83,26 @@ def capture_window_jpeg(app_substring: str, title: str) -> bytes:
     return _capture(content_filter, window.frame().size)
 
 
+ELLIPSIS = "…"
+MIN_TITLE_MATCH_CHARS = 12
+
+
+def same_title(window_title: str, wanted: str) -> bool:
+    """Whether a window-server title names the page `wanted`, allowing macOS's own truncation.
+
+    The window server shortens a long title in the middle, so Chrome showing
+    "Buy Earbuds, Headphones, Earphones at India's No.1 Earwear Brand: boAt" publishes
+    "Buy Earbuds, Headphones, Earph…ia's No.1 Earwear Brand: boAt". Both ends must still match
+    the page's real title, and `capture_window_jpeg` still refuses unless exactly one window does.
+    """
+    if window_title == wanted:
+        return True
+    head, ellipsis, tail = window_title.partition(ELLIPSIS)
+    if not ellipsis or len(head) + len(tail) < MIN_TITLE_MATCH_CHARS:
+        return False
+    return wanted.startswith(head) and wanted.endswith(tail) and len(wanted) > len(window_title)
+
+
 def _windows(SCK: Any, app_substring: str, title: str) -> list[Any]:  # noqa: N803 — module
     content, error = _await(
         lambda h: SCK.SCShareableContent.getShareableContentExcludingDesktopWindows_onScreenWindowsOnly_completionHandler_(  # noqa: E501
@@ -97,7 +117,7 @@ def _windows(SCK: Any, app_substring: str, title: str) -> list[Any]:  # noqa: N8
         if w.owningApplication()
         and app_substring in (w.owningApplication().applicationName() or "")
         and title
-        and w.title() == title
+        and same_title(w.title() or "", title)
     ]
 
 

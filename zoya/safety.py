@@ -299,6 +299,7 @@ class ClickFacts:
     path: str = ""  # URL path (no query: a search for "buy shoes" is not a checkout)
     nearby_text: str = ""  # text around the target (its form or a few ancestors)
     host: str = ""  # page host, for the payment-blocked check only
+    is_link: bool = False  # a plain hyperlink: clicking it navigates, and Back undoes it
 
 
 def spoken_name(labels: list[str]) -> str:
@@ -361,7 +362,13 @@ def reversible_click(facts: ClickFacts) -> Reversible | None:
     both "Add to cart" and "Buy now" is not reversible; a control with no name falls through to
     the unknown rule. Legs 2 and 3 — verifying what changed and stating the undo out loud — are
     the caller's, in `zoya/tools/browser.py`.
+
+    A named hyperlink that is not a form submit is D75's "navigate": clicking it is a GET and
+    Back undoes it. Without this a shop asks before every product, because the product's own
+    name is the link's name and its price is the text beside it.
     """
+    if facts.is_link and not facts.is_submit and spoken_name(facts.labels):
+        return Reversible("navigate", "go back")
     names = [name for label in facts.labels if (name := normalise(label))]
     if not names:
         return None

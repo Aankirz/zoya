@@ -1286,6 +1286,37 @@ def test_an_unnamed_target_is_still_unknown_not_reversible(labels):
     assert safety.reversible_click(facts) is None
 
 
+def test_a_product_link_on_a_shop_is_navigation_not_a_risky_click():
+    """A shop names its product links after the product and prints the price beside them, so the
+    context rule asked before every product until links counted as navigation."""
+    link = safety.ClickFacts(
+        ["boAt Nirvana Zenith Pro"],
+        path="/collections/earbuds",
+        nearby_text="₹2,999 ₹9,990",
+        host="www.boat-lifestyle.com",
+        is_link=True,
+    )
+
+    assert safety.click_risk(link) is None
+    assert safety.reversible_click(link).undo == "go back"
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"labels": ["Place your order"]},
+        {"labels": ["Delete this address"]},
+        {"labels": ["Send"]},
+        {"labels": [""]},
+        {"is_submit": True},
+    ],
+)
+def test_a_link_that_pays_sends_deletes_submits_or_has_no_name_still_asks(change):
+    link = safety.ClickFacts(["Product"], host="shop.example", is_link=True)
+
+    assert safety.click_risk(safety.ClickFacts(**{**link.__dict__, **change})), change
+
+
 def test_the_contract_carries_no_host():
     source = inspect.getsource(safety.reversible_click) + repr(safety.REVERSIBLE_INTENTS)
 
@@ -1483,3 +1514,42 @@ def test_payment_block_leaves_amazon_place_order_confirmable():
 def test_hotel_actions_are_registered():
     assert safety.risk_of("hotel_search") == "free"
     assert safety.risk_of("hotel_book") == safety.risk_of("hotel_guest_details") == "guarded"
+
+
+# --- The money path: macOS truncates a long window title, the screen check must still find it ----
+
+BOAT = "Buy Earbuds, Headphones, Earphones at India’s No.1 Earwear Brand: boAt"
+
+
+@pytest.mark.parametrize(
+    ("window", "wanted", "same"),
+    [
+        (BOAT, BOAT, True),
+        ("Buy Earbuds, Headphones, Earph…ia’s No.1 Earwear Brand: boAt", BOAT, True),
+        ("Amazon.in Shopping Cart", BOAT, False),
+        ("Buy Earbuds, Headphones, Earph…Brand: Sony", BOAT, False),
+        ("Restore pages?", BOAT, False),
+        ("…", BOAT, False),
+        ("B…t", BOAT, False),
+        (BOAT + " extra", BOAT, False),
+        ("", BOAT, False),
+    ],
+)
+def test_a_truncated_window_title_names_the_page_only_when_both_ends_match(window, wanted, same):
+    from zoya import screen
+
+    assert screen.same_title(window, wanted) is same
+
+
+@pytest.mark.parametrize(
+    ("host", "shown"),
+    [
+        ("www.boat-lifestyle.com", "boat-lifestyle.com"),
+        ("WWW.Amazon.in", "Amazon.in"),
+        ("secure.booking.com", "secure.booking.com"),
+        ("wwwx.example.com", "wwwx.example.com"),
+        ("", ""),
+    ],
+)
+def test_the_screen_check_looks_for_the_host_chromes_address_bar_actually_draws(host, shown):
+    assert browser_tools.omnibox_host(host) == shown
