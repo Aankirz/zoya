@@ -42,13 +42,13 @@ CASES = [
         "name": "amazon-cart-buy",
         "url": "https://www.amazon.in/gp/cart/view.html",
         "control": "proceed to buy",
-        "want": "",
+        "want": "cart",
     },
     {
         "name": "amazon-cart-delete",
         "url": "https://www.amazon.in/gp/cart/view.html",
         "control": "delete",
-        "want": "",
+        "want": "power",
     },
     {
         "name": "x-post",
