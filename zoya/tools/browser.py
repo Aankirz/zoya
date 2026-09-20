@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import atexit
 import concurrent.futures
+import contextlib
 import json
 import logging
 import os
@@ -51,6 +52,7 @@ from decimal import Decimal
 from typing import Any
 from urllib.parse import urlparse
 
+from playwright.sync_api import Error as PlaywrightError
 from strands import tool
 
 from zoya import overlay, safety, screen
@@ -77,6 +79,7 @@ log = logging.getLogger(__name__)
 MS_PER_S = 1000
 PLAYWRIGHT_TIMEOUT_MS = int(BROWSER_ACTION_TIMEOUT_S * MS_PER_S)
 WORKER_SLACK_S = 5.0  # a Playwright call times out on its own first
+LOCATE_TIMEOUT_MS = 3000  # a rich editor or a modal renders after navigation finishes
 LABEL_ATTRIBUTES = ("aria-label", "title", "value", "alt", "placeholder")
 # The nearest clickable ancestor-or-self: clicking a <span> inside "Place order" presses the button.
 CLICKABLE = "xpath=ancestor-or-self::*[self::button or self::a or @role='button' or self::input][1]"
@@ -95,7 +98,7 @@ SUBMIT_CONTROL = (
 # The target's form, else its third ancestor: where a price "near the target" would be.
 NEARBY = "xpath=(ancestor::form | ancestor::*[3])[last()]"
 NEARBY_MAX_CHARS = 2000
-EXTRA_ARGS = ["--autoplay-policy=no-user-gesture-required"]
+EXTRA_ARGS = ["--autoplay-policy=no-user-gesture-required", "--disable-extensions"]
 SCREENSHOT_QUALITY = 60
 SIGN_IN_PATH = re.compile(r"/(?:ap/signin|signin|login|log-in|accounts|servicelogin)\b", re.I)
 CAPTCHA = "iframe[src*=captcha], iframe[title*=challenge i], #captchacharacters"
@@ -326,12 +329,26 @@ class Target:
 
 
 def _locate(page: Any, text: str) -> Any:
-    for locator in (
+    """The visible element named `text`: button, link, text box, then label and plain text.
+
+    `get_by_label` only sees a <label>'s control, so without the textbox role and the
+    placeholder a rich editor is unreachable — every site that composes in a
+    `div[contenteditable][role=textbox]` rather than a <textarea>.
+    """
+    ways = (
         page.get_by_role("button", name=text),
         page.get_by_role("link", name=text),
+        page.get_by_role("textbox", name=text),
+        page.get_by_placeholder(text),
         page.get_by_label(text),
         page.get_by_text(text),
-    ):
+    )
+    any_way = ways[0]
+    for other in ways[1:]:
+        any_way = any_way.or_(other)
+    with contextlib.suppress(PlaywrightError):
+        any_way.first.wait_for(state="visible", timeout=LOCATE_TIMEOUT_MS)
+    for locator in ways:
         visible = locator.filter(visible=True)
         if visible.count():
             return visible.first

@@ -19,6 +19,7 @@ import contextlib
 import json
 import shutil
 import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -29,7 +30,6 @@ from zoya import decisions, safety, speech  # noqa: E402
 from zoya.config import LOG_DIR, SKILLS_DIR, load_env  # noqa: E402
 
 OUT = LOG_DIR / "spikes" / "flow_compare.json"
-HIDDEN_SUFFIX = ".disabled"
 ANSWERABLE = {"submit", "context", "unknown", "checkout"}
 
 POLL_S = 0.1
@@ -42,14 +42,16 @@ def without(skill: str):
     if not skill:
         yield
         return
-    live, hidden = SKILLS_DIR / skill, SKILLS_DIR / f"{skill}{HIDDEN_SUFFIX}"
+    live = SKILLS_DIR / skill
     if not live.is_dir():
         raise SystemExit(f"no such skill directory: {live}")
-    shutil.move(live, hidden)
-    try:
-        yield
-    finally:
-        shutil.move(hidden, live)
+    with tempfile.TemporaryDirectory() as away:
+        hidden = Path(away) / skill  # outside SKILLS_DIR: `*/actions.py` must not still glob it
+        shutil.move(live, hidden)
+        try:
+            yield
+        finally:
+            shutil.move(hidden, live)
 
 
 class Answerer(threading.Thread):
