@@ -413,3 +413,127 @@ def subject(say: str, control: str, title: str, subjects: list[Subject]) -> tupl
         return "", pick.confidence if pick else 0.0
     found = next((s for s in subjects if s.key == pick.name), None)
     return (found.name if found else ""), pick.confidence
+
+
+MAX_CHANGES = 10
+CHANGE_QUESTION = (
+    "The assistant pressed this control and must tell the user whether it worked. Which of these "
+    "changes on the page is evidence that pressing it did what pressing it is for? Choose "
+    "none_of_these only when none of them is evidence, for instance when the page merely "
+    "repainted."
+)
+NO_CHANGE = "none of these is evidence that it worked"
+CHANGE_STATE = """\
+A voice assistant acted on a web page for a blind user and must not tell them it worked unless
+the page says so.
+
+What it did: {did}
+The control it pressed: {control}
+
+What changed on the page since, nearest that control first:
+{changes}"""
+WENT_TO = "the page went to {title!r}"
+NOW_READS = "the control now reads {name!r}"
+APPEARED = "{name!r} appeared"
+GONE = "{name!r} is gone"
+RENAMED = "what read {was!r} now reads {now!r}"
+
+
+@dataclass(frozen=True)
+class Change:
+    key: str
+    said: str
+
+
+def _names(nodes: list[Node]) -> dict[str, str]:
+    return {node.ref: node.name.strip() for node in nodes if node.ref and node.name.strip()}
+
+
+MIN_CHANGE_CHARS = 4
+HAS_LETTER = re.compile(r"[^\W\d_]", re.UNICODE)
+
+
+def _worth_saying(name: str) -> bool:
+    """A page repaints constantly. A footnote marker, a date or a bare number is churn, not
+    evidence; only text long enough to mean something is offered as a reason to claim success."""
+    return len(name) >= MIN_CHANGE_CHARS and bool(HAS_LETTER.search(name))
+
+
+def changes(
+    before: str, after: str, ref: str, was: str, now: str, went_to: str = ""
+) -> list[Change]:
+    """What the page shows now that it did not before, the pressed control's own text first.
+
+    A navigation replaces every name on the page, so when the address changed the only honest
+    evidence is where it went; the diff would otherwise offer ten lines of a different page.
+    """
+    if went_to:
+        return [Change("c0", WENT_TO.format(title=went_to))]
+    old, new = parse(before), parse(after)
+    old_names, new_names = _names(old), _names(new)
+    anchor = next((i for i, node in enumerate(new) if node.ref == ref), len(new) // 2)
+    said = []
+    if was.strip() and now.strip() and was.strip() != now.strip():
+        said.append(NOW_READS.format(name=now.strip()))
+    if old_names.get(ref) and new_names.get(ref, old_names[ref]) != old_names[ref]:
+        said.append(NOW_READS.format(name=new_names[ref]))
+    said += [
+        RENAMED.format(was=old_names[handle], now=new_names[handle])
+        for handle in old_names
+        if handle != ref
+        and handle in new_names
+        and new_names[handle] != old_names[handle]
+        and _worth_saying(new_names[handle])
+    ]
+    seen = {node.name.strip() for node in old if node.name.strip()}
+    fresh = sorted(
+        (abs(index - anchor), node.name.strip())
+        for index, node in enumerate(new)
+        if node.name.strip() not in seen and _worth_saying(node.name.strip())
+    )
+    said += [APPEARED.format(name=name) for _distance, name in fresh]
+    left = {node.name.strip() for node in new if node.name.strip()}
+    gone = [n for n in seen if n not in left and _worth_saying(n)]
+    said += [GONE.format(name=name) for name in gone]
+    made, kept = [], set()
+    for line in said:
+        if line in kept:
+            continue
+        kept.add(line)
+        made.append(Change(f"c{len(made)}", line))
+        if len(made) == MAX_CHANGES:
+            break
+    return made
+
+
+def change_state(did: str, control: str, found: list[Change]) -> str:
+    from zoya import safety
+
+    lines = "\n".join(f"{change.key}: {change.said}" for change in found)
+    return CHANGE_STATE.format(did=did, control=control, changes=safety.wrap_untrusted(lines))
+
+
+def happened(did: str, control: str, found: list[Change]) -> tuple[str, float]:
+    """The change that shows the action happened, or `("", confidence)` when the page does not
+    show one. Fails closed: no evidence means the caller must not claim success."""
+    from typesafe_sdk import Choice
+
+    from zoya import decisions
+    from zoya.config import JEV_STEP_CONFIDENCE
+
+    if not found:
+        return "", 0.0
+    answers = decisions.ask(
+        change_state(did, control, found),
+        {
+            "change": Choice(
+                instructions=CHANGE_QUESTION,
+                criteria={**{c.key: c.said for c in found}, NONE: NO_CHANGE},
+            )
+        },
+    )
+    pick = answers.pick("change")
+    if pick is None or pick.confidence < JEV_STEP_CONFIDENCE:
+        return "", pick.confidence if pick else 0.0
+    shown = next((c for c in found if c.key == pick.name), None)
+    return (shown.said if shown else ""), pick.confidence

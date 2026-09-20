@@ -129,3 +129,47 @@ def test_a_summary_names_the_action_and_its_subject():
         safety.Action("send", "Post", target='"testing Zoya"').summary()
         == 'I\'m about to post "testing Zoya".'
     )
+
+
+BEFORE = """\
+- link "Cart, 7 items in cart" [ref=e1, url=https://shop.test/cart]
+- button "Add to cart" [ref=e2]
+- StaticText "In stock"
+"""
+AFTER = """\
+- link "Cart, 8 items in cart" [ref=e1, url=https://shop.test/cart]
+- button "Add to cart" [ref=e2]
+- StaticText "In stock"
+- StaticText "Added to Cart"
+- StaticText "9"
+"""
+
+
+def test_a_control_that_now_reads_differently_is_the_evidence():
+    said = [c.said for c in page_items.changes(BEFORE, AFTER, "e2", "Add to cart", "Add to cart")]
+    assert "what read 'Cart, 7 items in cart' now reads 'Cart, 8 items in cart'" in said
+    assert "'Added to Cart' appeared" in said
+
+
+def test_page_churn_is_not_offered_as_evidence():
+    said = [c.said for c in page_items.changes(BEFORE, AFTER, "e2", "Add to cart", "Add to cart")]
+    assert "'9' appeared" not in said
+
+
+def test_a_navigation_is_stated_as_where_it_went_not_as_a_new_page_of_names():
+    found = page_items.changes(BEFORE, AFTER, "e2", "Add to cart", "", went_to="Cart - Shop")
+    assert [c.said for c in found] == ["the page went to 'Cart - Shop'"]
+
+
+def test_an_unchanged_page_offers_nothing_to_claim():
+    assert page_items.changes(BEFORE, BEFORE, "e2", "Add to cart", "Add to cart") == []
+
+
+def test_no_evidence_means_no_claim_of_success():
+    assert page_items.happened("pressed Buy", "Buy", []) == ("", 0.0)
+
+
+def test_changes_reach_jev_wrapped_as_state():
+    found = page_items.changes(BEFORE, AFTER, "e2", "Add to cart", "Add to cart")
+    state = page_items.change_state("pressed Add to cart", "Add to cart", found)
+    assert "<untrusted_content>" in state and state.count("</untrusted_content>") == 1

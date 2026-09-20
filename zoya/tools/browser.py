@@ -572,6 +572,8 @@ SCREEN_RECT_JS = """el => { el.scrollIntoViewIfNeeded(); const r = el.getBoundin
 PAGE_STATE_JS = "() => [location.href, document.title, document.body.innerText.length]"
 UNCHANGED_SAY = "Clicked {what}, but nothing on the page changed."
 UNDONE_SAY = "Clicked {what}. To undo, say {undo}."
+SHOWN_SAY = "Clicked {what} and {shown}. To undo, say {undo}."
+UNSHOWN_SAY = "Clicked {what}, but I can't see anything on the page that says it worked."
 
 
 def _page_state() -> Any:
@@ -583,13 +585,64 @@ def _page_state() -> Any:
         return None
 
 
+def _snapshot_or_blank() -> str:
+    try:
+        return _agent_browser("snapshot", "--compact", "--urls")
+    except ToolError:
+        log.debug("no snapshot for the after-check", exc_info=True)
+        return ""
+
+
 def _reversible_said(what: str, undo: str, before: Any) -> str:
-    """D75 legs 2 and 3: say what the undo is, once the page has actually changed."""
+    """D75 legs 2 and 3 on the Playwright path: say what the undo is, once the page has moved."""
     time.sleep(ACTION_SETTLE_S)
-    after = _page_state()
-    if before is not None and after == before:
+    if before is not None and _page_state() == before:
         return UNCHANGED_SAY.format(what=what)
     return UNDONE_SAY.format(what=what, undo=undo)
+
+
+def ref_page_state() -> tuple[str, str]:
+    """(url, title) from agent-browser, which is the substrate that clicks on the ref path.
+
+    Playwright's page object does not follow a navigation that agent-browser caused: measured on
+    en.wikipedia.org, `page.url` still read the article Zoya had left while `get url` read the one
+    the click reached. D75's leg 2 asked Playwright, so on this path it could never see a
+    navigation at all.
+    """
+    try:
+        answers = _agent_browser_batch([["get", "url"], ["get", "title"]])
+    except ToolError:
+        log.debug("no page state for the after-check", exc_info=True)
+        return "", ""
+    return str(_batch_value(answers[0], "url") or ""), str(_batch_value(answers[1], "title") or "")
+
+
+def _ref_said(what: str, undo: str, was_at: tuple[str, str], seen: str, ref: str, was: str) -> str:
+    """v2 Phase D2 item 3: say what the page shows changed, and refuse to claim it worked when
+    the page shows nothing.
+
+    The snapshot diff answers what changed and Jev picks which change is the one the action was
+    for. An unconfident pick says so out loud rather than reporting a success nobody can see.
+    """
+    time.sleep(ACTION_SETTLE_S)
+    now_at = ref_page_state()
+    now = _snapshot_or_blank()
+    went_to = now_at[1] or now_at[0] if was_at[0] and now_at[0] != was_at[0] else ""
+    if not went_to and (not seen or now == seen):
+        return UNCHANGED_SAY.format(what=what)
+    found = page_items.changes(seen, now, ref, was, _control_name(now, ref), went_to)
+    shown, confidence = page_items.happened(f"pressed {what}", was or what, found)
+    safety.log_safety_timing(
+        event="page_changed", changes=len(found), shown=bool(shown), confidence=round(confidence, 3)
+    )
+    if not shown:
+        return UNSHOWN_SAY.format(what=what)
+    return SHOWN_SAY.format(what=what, shown=shown, undo=undo)
+
+
+def _control_name(snapshot_text: str, ref: str) -> str:
+    node = parse_refs(snapshot_text).get(ref) if ref else None
+    return node.name if node else ""
 
 
 def _click(handle: Any) -> None:
@@ -942,12 +995,15 @@ def click_ref(ref: str, approved_name: str, amount: str = "", item: str = "") ->
     safety.log_safety_timing(event="ref_click", risk=risky.kind if risky else "free")
     if risky is None:
         reversible = safety.reversible_click(target.facts)
-        before = _page_state() if reversible else None
+        if reversible is None:
+            _ring(target)
+            _agent_browser("click", f"@{ref}")
+            return f"Clicked {approved_name}."
+        was_at, seen = ref_page_state(), _snapshot_or_blank()
+        was = _control_name(seen, ref)
         _ring(target)
         _agent_browser("click", f"@{ref}")
-        if reversible is None:
-            return f"Clicked {approved_name}."
-        return _reversible_said(approved_name, reversible.undo, before)
+        return _ref_said(approved_name, reversible.undo, was_at, seen, ref, was)
     subject = _subject_for(risky, target, item, ref)
     action = _verified_action(risky, target, amount, item, subject)
 
