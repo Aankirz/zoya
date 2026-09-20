@@ -10,10 +10,12 @@ Recipes click only through `click_checked` (the same guard) or `confirm_then_cli
 Playwright's sync API must stay on the thread that started it, so one worker thread owns the
 browser and every call is bounded.
 
-APIs (Playwright 1.62, https://playwright.dev/python/docs/api/class-browsertype#browser-type-launch-persistent-context,
+APIs (Playwright 1.62, https://playwright.dev/python/docs/api/class-browsertype#browser-type-connect-over-cdp,
 https://playwright.dev/python/docs/actionability — click waits until the element itself receives
 the pointer event, so an overlay can't take the click; https://playwright.dev/python/docs/locators).
-Launch switches (Playwright's defaults are `chromiumSwitches` in driver/package/lib/coreBundle.js):
+
+Since v2 Phase C (D83) Zoya launches Chrome itself and both Playwright and agent-browser attach
+over CDP, so Zoya owns the launch switches:
 - drop `--use-mock-keychain`: it hides the cookies the owner saved by signing in with normal Chrome
   on the same profile; without it Chrome uses the real macOS keychain (coordinator, verified).
 - drop `--disable-component-update`: it stops Chrome loading the Widevine CDM component, so Spotify
@@ -23,15 +25,26 @@ Launch switches (Playwright's defaults are `chromiumSwitches` in driver/package/
 paused
   at 0:00; with it the video plays (same probe). https://developer.chrome.com/blog/autoplay
 No anti-bot-detection switches.
+
+The ref substrate (`snapshot`, `click_ref`, `fill_ref`) is the browser half of the general
+computer-use loop: a browser window's macOS AX tree is never fed to a model (D84, ax.py refuses
+it), so web pages are read through agent-browser's accessibility snapshot instead. Guard 2 treats
+a ref as a handle, never as evidence: every click re-snapshots, re-checks the ref's role and
+accessible name against what was approved, and rebuilds the risk facts from that fresh line.
 """
 
 from __future__ import annotations
 
+import atexit
 import concurrent.futures
+import json
 import logging
 import os
 import re
+import socket
+import subprocess
 import time
+import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
 from decimal import Decimal
@@ -42,9 +55,18 @@ from strands import tool
 
 from zoya import overlay, safety, screen
 from zoya.config import (
+    AGENT_BROWSER_BIN,
+    AGENT_BROWSER_SESSION,
+    AGENT_BROWSER_TIMEOUT_S,
     BROWSER_ACTION_TIMEOUT_S,
     BROWSER_PROFILE_DIR,
     BROWSER_TEXT_MAX_CHARS,
+    CDP_HOST,
+    CDP_POLL_S,
+    CDP_PROBE_TIMEOUT_S,
+    CDP_READY_TIMEOUT_S,
+    CHROME_BINARY,
+    CHROME_SHUTDOWN_TIMEOUT_S,
     ORDER_LIMIT_ENV,
 )
 from zoya.tools import ToolError
@@ -58,7 +80,8 @@ LABEL_ATTRIBUTES = ("aria-label", "title", "value", "alt", "placeholder")
 # The nearest clickable ancestor-or-self: clicking a <span> inside "Place order" presses the button.
 CLICKABLE = "xpath=ancestor-or-self::*[self::button or self::a or @role='button' or self::input][1]"
 CHROME_APP = "Chrome"
-PROFILE_IN_USE = "Opening in existing browser session"  # Chrome, when the profile is open
+CDP_VERSION_PATH = "/json/version"
+INTERNAL = "chrome://"
 # Submit controls, XPath in Playwright's selector engine (not page JS). A <button> with no type
 # inside a <form> submits it (HTML spec default).
 _LOWER = "translate(@type, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')"
@@ -70,7 +93,6 @@ SUBMIT_CONTROL = (
 # The target's form, else its third ancestor: where a price "near the target" would be.
 NEARBY = "xpath=(ancestor::form | ancestor::*[3])[last()]"
 NEARBY_MAX_CHARS = 2000
-IGNORED_DEFAULT_ARGS = ["--use-mock-keychain", "--disable-component-update"]
 EXTRA_ARGS = ["--autoplay-policy=no-user-gesture-required"]
 SCREENSHOT_QUALITY = 60
 SIGN_IN_PATH = re.compile(r"/(?:ap/signin|signin|login|log-in|accounts|servicelogin)\b", re.I)
@@ -112,26 +134,96 @@ def _driver() -> Any:
     return _state["playwright"]
 
 
+def _free_port() -> int:
+    with socket.socket() as probe:
+        probe.bind((CDP_HOST, 0))
+        return int(probe.getsockname()[1])
+
+
+def _chrome_argv(port: int) -> list[str]:
+    return [
+        str(CHROME_BINARY),
+        f"--user-data-dir={BROWSER_PROFILE_DIR}",
+        f"--remote-debugging-port={port}",
+        "--no-first-run",
+        "--no-default-browser-check",
+        *EXTRA_ARGS,
+    ]
+
+
+def _cdp_ready(process: subprocess.Popen[bytes], port: int) -> None:
+    endpoint = f"http://{CDP_HOST}:{port}{CDP_VERSION_PATH}"
+    deadline = time.monotonic() + CDP_READY_TIMEOUT_S
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            raise ToolError("Zoya's browser is already in use. Is another Zoya running?")
+        try:
+            with urllib.request.urlopen(endpoint, timeout=CDP_PROBE_TIMEOUT_S):
+                return
+        except OSError:
+            time.sleep(CDP_POLL_S)
+    raise ToolError("Zoya's browser didn't start in time.")
+
+
+def _chrome() -> int:
+    """Zoya's own Chrome on the dedicated profile (D11, D83). Returns its CDP port."""
+    running = _state.get("chrome")
+    if running is not None and running.poll() is None:
+        return int(_state["cdp_port"])
+    if not CHROME_BINARY.exists():
+        raise ToolError("Google Chrome isn't installed, so I can't open a page.")
+    if "chrome" not in _state:
+        atexit.register(close)
+    port = _free_port()
+    process = subprocess.Popen(  # noqa: S603 — fixed binary, no shell
+        _chrome_argv(port), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    )
+    _state["chrome"], _state["cdp_port"] = process, port
+    _cdp_ready(process, port)
+    log.info("Chrome pid %d on CDP port %d", process.pid, port)
+    return port
+
+
+def close() -> None:
+    """Shutdown: Chrome is Zoya's child process now, so end it by PID (never by name pattern)."""
+    process = _state.pop("chrome", None)
+    for key in ("cdp_port", "page", "browser"):
+        _state.pop(key, None)
+    if process is None or process.poll() is not None:
+        return
+    process.terminate()
+    try:
+        process.wait(timeout=CHROME_SHUTDOWN_TIMEOUT_S)
+    except subprocess.TimeoutExpired:
+        process.kill()
+
+
+def _attach(port: int) -> Any:
+    browser = _state.get("browser")
+    if browser is not None and browser.is_connected():
+        return browser
+    browser = _driver().chromium.connect_over_cdp(f"http://{CDP_HOST}:{port}")
+    _state["browser"] = browser
+    return browser
+
+
 def _page() -> Any:
-    """The dedicated Zoya Chrome profile (D11), launched on first use, on the browser thread."""
+    """Playwright attached over CDP to the Chrome Zoya launched, on the browser thread.
+
+    Every site skill keeps working unchanged: this is the same persistent context, reached by
+    attaching instead of launching. The chosen tab is brought to the front so agent-browser's
+    unpinned session adopts the same tab.
+    """
     page = _state.get("page")
     if page is not None and not page.is_closed():
         return page
-    try:
-        context = _driver().chromium.launch_persistent_context(
-            user_data_dir=str(BROWSER_PROFILE_DIR),
-            channel="chrome",
-            headless=False,
-            ignore_default_args=IGNORED_DEFAULT_ARGS,
-            args=EXTRA_ARGS,
-        )
-    except Exception as error:  # noqa: BLE001 — Playwright raises its own Error type
-        if PROFILE_IN_USE in str(error):
-            raise ToolError("Zoya's browser is already in use. Is another Zoya running?") from error
-        raise
+    context = _attach(_chrome()).contexts[0]
     context.set_default_timeout(PLAYWRIGHT_TIMEOUT_MS)
-    _state["page"] = context.pages[0] if context.pages else context.new_page()
-    return _state["page"]
+    usable = [open_page for open_page in context.pages if not open_page.url.startswith(INTERNAL)]
+    page = usable[0] if usable else (context.pages[0] if context.pages else context.new_page())
+    page.bring_to_front()
+    _state["page"] = page
+    return page
 
 
 def on_page[T](work: Callable[[Any], T]) -> T:
@@ -481,6 +573,281 @@ def browser_type(field: str, text: str) -> str:
     """
     on_page(lambda page: fill_checked(_locate(page, field), text, field))
     return f"Typed into {field}."
+
+
+# --- The ref substrate: agent-browser snapshot / click @ref / fill @ref (D83) -------------------
+
+
+SNAPSHOT_LINE = re.compile(
+    r"^\s*-\s+(?P<role>[A-Za-z][\w-]*)"
+    r'(?:\s+"(?P<name>(?:[^"\\]|\\.)*)")?'
+    r"\s+\[(?P<attrs>[^\]]*)\]"
+    r"(?P<tail>.*)$"
+)
+REF_ATTR = re.compile(r"(?:^|,\s*)ref=(e\d+)\b")
+REF_NEARBY_LINES = 12
+AGENT_BROWSER_ERROR_CHARS = 300
+STALE_REF_SAY = "That control isn't on the page any more, so I didn't click it."
+SECRET_FIELD_SAY = "That's a password or code field. Please type it yourself; I'll wait."
+# The focused element's own facts, mirroring the Playwright probe: its submit-ness, its name
+# attribute (KNOWN_SAFE_CLICKS), the text of its form or third ancestor (NEARBY), and its box in
+# global screen points (SCREEN_RECT_JS) for the stage ring.
+FOCUS_FACTS_JS = """(() => {
+  const e = document.activeElement;
+  if (!e || e === document.body || e === document.documentElement) return JSON.stringify({});
+  const near = e.closest('form') || e.parentElement?.parentElement?.parentElement || document.body;
+  const r = e.getBoundingClientRect();
+  return JSON.stringify({
+    tag: e.tagName,
+    type: e.getAttribute('type') || '',
+    autocomplete: e.getAttribute('autocomplete') || '',
+    name: e.getAttribute('name') || '',
+    id: e.id || '',
+    submit: !!(e.form && (e.type === 'submit' || e.type === 'image'
+      || (e.tagName === 'BUTTON' && !e.getAttribute('type')))),
+    near: (near.innerText || '').slice(0, NEARBY_LIMIT),
+    rect: [screenX + r.left, screenY + (outerHeight - innerHeight) + r.top, r.width, r.height]
+  });
+})()""".replace("NEARBY_LIMIT", str(NEARBY_MAX_CHARS))
+
+
+@dataclass(frozen=True)
+class Ref:
+    """One `[ref=eN]` line of an agent-browser snapshot."""
+
+    ref: str
+    role: str
+    name: str
+    value: str
+    clickable: bool
+    line: str
+
+    def identity(self) -> str:
+        return f'{self.role} "{self.name}"' if self.name else self.role
+
+
+def parse_ref_line(line: str) -> Ref | None:
+    """A snapshot line as role, accessible name, value and ref; None when it carries no ref."""
+    match = SNAPSHOT_LINE.match(line)
+    if match is None:
+        return None
+    ref = REF_ATTR.search(match.group("attrs"))
+    if ref is None:
+        return None
+    raw = match.group("name") or ""
+    tail = match.group("tail").strip()
+    return Ref(
+        ref=ref.group(1),
+        role=match.group("role"),
+        name=raw.replace('\\"', '"').replace("\\\\", "\\"),
+        value=tail[1:].strip() if tail.startswith(":") else "",
+        clickable=tail.startswith("clickable"),
+        line=line.strip(),
+    )
+
+
+def parse_refs(snapshot_text: str) -> dict[str, Ref]:
+    """Every ref in a snapshot, first occurrence wins."""
+    found: dict[str, Ref] = {}
+    for line in snapshot_text.splitlines():
+        node = parse_ref_line(line)
+        if node is not None:
+            found.setdefault(node.ref, node)
+    return found
+
+
+def _run_agent_browser(*command: str, stdin: str = "") -> subprocess.CompletedProcess[str]:
+    """One bounded agent-browser subprocess against Zoya's Chrome (`--cdp <port>`, README
+    "CDP Mode")."""
+    port = _on_browser(_chrome)
+    argv = [AGENT_BROWSER_BIN, "--session", AGENT_BROWSER_SESSION, "--cdp", str(port), *command]
+    try:
+        return subprocess.run(  # noqa: S603 — fixed binary, no shell
+            argv,
+            input=stdin,
+            capture_output=True,
+            text=True,
+            timeout=AGENT_BROWSER_TIMEOUT_S,
+            check=False,
+        )
+    except FileNotFoundError as error:
+        raise ToolError("Zoya's browser helper isn't installed.") from error
+    except subprocess.TimeoutExpired as error:
+        raise ToolError("The browser took too long to respond.") from error
+
+
+def _agent_browser(*command: str, stdin: str = "") -> str:
+    """As above, but a failed command is a spoken error. Returns stdout."""
+    done = _run_agent_browser(*command, stdin=stdin)
+    if done.returncode != 0:
+        log.warning(
+            "agent-browser %s failed: %s",
+            command[0] if command else "",
+            done.stderr.strip()[:AGENT_BROWSER_ERROR_CHARS],
+        )
+        raise ToolError("The browser couldn't do that.")
+    return done.stdout
+
+
+def _agent_browser_batch(commands: list[list[str]]) -> list[dict[str, Any]]:
+    """Several agent-browser commands in one spawn (stdin JSON mode), as a list of results.
+
+    A batch exits non-zero when any one command failed, and Guard 2's read deliberately runs a
+    command that fails on a ref the page no longer knows, so the per-command `success` flags are
+    the answer here and the exit code is not.
+    """
+    done = _run_agent_browser("batch", "--json", stdin=json.dumps(commands))
+    try:
+        return list(json.loads(done.stdout))
+    except (ValueError, TypeError) as error:
+        log.warning("agent-browser batch: %s", done.stderr.strip()[:AGENT_BROWSER_ERROR_CHARS])
+        raise ToolError("The browser gave an answer I couldn't read.") from error
+
+
+def _batch_value(answer: dict[str, Any], key: str) -> Any:
+    return (answer.get("result") or {}).get(key) if answer.get("success") else None
+
+
+def snapshot() -> str:
+    """The page's interactive controls with `[ref=eN]` handles — the state the step loop feeds Jev.
+
+    Interactive only: a browser window's macOS AX tree is never serialised for a model (D84), and
+    the full snapshot's static text would cost what that tree costs.
+    """
+    return _agent_browser("snapshot", "-i")
+
+
+def _nearby_text(lines: list[str], index: int) -> str:
+    window = lines[max(0, index - REF_NEARBY_LINES) : index + REF_NEARBY_LINES + 1]
+    return " ".join(line.strip() for line in window)[:NEARBY_MAX_CHARS]
+
+
+def _focused_facts(answers: list[dict[str, Any]], ref: str) -> dict[str, Any]:
+    """The focused element's own facts, only when the focus really landed on this ref."""
+    if _batch_value(answers[3], "focused") != f"@{ref}":
+        log.warning("ref %s could not be focused: reading its facts from the snapshot only", ref)
+        return {}
+    raw = _batch_value(answers[4], "result")
+    try:
+        return dict(json.loads(raw)) if raw else {}
+    except (ValueError, TypeError):
+        return {}
+
+
+def _ref_probe(ref: str, approved: str) -> Target:
+    """Guard 2 on a ref: re-read the page, refuse a ref that is gone or no longer the control that
+    was approved, and rebuild the risk facts from that fresh line. A ref is a handle, not
+    evidence."""
+    answers = _agent_browser_batch(
+        [
+            ["get", "url"],
+            ["get", "title"],
+            ["snapshot"],
+            ["focus", f"@{ref}"],
+            ["eval", FOCUS_FACTS_JS],
+        ]
+    )
+    url = _batch_value(answers[0], "url") or ""
+    lines = (_batch_value(answers[2], "snapshot") or "").splitlines()
+    index, node = _find_ref(lines, ref)
+    if node is None:
+        raise ToolError(STALE_REF_SAY)
+    if not _same_control(node, approved):
+        log.warning("ref %s reads as %s now, approved %s", ref, node.identity(), approved)
+        raise ToolError(
+            f"That control reads as {node.identity()} now, not {approved}, so I didn't click it."
+        )
+    focused = _focused_facts(answers, ref)
+    address = urlparse(url)
+    facts = safety.ClickFacts(
+        labels=[label for label in (node.name, node.value) if label],
+        is_submit=bool(focused.get("submit")),
+        path=address.path,
+        nearby_text=focused.get("near") or _nearby_text(lines, index),
+        host=address.netloc,
+        control_name=str(focused.get("name") or ""),
+    )
+    title = _batch_value(answers[1], "title") or ""
+    return Target(focused.get("rect"), facts, title, address.netloc)
+
+
+def _find_ref(lines: list[str], ref: str) -> tuple[int, Ref | None]:
+    for index, line in enumerate(lines):
+        node = parse_ref_line(line)
+        if node is not None and node.ref == ref:
+            return index, node
+    return -1, None
+
+
+def _same_control(node: Ref, approved: str) -> bool:
+    """The approved string is the snapshot's own identity (`button "Add to cart"`); a bare
+    accessible name is accepted too, so a caller that only kept the name still gets the check."""
+    wanted = safety.normalise(approved)
+    return bool(wanted) and wanted in {
+        safety.normalise(node.identity()),
+        safety.normalise(node.name),
+    }
+
+
+def _ring(target: Target) -> None:
+    if not overlay.running() or not target.handle:
+        return
+    try:
+        overlay.show_ring(*target.handle)
+    except Exception:  # noqa: BLE001 — the ring is decoration; the click must still happen
+        log.debug("ring position unavailable", exc_info=True)
+
+
+def click_ref(ref: str, approved_name: str, amount: str = "", item: str = "") -> str:
+    """Click `@ref` after Guard 2 re-verifies it, asking the user out loud when the click is risky.
+
+    Args:
+        ref: the snapshot ref, e.g. "e898".
+        approved_name: the snapshot identity that was approved, e.g. 'button "Add to cart"'.
+        amount: for purchases, the order total exactly as the page shows it.
+        item: for purchases, messages or deletions: the item, recipient or file as shown.
+    """
+    target = _ref_probe(ref, approved_name)
+    risky = safety.click_risk(target.facts)
+    safety.log_safety_timing(event="ref_click", risk=risky.kind if risky else "free")
+    if risky is None:
+        _ring(target)
+        _agent_browser("click", f"@{ref}")
+        return f"Clicked {approved_name}."
+    action = _verified_action(risky, target, amount, item)
+
+    def live() -> safety.Action:
+        again = _ref_probe(ref, approved_name)
+        now = safety.click_risk(again.facts)
+        if now != risky:
+            return safety.Action("changed", "changed")
+        return _verified_action(now, again, amount, item)
+
+    safety.require_confirmation(action, current=live)
+    safety.log_safety_timing(event="ref_click_confirmed", risk=risky.kind)
+    _ring(target)
+    _agent_browser("click", f"@{ref}")
+    return f"Clicked {risky.say}. The user confirmed it out loud."
+
+
+def fill_ref(ref: str, text: str, field_name: str) -> str:
+    """Type into `@ref`, refusing password, OTP and card fields (§12.1).
+
+    Args:
+        ref: the snapshot ref, e.g. "e430".
+        text: what to type.
+        field_name: the field's accessible name, for the refusal check and the spoken answer.
+    """
+    answers = _agent_browser_batch([["focus", f"@{ref}"], ["eval", FOCUS_FACTS_JS]])
+    focused = _focused_facts([{}, {}, {}, answers[0], answers[1]], ref)
+    if not focused:
+        raise ToolError(STALE_REF_SAY)
+    named = f"{field_name} {focused.get('name', '')} {focused.get('id', '')}"
+    kind, autocomplete = str(focused.get("type", "")), str(focused.get("autocomplete", ""))
+    if safety.is_secret_field(kind, autocomplete, named):
+        raise ToolError(SECRET_FIELD_SAY)
+    _agent_browser("fill", f"@{ref}", text)
+    return f"Typed into {field_name}."
 
 
 TOOLS = [browser_open, browser_read, browser_screenshot, browser_click, browser_type]

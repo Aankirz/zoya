@@ -322,3 +322,38 @@ SPECULATION_WAIT_S = 0.25
 # utterance could start 50 preparations; a command worth speculating on is settled long before
 # the eighth.
 SPECULATION_MAX_PER_UTTERANCE = 8
+
+# --- Phase C (v2): the Jev step loop (D81, D82) -------------------------------------------------
+
+# One batched Jev call per step against one state. The control pick uses the same 0.70 measured
+# in Phase B for routing: below it the loop escalates to the language model instead of acting on
+# a guess. The noul thresholds are the same number on the same measured separation.
+JEV_STEP_CONFIDENCE = 0.70
+JEV_STEP_NOUL = 0.70
+# A goal that has not finished in this many Jev steps is not going to; the loop stops honestly
+# rather than pressing its way around an app forever.
+COMPUTER_MAX_JEV_STEPS = 12
+# Failure triage (D81) decides what to do next; MAX_FAILED_ATTEMPTS stays as the outer bound so
+# no triage verdict can loop forever. A transient failure is retried at most this many times.
+COMPUTER_TRANSIENT_RETRIES = 2
+
+# --- Phase C (v2): Chrome over CDP, agent-browser refs (D83, D84) ------------------------------
+
+# D83: Zoya launches Chrome itself so it owns the switches, then agent-browser and Playwright both
+# attach over CDP. agent-browser's own launch hard-codes --disable-component-update (Widevine dies)
+# and --use-mock-keychain (the owner's saved cookies stay hidden), and `--args` only appends, so the
+# browser cannot be agent-browser's to launch (Phase A §3.1). Chrome 136+ also refuses
+# --remote-debugging-port on the default profile dir, so BROWSER_PROFILE_DIR stays dedicated.
+# https://developer.chrome.com/blog/remote-debugging-port
+CHROME_BINARY = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
+CDP_HOST = "127.0.0.1"
+CDP_READY_TIMEOUT_S = 20.0  # bound on waiting for /json/version after launching Chrome
+CDP_POLL_S = 0.1
+CDP_PROBE_TIMEOUT_S = 1.0  # per /json/version probe
+CHROME_SHUTDOWN_TIMEOUT_S = 5.0  # SIGTERM to Zoya's Chrome child, then SIGKILL
+
+# agent-browser 0.38.1. `--cdp <port|url>` and `--session <name>` are global flags that come before
+# the command: `agent-browser --session zoya --cdp 9222 snapshot -i` (README "CDP Mode").
+AGENT_BROWSER_BIN = "agent-browser"
+AGENT_BROWSER_SESSION = "zoya"
+AGENT_BROWSER_TIMEOUT_S = 20.0  # bound on one agent-browser subprocess

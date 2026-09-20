@@ -44,6 +44,7 @@ from strands.tools.executors import SequentialToolExecutor
 from strands.types.exceptions import EventLoopException
 
 from zoya import safety, screen, tasks
+from zoya.agents import step_loop
 from zoya.config import (
     COMPUTER_FLOW_TTL_S,
     COMPUTER_FLOWS_FILE,
@@ -296,9 +297,41 @@ def run_computer_task(
         except FlowMismatch as mismatch:
             computer.log_stage("computer_flow_mismatch", reason=str(mismatch)[:80])
             computer.begin_session()
+        finished = _run_step_loop(goal, key, _cancel, started)
+        if finished is not None:
+            return finished
         return _run_agent(goal, key, cost_cap_usd, parent, started)
     finally:
         computer.gui_lock.release()
+
+
+def _run_step_loop(goal: str, key: str, cancel: Any, started: float) -> str | None:
+    """The Jev loop first: no language model at all when Jev can finish the goal alone (D82).
+
+    None means it could not finish and the language-model agent takes over on the same screen.
+    """
+    outcome = step_loop.run(goal, [], cancel)
+    computer.log_stage(
+        "computer_step_loop",
+        outcome="done" if outcome.done else "escalated",
+        reason=outcome.reason[:80],
+        steps=outcome.steps,
+        jev_calls=outcome.jev_calls,
+        jev_ms=outcome.jev_ms,
+        model_calls=0,
+        computer_ms=round((time.monotonic() - started) * MS_PER_S),
+    )
+    if not outcome.done:
+        return None
+    if outcome.recorded and not computer.session.asked:
+        save_flow(key, outcome.recorded)
+    return _spoken(outcome.pressed)
+
+
+def _spoken(pressed: list[str]) -> str:
+    if not pressed:
+        return "That was already done."
+    return f"Done — I pressed {safety.spoken_name([pressed[-1]]) or pressed[-1]}."
 
 
 def _run_agent(goal: str, key: str, cost_cap_usd: float, parent: Any, started: float) -> str:

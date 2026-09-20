@@ -645,3 +645,16 @@ def test_attack5_run_shortcut_says_a_shortcut_named(mac, monkeypatch):
     summary = mac["gate"].asked[0]
     assert "a shortcut named evil name" in summary.lower() and "\u200b" not in summary
     assert len(summary) < 100
+
+
+def test_replay_asks_jev_nothing_and_calls_no_model(flows, monkeypatch):
+    """Done-when #8: a recorded flow is the zero-call path, so neither may be reachable."""
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("a replayed flow must cost no Jev call and no model call")
+
+    flows["facts"]["now"] = safety.ClickFacts(labels=["Continue"])
+    monkeypatch.setattr(computer_agent.step_loop.decisions, "ask", forbidden)
+    monkeypatch.setattr(computer_agent, "build_computer_agent", forbidden)
+
+    assert computer_agent.replay_flow("finder|go on", Never()) is True
