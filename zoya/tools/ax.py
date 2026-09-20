@@ -26,6 +26,8 @@ from strands import tool
 from zoya import safety
 from zoya.config import (
     AX_CHARS_PER_TOKEN,
+    AX_INNER_LABEL_MAX,
+    AX_INNER_LABEL_NODES,
     AX_MAX_ANCESTORS,
     AX_MESSAGING_TIMEOUT_S,
     AX_NEARBY_MAX_CHARS,
@@ -43,6 +45,7 @@ TEXT_ROLES = {"AXTextField", "AXTextArea", "AXComboBox", "AXSearchField"}
 PRESSABLE_ROLES = AX_CLICKABLE_ROLES | {"AXPopUpButton", "AXMenuButton", "AXTab", "AXCell"}
 LISTED_ROLES = PRESSABLE_ROLES | TEXT_ROLES | {"AXStaticText", "AXHeading", "AXSlider"}
 NAME_ATTRIBUTES = ("AXTitle", "AXDescription", "AXValue", "AXPlaceholderValue", "AXHelp")
+TEXT_LABEL_ROLES = {"AXStaticText", "AXHeading"}
 DIALOG_SUBROLES = {"AXDialog", "AXSystemDialog", "AXFloatingWindow"}
 MAX_ANCESTORS_FOR_URL = 40
 ROOT_ROLES = {"AXWindow", "AXSheet", "AXApplication", "AXSystemWide"}
@@ -124,6 +127,25 @@ def name_of(element: Any) -> str:
     return names[0] if names else ""
 
 
+def inner_label(element: Any) -> str:
+    """The text a row, cell or tab draws inside itself, when it publishes no name of its own.
+
+    A System Settings sidebar row is an unnamed AXCell whose label is a descendant AXStaticText;
+    39 of them read as "" and never reach the step loop's candidate list, which is why the loop
+    could press a control but never enter a section to find one.
+    """
+    texts: list[str] = []
+    queue = list(_ax(element, "AXChildren") or [])
+    for _ in range(AX_INNER_LABEL_NODES):
+        if not queue or len(texts) >= AX_INNER_LABEL_MAX:
+            break
+        node = queue.pop(0)
+        if str(_ax(node, "AXRole") or "") in TEXT_LABEL_ROLES and (text := name_of(node)):
+            texts.append(text)
+        queue += list(_ax(node, "AXChildren") or [])
+    return ", ".join(texts)
+
+
 def frame_of(element: Any) -> tuple[float, float, float, float] | None:
     import ApplicationServices as AS
 
@@ -151,6 +173,8 @@ def _clickable(element: Any) -> tuple[Any, list[str], bool]:
         labels += texts_of(current, AX_LABEL_ATTRIBUTES)
         role = _ax(current, "AXRole")
         if role in PRESSABLE_ROLES:
+            if not labels and (inner := inner_label(current)):
+                labels.append(inner)
             return current, labels, True
         parent = _ax(current, "AXParent")
         if parent is None or role in ROOT_ROLES:
@@ -309,7 +333,7 @@ def _walk_once(app: Any) -> tuple[list[tuple[str, str, Any]], bool]:
         role = str(_ax(element, "AXRole") or "")
         if role == "AXWebArea" and is_web_page(str(_ax(element, "AXURL") or "")):
             return found, True
-        name = name_of(element)
+        name = name_of(element) or (inner_label(element) if role in PRESSABLE_ROLES else "")
         if role in LISTED_ROLES and (name or role in TEXT_ROLES):
             affordable = spend(spent, role, name, control_state(element))
             if affordable is None:

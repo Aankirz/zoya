@@ -74,6 +74,7 @@ NO_CONTROLS = "that app doesn't publish any controls to press."
 JEV_DOWN = "jev unavailable"
 PRESSED = "pressed "
 BUSY_SCREEN = "the screen stayed busy with another task."
+CIRCLING = "I went round in a circle in this app without getting anywhere."
 
 
 @dataclass
@@ -211,6 +212,16 @@ def chosen(candidates: list[Candidate], pick_name: str) -> Candidate | None:
     return next((c for c in candidates if c.key == pick_name), None)
 
 
+def screen_signature(app: str, candidates: list[Candidate]) -> str:
+    """What the loop has already acted from: the app plus the controls it was offered.
+
+    Navigating means the screen changes, so arriving at a signature already acted on means the
+    last press led back where the loop started. Control state is part of a label, so a toggle
+    that took effect reads as a new screen rather than a circle.
+    """
+    return app + "\n" + "\n".join(sorted(c.identity or c.label for c in candidates))
+
+
 def triage(answers: decisions.Answers) -> str:
     """The failure kind Jev named, or dead_end when it could not name one (fail closed)."""
     pick = answers.pick("failure")
@@ -224,6 +235,7 @@ class _Progress:
     last: str = ""
     pressed_identity: str = ""
     wrong: set[str] = field(default_factory=set)
+    seen: set[str] = field(default_factory=set)
     transient: int = 0
     relook: bool = False
 
@@ -250,6 +262,11 @@ def run(goal: str, plan: list[str], cancel: Any) -> Outcome:
             return _stop(outcome, STALLED)
         if progress.relook:
             continue
+        signature = screen_signature(app, offered)
+        if progress.transient == 0:
+            if signature in progress.seen:
+                return _stop(outcome, CIRCLING)
+            progress.seen.add(signature)
         stopped = _act(answers, offered, progress, outcome)
         if stopped:
             return _stop(outcome, stopped)

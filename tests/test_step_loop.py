@@ -108,6 +108,15 @@ def test_transient_retries_are_bounded(screen):
     assert outcome.jev_calls <= COMPUTER_MAX_JEV_STEPS
 
 
+def test_coming_back_to_a_screen_already_acted_from_gives_up(screen):
+    screen["replies"] = [answers(control="c0")] * COMPUTER_MAX_JEV_STEPS
+    outcome = run()
+    assert outcome.escalate and not outcome.done
+    assert outcome.reason == step_loop.CIRCLING
+    assert screen["pressed"] == ["Appearance"]
+    assert outcome.jev_calls < COMPUTER_MAX_JEV_STEPS
+
+
 def test_low_confidence_pick_is_not_acted_on(screen):
     screen["replies"] = [answers(confidence=0.5)]
     outcome = run()
