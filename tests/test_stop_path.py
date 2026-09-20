@@ -102,3 +102,71 @@ def test_unknown_app_falls_back_to_the_brain_instead_of_failing(monkeypatch):
 
     assert orchestrator._execute(decision, timings) == ("brain: open YouTube MrBeast", True)
     assert orchestrator.OPEN_APP_FALLBACK in timings
+
+
+# --- Phase B: Jev widens "stop", and can never narrow it (D81) ---------------------------------
+
+
+STOP_PHRASES = ("Zoya stop", "Zoya, stop it now", "Zoya ruk jao", "Zoya bas", "Zoya cancel that")
+
+
+def test_the_regex_catches_stop_with_no_model_and_no_network(monkeypatch):
+    from zoya import voice
+
+    def unreachable(*_args, **_kwargs):
+        raise AssertionError("the offline stop path asked the network")
+
+    monkeypatch.setattr(voice.decisions, "ask", unreachable)
+    assert all(voice.is_stop(phrase) for phrase in STOP_PHRASES)
+    assert all(voice.is_stop_command(phrase) for phrase in STOP_PHRASES)
+
+
+def test_jev_is_never_asked_about_a_stop_the_regex_already_caught(monkeypatch):
+    from zoya import voice
+
+    asked = []
+    monkeypatch.setattr(voice.VoiceLoop, "_spot", lambda self, samples: "Zoya stop")
+    monkeypatch.setattr(voice.VoiceLoop, "_stop", lambda self, *args, **kwargs: None)
+    monkeypatch.setattr(voice.VoiceLoop, "_ask_jev_stop", lambda self, *args: asked.append(args))
+    loop = voice.VoiceLoop.__new__(voice.VoiceLoop)
+    loop.last_voice_at = 0.0
+    loop.recent = [__import__("numpy").zeros(512, dtype="float32")] * 40
+    loop.last_stop_check = -100.0
+    loop.last_stop_at = -100.0
+    monkeypatch.setattr(voice.VoiceLoop, "_zoya_busy", lambda self: True)
+    monkeypatch.setattr(voice.tasks, "running", lambda: [])
+    voice.VoiceLoop._check_stop(loop, 0.1)
+    assert asked == []
+
+
+def test_a_jev_stop_only_fires_while_there_is_something_to_stop(monkeypatch):
+    from zoya import voice
+
+    stopped = []
+    monkeypatch.setattr(
+        voice.VoiceLoop, "_stop", lambda self, *args, **kwargs: stopped.append((args, kwargs))
+    )
+
+    loop = voice.VoiceLoop.__new__(voice.VoiceLoop)
+    loop.jev_stop = (1.0, "Zoya that's enough")
+    monkeypatch.setattr(voice.VoiceLoop, "_zoya_busy", lambda self: False)
+    voice.VoiceLoop._take_jev_stop(loop)
+    assert stopped == []
+
+    loop.jev_stop = (1.0, "Zoya that's enough")
+    monkeypatch.setattr(voice.VoiceLoop, "_zoya_busy", lambda self: True)
+    voice.VoiceLoop._take_jev_stop(loop)
+    assert stopped == [((1.0, "Zoya that's enough"), {"partial": True})]
+
+
+def test_an_unreachable_jev_never_raises_into_the_voice_loop(monkeypatch):
+    from zoya import voice
+
+    monkeypatch.setattr(
+        voice.decisions, "ask", lambda *a, **k: voice.decisions.unavailable("offline")
+    )
+    loop = voice.VoiceLoop.__new__(voice.VoiceLoop)
+    loop.jev_stop, loop.jev_stop_asked = None, False
+    voice.VoiceLoop._jev_stop_answer(loop, "Zoya that's enough", 1.0)
+    assert loop.jev_stop is None
+    assert loop.jev_stop_asked is False

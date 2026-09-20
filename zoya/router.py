@@ -1,10 +1,15 @@
 """Intent router (§13.5.3): Translate (Devanagari only) → rule matcher → skill trigger index →
-learned picks → ROUTER_MODEL.
+learned picks → Jev → ROUTER_MODEL.
 
 D44: ROUTER_MODEL takes ~2 s per call, so the ≤ 1 s fast path depends on the rule
 matcher catching every common command with no model call. The model only sees
 commands the rules miss, and its answer is a structured RouteChoice, which may pick a skill
 (Phase 4 harness, zoya/harness.py).
+
+Phase B puts Jev in front of that model (D81). One batched Choice over every
+zero-argument destination answers a rule miss in ~625 ms p50 instead of ~2 s, and
+ROUTER_MODEL stays as the fallback for two cases it still owns: a destination Jev
+is not confident about, and a command naming a target Jev cannot extract.
 """
 
 from __future__ import annotations
@@ -17,8 +22,10 @@ from functools import cache
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
+from typesafe_sdk import Choice
 
-from zoya import aws, harness
+from zoya import aws, decisions, harness
+from zoya.config import JEV_ROUTE_CONFIDENCE, JEV_TIMEOUT_S
 from zoya.events import Route
 from zoya.prompts import ROUTER_PROMPT, ROUTER_SKILLS
 from zoya.tools.fast import WEB_APPS
@@ -50,7 +57,7 @@ class RouteDecision:
     route: Route
     tool: str | None = None
     args: dict[str, Any] = field(default_factory=dict)
-    source: Literal["rules", "model", "fallback", "trigger", "learned"] = "rules"
+    source: Literal["rules", "model", "fallback", "trigger", "learned", "jev"] = "rules"
     text: str = ""
     timings_ms: dict[str, int] = field(default_factory=dict)
     skill: str = ""  # route "skill": the skill; `tool` is its action when one was picked
@@ -261,6 +268,83 @@ def match_rules(text: str) -> RouteDecision | None:
     return None
 
 
+# --- Jev ------------------------------------------------------------------------
+#
+# Every destination a rule miss can reach with no arguments to extract, plus two catch-alls.
+# "needs_target" and "brain" are the "none of these" options Phase A found a Choice must have:
+# without one, Jev always picks something and confidence is the only signal it was wrong.
+
+JEV_DESTINATIONS: dict[str, str] = {
+    "stop": "stop, cancel or abandon whatever the assistant is currently doing",
+    "get_time": "say what the current time is",
+    "volume_up": "make the Mac louder",
+    "volume_down": "make the Mac quieter",
+    "mute": "silence the Mac completely",
+    "describe_screen": "describe what is currently on the screen",
+    "media_play": "start or resume music playback that is already queued",
+    "media_pause": "pause music playback",
+    "media_next": "skip to the next track",
+    "media_previous": "go back to the previous track",
+    "needs_target": (
+        "a simple action that names a specific thing the assistant must pick out of the "
+        "sentence: open a named app or website, write or search a note, set the volume to a "
+        "specific number, or play a named song or artist"
+    ),
+    "brain": (
+        "anything else: a question to answer, research, shopping, several steps, or acting "
+        "on a web page"
+    ),
+}
+JEV_MEDIA_ACTIONS = {
+    "media_play": "play",
+    "media_pause": "pause",
+    "media_next": "next",
+    "media_previous": "previous",
+}
+JEV_ROUTE_QUESTION = "What is the speaker asking the assistant to do?"
+JEV_ROUTE_STATE = "The user said to their voice assistant: {text!r}"
+DEFAULT_MEDIA_APP = "spotify"
+
+
+def jev_route_questions() -> dict[str, Choice]:
+    return {
+        "destination": Choice(instructions=JEV_ROUTE_QUESTION, criteria=JEV_DESTINATIONS),
+    }
+
+
+def jev_decision(destination: str) -> RouteDecision | None:
+    """None means ROUTER_MODEL still owns this one: it has to extract the target."""
+    if destination in ("needs_target", "brain"):
+        return RouteDecision("orchestrator", source="jev") if destination == "brain" else None
+    if destination == "stop":
+        return RouteDecision("stop", source="jev")
+    if action := JEV_MEDIA_ACTIONS.get(destination):
+        args = {"action": action, "app": DEFAULT_MEDIA_APP}
+        return RouteDecision("fast", "media_control", args, source="jev")
+    return RouteDecision("fast", destination, source="jev")
+
+
+def ask_jev_route(text: str) -> RouteDecision | None:
+    """One batched Jev Choice over every zero-argument destination. None → ask ROUTER_MODEL.
+
+    One attempt, no retry: ROUTER_MODEL is waiting right behind this call, so backing off costs
+    the user more than falling through does.
+    """
+    answers = decisions.ask(
+        JEV_ROUTE_STATE.format(text=text), jev_route_questions(), deadline_s=JEV_TIMEOUT_S
+    )
+    if not answers:
+        log.info("jev route unavailable (%s) — falling back to the router model", answers.reason)
+        return None
+    pick = answers.pick("destination")
+    if pick is None:
+        return None
+    if pick.confidence < JEV_ROUTE_CONFIDENCE:
+        log.info("jev route %s at %.2f is below threshold", pick.name, pick.confidence)
+        return None
+    return jev_decision(pick.name)
+
+
 # --- Router model ---------------------------------------------------------------
 
 
@@ -370,6 +454,12 @@ def route(text: str, use_rules: bool = True) -> RouteDecision:
         timings["rules_ms"] = _ms(started)
         if decision:
             return _with(decision, routed_text, timings)
+
+    started = time.monotonic()
+    jev = ask_jev_route(routed_text)
+    timings["jev_ms"] = _ms(started)
+    if jev:
+        return _with(jev, routed_text, timings)
 
     started = time.monotonic()
     try:

@@ -11,10 +11,18 @@ we set to {"store": False}) straight into the Chat Completions request body.
 D43: gpt-5.6.* rejects function tools in Chat Completions unless
 reasoning_effort="none" — verified live via `Agent(model=get_model(role),
 tools=[...])` for both "router" and "brain" roles, which otherwise 400 with
-"Function tools with reasoning_effort are not supported... set
-reasoning_effort to 'none'." This trades away gpt-5.6's deeper reasoning
-mode for tool-calling support; revisit via OpenAIResponsesModel if a later
-phase needs both.
+"Function tools with reasoning_effort are not supported... use /v1/responses
+or set reasoning_effort to 'none'." That restriction still governs get_model,
+which the router, the step loop and vision all use.
+
+D80a lifts it for the brain alone: brain_planning_model returns the same
+model id on the OpenAI Responses API, which accepts function tools and a
+reasoning effort in one request (verified live against
+https://platform.openai.com/docs/api-reference/responses/create). D36 holds
+there too, and more strongly: strands/models/openai_responses.py writes
+"store": self.stateful into the request body *after* spreading `params`, so
+with `stateful` left unset the literal HTTPS body carries "store": false and
+no caller-supplied parameter can override it.
 """
 
 from __future__ import annotations
@@ -23,8 +31,15 @@ import os
 
 from strands.models import BedrockModel, Model
 from strands.models.openai import OpenAIModel
+from strands.models.openai_responses import OpenAIResponsesModel
 
-from zoya.config import FIREWORKS_BASE_URL, MODEL_MAX_RETRIES, MODEL_TIMEOUT_S, PROMPT_CACHE_TTL
+from zoya.config import (
+    BRAIN_PLANNING_REASONING_EFFORT,
+    FIREWORKS_BASE_URL,
+    MODEL_MAX_RETRIES,
+    MODEL_TIMEOUT_S,
+    PROMPT_CACHE_TTL,
+)
 
 Role = str  # "brain" | "vision" | "router"
 
@@ -43,6 +58,40 @@ def _model_id(role: Role) -> str:
     return model_id
 
 
+def _cache_params(cache_key: str) -> dict[str, object]:
+    if not cache_key:
+        return {}
+    return {"prompt_cache_key": cache_key, "prompt_cache_options": {"ttl": PROMPT_CACHE_TTL}}
+
+
+def _openai_client_args(role: Role) -> dict[str, object]:
+    return {
+        "api_key": os.environ["OPENAI_API_KEY"],
+        "timeout": MODEL_TIMEOUT_S[role],
+        "max_retries": MODEL_MAX_RETRIES,
+    }
+
+
+def brain_planning_model(cache_key: str = "") -> Model:
+    """The brain on the OpenAI Responses API: function tools and reasoning together (D80a).
+
+    Reasoning starts at BRAIN_PLANNING_REASONING_EFFORT; orchestrator.ReasoningSchedule drops it
+    to BRAIN_STEP_REASONING_EFFORT for every model call after the plan. `stateful` is never set,
+    so every request body carries "store": false (D36).
+    """
+    provider = os.environ.get("MODEL_PROVIDER", "openai")
+    if provider != "openai":
+        return get_model("brain", provider=provider, cache_key=cache_key)
+    return OpenAIResponsesModel(
+        client_args=_openai_client_args("brain"),
+        model_id=_model_id("brain"),
+        params={
+            "reasoning": {"effort": BRAIN_PLANNING_REASONING_EFFORT},
+            **_cache_params(cache_key),
+        },
+    )
+
+
 def get_model(role: Role = "brain", provider: str | None = None, cache_key: str = "") -> Model:
     """Return the Strands model for `role` on `provider` (default: MODEL_PROVIDER).
 
@@ -57,22 +106,13 @@ def get_model(role: Role = "brain", provider: str | None = None, cache_key: str 
     model_id = _model_id(role)
 
     if provider == "openai":
-        cache_params = (
-            {"prompt_cache_key": cache_key, "prompt_cache_options": {"ttl": PROMPT_CACHE_TTL}}
-            if cache_key
-            else {}
-        )
         return OpenAIModel(
-            client_args={
-                "api_key": os.environ["OPENAI_API_KEY"],
-                "timeout": MODEL_TIMEOUT_S[role],
-                "max_retries": MODEL_MAX_RETRIES,
-            },
+            client_args=_openai_client_args(role),
             model_id=model_id,
             params={
                 "store": False,  # D36 — never relax this.
                 "reasoning_effort": "none",  # D43 — required for function tools on gpt-5.6.*
-                **cache_params,
+                **_cache_params(cache_key),
             },
         )
 

@@ -148,8 +148,7 @@ WARNING_EARCON_GAP_S = 0.6  # warning.wav is 0.53 s; played twice before every s
 CONFIRMATION_AUDIT_TABLE = "zoya-confirmations"  # partition key: confirmation_id (S)
 CONFIRMATION_LOG = LOG_DIR / "confirmations.log"  # local copy of the audit log
 SCREEN_CAPTURE_TIMEOUT_S = 3.0  # ScreenCaptureKit completion handlers (D23)
-REKOGNITION_TIMEOUT_S = 6.0  # DetectText on a ~1 MB screenshot
-SCREENSHOT_JPEG_QUALITY = 0.8  # Rekognition image bytes limit is 5 MB
+SCREENSHOT_JPEG_QUALITY = 0.8  # readable text at a fraction of a PNG's bytes
 BROWSER_PROFILE_DIR = Path.home() / ".zoya" / "chrome-profile"  # D11 dedicated profile
 BROWSER_ACTION_TIMEOUT_S = 15.0  # every Playwright call (navigation, click, read)
 BROWSER_TEXT_MAX_CHARS = 6000  # page text handed to the brain
@@ -229,7 +228,12 @@ KEEP_SCREENSHOTS = 2  # older screenshots leave the computer agent's context (§
 MAX_FAILED_ATTEMPTS = 3  # consecutive failed actions → give up honestly (Done-when #4)
 CURSOR_MOVED_BY_USER_PT = 8.0  # the pointer moved this far since Zoya's last action → user wins
 AX_MESSAGING_TIMEOUT_S = 1.0  # per AX call into an app (AXUIElementSetMessagingTimeout)
-AX_READ_MAX_ITEMS = 120  # elements listed by ax_read
+AX_READ_MAX_ITEMS = 250  # elements listed by ax_read
+AX_READ_TOKEN_BUDGET = 2000
+AX_CHARS_PER_TOKEN = 3
+AX_WINDOWS_WAIT_S = 2.0
+AX_WINDOWS_POLL_S = 0.1
+AX_TREE_SETTLE_S = 3.0
 OCR_CROP_HALF_WIDTH_PT = 240  # OCR backstop crop around a native target: 480×160 pt
 OCR_CROP_HALF_HEIGHT_PT = 80
 AX_MAX_ANCESTORS = 12  # Guard 2 walks this far up for the pressable control; cut short → asks
@@ -275,3 +279,46 @@ REMINDER_TIMEZONE = "Asia/Kolkata"
 REMINDER_MAX_DAYS = 30
 REMINDER_MAX_PER_TASK = 5  # new reminders one command may set (a hijacked model can't fan out)
 REMINDER_MAX_ACTIVE = 20  # spoken reminders waiting at once
+
+# --- Phase B (v2): Jev decisions (D74, D81, D82) -----------------------------------------------
+
+# Phase A measured Jev at ~550–600 ms p50 and 660–1050 ms p95 from this Mac, with one 6.5 s
+# outlier. The timeout cuts the tail before it reaches the voice loop; the deadline bounds the
+# whole call including backoff, so at most one retry fits on the voice path.
+JEV_TIMEOUT_S = 1.5
+JEV_DEADLINE_S = 3.0
+JEV_BACKOFF_S = 0.25
+JEV_RETRY_STATUS = (408, 429, 500, 502, 503, 504)
+
+# --- Phase B (v2): scoped brain reasoning (D80a) -----------------------------------------------
+
+# The brain runs on the OpenAI Responses API, which accepts function tools and a reasoning effort
+# in the same request (D43's Chat Completions restriction does not apply there). Reasoning bills
+# as output tokens the user pays (D78), so only the first model call of a task — the plan — gets
+# it; every later cycle in the same task drops back to no reasoning.
+BRAIN_PLANNING_REASONING_EFFORT = "high"
+BRAIN_STEP_REASONING_EFFORT = "none"
+
+# Rule-miss routing (Phase B item 3). Measured on 30 rule-miss commands on this Mac: Jev was
+# right 28 times at confidence 0.54–1.00 and wrong twice at 0.38 and 0.64. 0.70 sits in the gap
+# — it rejects both wrong answers and the two least certain right ones, which ROUTER_MODEL then
+# takes. Every decision acted on in that run was correct.
+JEV_ROUTE_CONFIDENCE = 0.70
+
+# Jev widening "stop" (Phase B item 4). Measured on this Mac over 11 stop paraphrases the regex
+# misses and 8 commands that only sound like one: stops answered 0.87–0.97, non-stops 0.03–0.53.
+# 0.70 sits in that gap with 0.17 either side. The regex still runs first and offline, and Jev
+# can never veto a stop it caught.
+JEV_STOP_NOUL = 0.70
+
+# Speculation (Phase B item 2). A prepared route older than the TTL is stale — the app or the
+# page it was decided against may have moved on. The wait is what end-of-speech spends on a Jev
+# call that started during the utterance but has not landed yet; beyond it, routing normally is
+# faster than waiting.
+SPECULATION_EVERY_S = 0.3
+SPECULATION_TTL_S = 10.0
+SPECULATION_WAIT_S = 0.25
+# The gateway 429s after roughly 28 sustained calls (Phase A). At the cadence above, a 15 s
+# utterance could start 50 preparations; a command worth speculating on is settled long before
+# the eighth.
+SPECULATION_MAX_PER_UTTERANCE = 8

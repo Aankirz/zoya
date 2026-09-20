@@ -2,7 +2,7 @@
 or the model says.
 
 - ScreenCaptureKit window/display capture at the display's own pixel scale (no hard-coded 2×).
-- Amazon Rekognition DetectText OCR (ap-south-1, zoya-app policy `rekognition:DetectText`).
+- Vision framework text recognition (VNRecognizeTextRequest) OCR, on-device, no network.
 - Accessibility (AX) label and secure-field reads for Guard 2 on native apps.
 
 Screenshots stay in memory only and are never logged or written to disk (§12.3, AGENTS.md §6).
@@ -11,8 +11,10 @@ APIs (verified 2026-09-14 against pyobjc-framework-ScreenCaptureKit / Applicatio
 and a live capture on this Mac):
 - https://developer.apple.com/documentation/screencapturekit/scscreenshotmanager/captureimage(contentfilter:configuration:completionhandler:)
 - https://developer.apple.com/documentation/screencapturekit/scshareablecontent
-- https://docs.aws.amazon.com/rekognition/latest/APIReference/API_DetectText.html (≤ 5 MB image
-  bytes; LINE detections with a relative BoundingBox; at most 100 words per image)
+- https://developer.apple.com/documentation/vision/vnrecognizetextrequest
+- https://developer.apple.com/documentation/vision/vnimagerequesthandler/init(data:options:)
+- https://developer.apple.com/documentation/vision/vnrecognizedtextobservation (one per text line;
+  boundingBox is normalised with a bottom-left origin, so `top` is 1 - (origin.y + size.height))
 - https://developer.apple.com/documentation/applicationservices/1462077-axuielementcopyelementatposition
 """
 
@@ -26,7 +28,6 @@ from typing import Any
 
 from zoya import aws
 from zoya.config import (
-    REKOGNITION_TIMEOUT_S,
     SCREEN_CAPTURE_TIMEOUT_S,
     SCREEN_CHANGED_FRACTION,
     SCREEN_PIXEL_DELTA,
@@ -42,6 +43,7 @@ AX_CLICKABLE_ROLES = {"AXButton", "AXLink", "AXMenuItem", "AXCheckBox", "AXRadio
 AX_MAX_PARENTS = 4
 WINDOW_LOOKUP_ATTEMPTS = 4
 WINDOW_LOOKUP_RETRY_S = 0.3
+OCR_TOP_CANDIDATES = 1
 
 
 def _await(start: Any) -> tuple:
@@ -137,26 +139,38 @@ def _jpeg(image: Any) -> bytes:
 
 
 def detect_text(jpeg: bytes) -> list[OcrLine]:
-    """Rekognition DetectText LINEs. Any failure is a ToolError: the gate then never confirms."""
+    """Vision text lines, top-left relative. Any failure is a ToolError: the gate never confirms."""
     try:
-        response = _rekognition().detect_text(Image={"Bytes": jpeg})
+        return _vision_lines(jpeg)
     except Exception as error:  # noqa: BLE001 — OCR failure must fail closed, politely
         raise ToolError("I couldn't read the screen to double-check the amount.") from error
+
+
+def _vision_lines(jpeg: bytes) -> list[OcrLine]:
+    import Vision
+    from Foundation import NSData
+
+    request = Vision.VNRecognizeTextRequest.alloc().init()
+    request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)
+    request.setUsesLanguageCorrection_(False)
+    data = NSData.dataWithBytes_length_(jpeg, len(jpeg))
+    handler = Vision.VNImageRequestHandler.alloc().initWithData_options_(data, {})
+    performed, error = handler.performRequests_error_([request], None)
+    if not performed or error is not None:
+        raise RuntimeError(f"Vision text recognition failed: {error}")
     lines = []
-    for item in response.get("TextDetections", []):
-        if item.get("Type") != "LINE":
+    for observation in request.results() or []:
+        candidates = observation.topCandidates_(OCR_TOP_CANDIDATES)
+        if not candidates:
             continue
-        box = item["Geometry"]["BoundingBox"]
-        lines.append((item["DetectedText"], box["Left"], box["Top"], box["Height"]))
+        box = observation.boundingBox()
+        top = 1.0 - (box.origin.y + box.size.height)
+        lines.append((str(candidates[0].string()), box.origin.x, top, box.size.height))
     return lines
 
 
 _client_lock = threading.Lock()
 _clients: dict[str, Any] = {}
-
-
-def _rekognition() -> Any:
-    return aws_client("rekognition", REKOGNITION_TIMEOUT_S)
 
 
 def aws_client(service: str, timeout_s: float) -> Any:

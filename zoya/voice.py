@@ -30,8 +30,20 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 import numpy as np
+from typesafe_sdk import Noul
 
-from zoya import aec, audio, events, orchestrator, safety, shutdown, speech, tasks
+from zoya import (
+    aec,
+    audio,
+    decisions,
+    events,
+    orchestrator,
+    safety,
+    shutdown,
+    speculate,
+    speech,
+    tasks,
+)
 from zoya.config import (
     AEC_ENABLED,
     AFTER_WAKE_WAIT_S,
@@ -40,6 +52,7 @@ from zoya.config import (
     COMMAND_END_SILENCE_S,
     ECHO_TAIL_S,
     ENDPOINT_MODE,
+    JEV_STOP_NOUL,
     LOG_DIR,
     MAX_UTTERANCE_S,
     MIC_READ_TIMEOUT_S,
@@ -51,6 +64,8 @@ from zoya.config import (
     SMART_TURN_FILE,
     SMART_TURN_REPO,
     SMART_TURN_SHA256,
+    SPECULATION_EVERY_S,
+    SPECULATION_MAX_PER_UTTERANCE,
     SPOTTER_ENGINE,
     STT_MODEL_REPO,
     TIMING_LOG,
@@ -76,6 +91,10 @@ STOP_WINDOW_S = 2.0  # spot "stop" in the last 2 s of mic audio, across utteranc
 WARM_UP_S = 1.0
 TURN_NORM_EPS = 1e-7
 CLIPS_DIR = LOG_DIR / "wake_clips"
+JEV_STOP_QUESTION = (
+    "The speaker is telling the assistant to stop, cancel or abandon what it is " "currently doing."
+)
+JEV_STOP_STATE = "The user interrupted their voice assistant mid-task and said: {text!r}"
 BACKGROUND_WINDOW_S = 10.0
 BACKGROUND_MIN_S = 3.0  # too little history: the utterance itself would count as background
 SPEECH_OVER_BACKGROUND = 2.0  # the user's voice must be ≥ 2× (+6 dB) the background loudness
@@ -456,6 +475,7 @@ class Segment:
     awaited: bool = False  # captured in the "Hey Zoya" … pause … command window
     began_while_busy: bool = False  # started during Zoya's speech: likely her own echo
     over_earcon: bool = False  # started while (or just after) an earcon played
+    speculations: int = 0  # partial routes started for this utterance
 
     @property
     def seconds(self) -> float:
@@ -513,6 +533,11 @@ class VoiceLoop:
         self.answer_until = 0.0  # answer mode: that question's follow-up window
         self.held: tuple[Segment, str, dict[str, int]] | None = None  # an answer waiting to merge
         self.held_until = 0.0
+        self.jev_stop: tuple[float, str] | None = None  # a stop Jev heard, waiting for the loop
+        self.jev_stop_asked = False
+        self.stt_lock = threading.Lock()  # mlx-whisper is called from the loop and from partials
+        self.last_partial_at = 0.0
+        self.partial_pending = False
 
     # --- main loop ---------------------------------------------------------------------
 
@@ -598,6 +623,7 @@ class VoiceLoop:
             self.last_voice_at = arrival
         if speech.is_speaking():
             self.last_spoke_at = time.monotonic()
+        self._take_jev_stop()
         self._check_stop(arrival)
         if self.follow_up_pending and not self._zoya_talking():
             self._open_follow_up()
@@ -624,6 +650,7 @@ class VoiceLoop:
             self.segment.last_voice_at = arrival
             self.segment.voiced_blocks += 1
             self.segment.turn_complete = None  # speaking again: a new pause gets a new verdict
+        self._speculate(self.segment)
         if self._segment_ended(self.segment, arrival):
             ended, self.segment = self.segment, None
             self.pre_roll.clear()
@@ -701,6 +728,40 @@ class VoiceLoop:
         text = self._spot(np.concatenate(self.recent))
         if is_stop(text):  # name AND stop word in one window: echo alone rarely has both
             self._stop(self.last_voice_at, text, partial=True)
+            return
+        self._ask_jev_stop(text, self.last_voice_at)
+
+    def _take_jev_stop(self) -> None:
+        """Jev answered "that was a stop" on a background thread; act on it here, on the loop
+        thread that owns this state, and only while there is still something to stop."""
+        pending, self.jev_stop = self.jev_stop, None
+        if pending and self._zoya_busy():
+            self._stop(pending[0], pending[1], partial=True)
+
+    def _ask_jev_stop(self, text: str, voice_end_at: float) -> None:
+        """Additive only (D81): the regex above already ran, offline, and can never be vetoed.
+        Jev widens what counts as a stop — "that's enough", "no no leave it" — for an utterance
+        that named Zoya, one question at a time, off the loop thread so the mic never waits."""
+        spoken = words(text)
+        if self.jev_stop_asked or not spoken or len(spoken) > MAX_STOP_PHRASE_WORDS:
+            return
+        if not any(is_name(word) for word in spoken):
+            return
+        self.jev_stop_asked = True
+        threading.Thread(
+            target=self._jev_stop_answer, args=(text, voice_end_at), daemon=True
+        ).start()
+
+    def _jev_stop_answer(self, text: str, voice_end_at: float) -> None:
+        try:
+            answers = decisions.ask(
+                JEV_STOP_STATE.format(text=text),
+                {"is_stop": Noul(instructions=JEV_STOP_QUESTION)},
+            )
+            if answers and answers.noul("is_stop") >= JEV_STOP_NOUL:
+                self.jev_stop = (voice_end_at, text)
+        finally:
+            self.jev_stop_asked = False
 
     def _spot(self, samples: np.ndarray) -> str:
         started = time.monotonic()
@@ -788,6 +849,7 @@ class VoiceLoop:
             self._stop_named(name)
             return
         stopped_at = time.monotonic()
+        speculate.discard()
         was_busy = self._zoya_busy()
         had_tasks = self._task_running()
         said = orchestrator.stop_task()
@@ -862,8 +924,44 @@ class VoiceLoop:
 
     def _transcribe(self, segment: Segment) -> tuple[str, int]:
         started = time.monotonic()
-        text = self.stt(segment.samples())
+        with self.stt_lock:
+            text = self.stt(segment.samples())
         return text, round((time.monotonic() - started) * MS_PER_S)
+
+    def _speculate(self, segment: Segment) -> None:
+        """Route the utterance so far while the user is still saying it (D82). Everything here
+        is read-only and thrown away unless the final transcript says the same thing."""
+        now = time.monotonic()
+        if self.partial_pending or segment.speculations >= SPECULATION_MAX_PER_UTTERANCE:
+            return
+        if segment.began_while_busy or self._zoya_talking():
+            return  # Zoya's own voice at the mic: never worth a transcription
+        if now - self.last_partial_at < SPECULATION_EVERY_S or segment.seconds < PARTIAL_MIN_S:
+            return
+        self.last_partial_at = now
+        self.partial_pending = True
+        awaited = segment.woke_at is not None
+        samples = segment.samples()
+        threading.Thread(
+            target=self._prepare_partial, args=(segment, samples, awaited), daemon=True
+        ).start()
+
+    def _prepare_partial(self, segment: Segment, samples: np.ndarray, awaited: bool) -> None:
+        """A segment Zoya is already awake for is a command; otherwise the partial has to carry
+        the wake word itself, which is how "Hey Zoya, open Spotify" in one breath speculates.
+
+        The budget counts routes actually started, not transcriptions: repeating the same words
+        while thinking must not use up a slower speaker's speculation before the sentence ends.
+        """
+        try:
+            with self.stt_lock:
+                text = self.stt(samples)
+            if (awaited or is_wake(text)) and is_usable_command(text):
+                segment.speculations += speculate.prepare(strip_wake(text))
+        except Exception:  # noqa: BLE001 — a failed guess must never disturb the real utterance
+            log.debug("partial transcription failed", exc_info=True)
+        finally:
+            self.partial_pending = False
 
     def _command(self, segment: Segment, transcript: str | None = None) -> None:
         endpoint_ms = round((time.monotonic() - segment.last_voice_at) * MS_PER_S)
@@ -987,7 +1085,8 @@ class VoiceLoop:
             return
         if self._task_command(clean_command(text)):
             return
-        if is_stop_command(text):
+        if is_stop_command(text) or self._speculated_stop(text):
+            speculate.discard()
             self._stop(speech_end_at, text, partial=False)
             return
         if is_bare_confirmation(text):  # the confirmation already ended: never a new task (V4)
@@ -1009,6 +1108,12 @@ class VoiceLoop:
             speech.narrate(tasks.FULL_MESSAGE)
         elif task.shared:
             speech.narrate(f"{task.spoken_name()} started.")
+
+    def _speculated_stop(self, text: str) -> bool:
+        """Jev widened "stop" while the user was still speaking. Stopping belongs to this loop,
+        not to a task started to announce it: the orchestrator's stop route only says the words."""
+        prepared = speculate.peek(text)
+        return prepared is not None and prepared.route == "stop"
 
     def _task_command(self, command: str) -> bool:
         """§9.13 voice controls with tasks running: queue it, stop the <task>, how's the <task>."""

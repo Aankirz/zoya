@@ -33,11 +33,13 @@ from strands.hooks import (
     HookProvider,
     HookRegistry,
 )
+from strands.models.openai_responses import OpenAIResponsesModel
 from strands.tools.executors import SequentialToolExecutor
 from strands.types.exceptions import EventLoopException
 
-from zoya import aws, events, harness, safety, speech, tasks
+from zoya import aws, events, harness, safety, speculate, speech, tasks
 from zoya.config import (
+    BRAIN_STEP_REASONING_EFFORT,
     LOG_DIR,
     MAX_TOOL_CALLS_PER_TASK,
     MODEL_PRICES_USD_PER_1M,
@@ -131,6 +133,31 @@ class TaskLimits(HookProvider):
             raise TaskLimitExceeded(f"{MAX_TOOL_CALLS_PER_TASK} tool calls reached")
 
 
+class ReasoningSchedule(HookProvider):
+    """Reasoning on the task's first brain call — the plan — and off for every step after it (D80a).
+
+    Strands takes model parameters from the model object, not per call, so the schedule is applied
+    by updating that object between calls. `build_orchestrator` builds a fresh model per task, so
+    no other task sees the change. A provider without a Responses model is left alone.
+    """
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def register_hooks(self, registry: HookRegistry, **_: Any) -> None:
+        registry.add_callback(BeforeModelCallEvent, self._drop_reasoning_after_plan)
+
+    def _drop_reasoning_after_plan(self, event: BeforeModelCallEvent) -> None:
+        self.calls += 1
+        if self.calls != 2:
+            return
+        model = event.agent.model
+        if not isinstance(model, OpenAIResponsesModel):
+            return
+        params = dict(model.get_config().get("params") or {})
+        model.update_config(params={**params, "reasoning": {"effort": BRAIN_STEP_REASONING_EFFORT}})
+
+
 class TaskCancelled(Exception):
     """The user said stop (§11.3)."""
 
@@ -204,19 +231,19 @@ def build_orchestrator(
     skill: str = "",
 ) -> Agent:
     """A fresh Agent per task (AUDIT B6), seeded with recent conversation for follow-ups."""
-    from zoya.models import get_model
+    from zoya.models import brain_planning_model
 
     prompt, tools, plugins = brain_inputs(skill)
     limits = TaskLimits(os.environ.get("BRAIN_MODEL", ""), cost_cap_usd)
     return Agent(
-        model=get_model("brain", cache_key=harness.cache_key(skill)),
+        model=brain_planning_model(cache_key=harness.cache_key(skill)),
         system_prompt=prompt,
         tools=tools,
         plugins=plugins,
         messages=messages,
         # The gate goes last so it sees the final tool call (safety.ConfirmationGate). Tools run one
         # at a time: nothing else speaks or clicks while a confirmation waits for the user.
-        hooks=[limits, tasks.StepTracker(), safety.ConfirmationGate()],
+        hooks=[limits, ReasoningSchedule(), tasks.StepTracker(), safety.ConfirmationGate()],
         tool_executor=SequentialToolExecutor(),
         callback_handler=callback_handler,
         trace_attributes={"zoya.component": "orchestrator"},
@@ -440,7 +467,7 @@ def handle_command(text: str, pre_timings: dict[str, int] | None = None) -> Comm
         _cancel.clear()
     safety.begin_task(task_id)
     with trace.get_tracer("zoya").start_as_current_span("zoya.command") as span:
-        decision = route(text)
+        decision = speculate.commit(text) or route(text)
         timings = {**(pre_timings or {}), **decision.timings_ms}
         events.emit(events.TaskEvent(task_id, "started", text, decision.route))
         spoken, ok = _execute(decision, timings)

@@ -25,11 +25,16 @@ from strands import tool
 
 from zoya import safety
 from zoya.config import (
+    AX_CHARS_PER_TOKEN,
     AX_MAX_ANCESTORS,
     AX_MESSAGING_TIMEOUT_S,
     AX_NEARBY_MAX_CHARS,
     AX_READ_MAX_ITEMS,
+    AX_READ_TOKEN_BUDGET,
+    AX_TREE_SETTLE_S,
     AX_WALK_DEADLINE_S,
+    AX_WINDOWS_POLL_S,
+    AX_WINDOWS_WAIT_S,
 )
 from zoya.screen import AX_CLICKABLE_ROLES, AX_LABEL_ATTRIBUTES, _ax
 from zoya.tools import ToolError
@@ -43,16 +48,43 @@ MAX_ANCESTORS_FOR_URL = 40
 ROOT_ROLES = {"AXWindow", "AXSheet", "AXApplication", "AXSystemWide"}
 HIDDEN = "[hidden]"  # what a secure field's typed value becomes, everywhere Zoya reads AX text
 AX_SUCCESS = 0
+WEB_PAGE_SCHEMES = {"http", "https"}
+WEB_SUBSTRATE_ANSWER = (
+    "is showing a web page. Read that page with the browser tools: a page's accessibility tree is "
+    "tens of thousands of tokens and does not belong here."
+)
+
+
+def frontmost_regular_app() -> Any:
+    """The frontmost NSRunningApplication with a regular activation policy.
+
+    Widget and intents extensions share their app's localizedName and answer no AX messages
+    (com.apple.Notes.WidgetExtension shadows com.apple.Notes), so identity is never a name.
+    """
+    import AppKit
+
+    workspace = AppKit.NSWorkspace.sharedWorkspace()
+    regular = AppKit.NSApplicationActivationPolicyRegular
+    app = workspace.frontmostApplication()
+    if app is None:
+        raise ToolError("I can't tell which app is in front.")
+    if app.activationPolicy() == regular:
+        return app
+    return next(
+        (
+            candidate
+            for candidate in workspace.runningApplications()
+            if candidate.isActive() and candidate.activationPolicy() == regular
+        ),
+        app,
+    )
 
 
 def front_app() -> tuple[str, Any]:
     """(name, AX application element) of the frontmost app, with a bounded messaging timeout."""
-    import AppKit
     import ApplicationServices as AS
 
-    app = AppKit.NSWorkspace.sharedWorkspace().frontmostApplication()
-    if app is None:
-        raise ToolError("I can't tell which app is in front.")
+    app = frontmost_regular_app()
     element = AS.AXUIElementCreateApplication(app.processIdentifier())
     AS.AXUIElementSetMessagingTimeout(element, AX_MESSAGING_TIMEOUT_S)
     AS.AXUIElementSetAttributeValue(element, "AXManualAccessibility", True)  # no-op elsewhere
@@ -197,18 +229,76 @@ def _windows(app: Any) -> list[Any]:
     )
 
 
-def listed_elements(app: Any) -> list[tuple[str, str, Any]]:
-    """(role, name, element) of named controls and text, breadth first, bounded in time/count."""
+def _drawn_windows(app: Any) -> list[Any]:
+    """`_windows`, waiting out the gap between an app becoming frontmost and drawing a window."""
+    deadline = time.monotonic() + AX_WINDOWS_WAIT_S
+    while True:
+        windows = _windows(app)
+        if windows or time.monotonic() >= deadline:
+            return windows
+        time.sleep(AX_WINDOWS_POLL_S)
+
+
+def is_web_page(url: str) -> bool:
+    """Whether an AXWebArea's URL is a site. An Electron window is a web area too, but its page
+    is a vscode-file:// bundle URL, so those apps stay on the accessibility substrate."""
+    return urlparse(url).scheme in WEB_PAGE_SCHEMES
+
+
+def listed_line(role: str, name: str) -> str:
+    return f"{role.removeprefix('AX')}: {name}".strip()
+
+
+def estimated_tokens(text: str) -> int:
+    return -(-len(text) // AX_CHARS_PER_TOKEN)
+
+
+def spend(spent: int, role: str, name: str) -> int | None:
+    """The token total after listing this control, or None when the budget cannot pay for it."""
+    total = spent + estimated_tokens(listed_line(role, name))
+    return None if total > AX_READ_TOKEN_BUDGET else total
+
+
+def _walk_once(app: Any) -> tuple[list[tuple[str, str, Any]], bool]:
+    """Named controls within the token budget, and whether the window is a web page.
+
+    A page's own tree belongs to the browser substrate — Safari's is 2,684 controls for one
+    Wikipedia article — so the walk stops at the web area and keeps only the browser's own chrome.
+    """
     deadline = time.monotonic() + AX_WALK_DEADLINE_S
-    queue, found = _windows(app), []
+    queue, found, spent = _drawn_windows(app), [], 0
     while queue and len(found) < AX_READ_MAX_ITEMS and time.monotonic() < deadline:
         element = queue.pop(0)
         role = str(_ax(element, "AXRole") or "")
+        if role == "AXWebArea" and is_web_page(str(_ax(element, "AXURL") or "")):
+            return found, True
         name = name_of(element)
         if role in LISTED_ROLES and (name or role in TEXT_ROLES):
+            affordable = spend(spent, role, name)
+            if affordable is None:
+                break
             found.append((role, name, element))
+            spent = affordable
         queue += list(_ax(element, "AXChildren") or [])
-    return found
+    return found, False
+
+
+def read_controls(app: Any) -> tuple[list[tuple[str, str, Any]], bool]:
+    """`_walk_once`, retrying an empty first pass once.
+
+    A Chromium app builds its tree only after AXManualAccessibility is set and publishes almost
+    nothing for seconds after launch: Cursor listed 2 controls until t+5 s, then 333.
+    """
+    found, web = _walk_once(app)
+    if found or web:
+        return found, web
+    time.sleep(AX_TREE_SETTLE_S)
+    return _walk_once(app)
+
+
+def listed_elements(app: Any) -> list[tuple[str, str, Any]]:
+    """(role, name, element) of named controls and text, breadth first, within the token budget."""
+    return read_controls(app)[0]
 
 
 @tool
@@ -218,10 +308,12 @@ def ax_read() -> str:
     Fast and exact: use before taking a screenshot. Press a listed control with ax_press.
     """
     name, app = front_app()
-    items = listed_elements(app)
+    items, web = read_controls(app)
+    if web:
+        return f"{name} {WEB_SUBSTRATE_ANSWER}"
     if not items:
         return f"{name} doesn't expose its controls. Take a screenshot instead."
-    lines = [f"{role.removeprefix('AX')}: {label}".strip() for role, label, _e in items]
+    lines = [listed_line(role, label) for role, label, _e in items]
     return f"Frontmost app: {name}\n" + safety.wrap_untrusted("\n".join(lines))
 
 
