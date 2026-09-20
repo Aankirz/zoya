@@ -80,8 +80,9 @@ def test_dead_end_gives_up_instead_of_counting_to_three(screen):
     screen["replies"] = [answers(), answers(worked=0.0, failure="dead_end")]
     outcome = run()
     assert outcome.escalate
-    assert outcome.reason == step_loop.STALLED
     assert outcome.steps == 1
+    assert "Appearance" in outcome.reason, "the reason must name what was actually tried"
+    assert "did not get there" in outcome.reason
 
 
 def test_wrong_element_stops_offering_that_control(screen):

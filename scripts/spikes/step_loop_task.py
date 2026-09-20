@@ -34,7 +34,8 @@ def bring_front(name: str) -> bool:
     subprocess.run(["osascript", "-e", f'tell application "{name}" to activate'], check=False)
     deadline = time.monotonic() + FRONT_WAIT_S
     while time.monotonic() < deadline:
-        if ax.front_app()[0] == name:
+        front = ax.front_app()[0]
+        if front == name or front in name or name in front:
             return True
         time.sleep(FRONT_POLL_S)
     return False

@@ -262,7 +262,7 @@ def run(goal: str, plan: list[str], cancel: Any) -> Outcome:
             outcome.done, outcome.escalate = True, False
             return outcome
         if not _triaged(answers, progress, outcome):
-            return _stop(outcome, STALLED)
+            return _stop(outcome, outcome.reason or STALLED)
         if progress.relook:
             continue
         signature = screen_signature(app, offered)
@@ -316,6 +316,7 @@ def _triaged(answers: decisions.Answers, progress: _Progress, outcome: Outcome) 
     kind = triage(answers)
     computer.log_stage("computer_step_triage", kind=kind, step=outcome.steps)
     if kind == "dead_end":
+        outcome.reason = f"{progress.last}, and the screen did not get there"
         return False
     if kind == "transient" and progress.transient < COMPUTER_TRANSIENT_RETRIES:
         progress.transient += 1
