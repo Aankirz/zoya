@@ -325,16 +325,9 @@ SPECULATION_MAX_PER_UTTERANCE = 8
 
 # --- Phase C (v2): the Jev step loop (D81, D82) -------------------------------------------------
 
-# One batched Jev call per step against one state. The control pick uses the same 0.70 measured
-# in Phase B for routing: below it the loop escalates to the language model instead of acting on
-# a guess. The noul thresholds are the same number on the same measured separation.
 JEV_STEP_CONFIDENCE = 0.70
 JEV_STEP_NOUL = 0.70
-# A goal that has not finished in this many Jev steps is not going to; the loop stops honestly
-# rather than pressing its way around an app forever.
 COMPUTER_MAX_JEV_STEPS = 12
-# Failure triage (D81) decides what to do next; MAX_FAILED_ATTEMPTS stays as the outer bound so
-# no triage verdict can loop forever. A transient failure is retried at most this many times.
 COMPUTER_TRANSIENT_RETRIES = 2
 
 # --- Phase C (v2): Chrome over CDP, agent-browser refs (D83, D84) ------------------------------
@@ -357,3 +350,5 @@ CHROME_SHUTDOWN_TIMEOUT_S = 5.0  # SIGTERM to Zoya's Chrome child, then SIGKILL
 AGENT_BROWSER_BIN = "agent-browser"
 AGENT_BROWSER_SESSION = "zoya"
 AGENT_BROWSER_TIMEOUT_S = 20.0  # bound on one agent-browser subprocess
+
+AX_ACTION_SETTLE_S = 0.3

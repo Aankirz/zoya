@@ -25,6 +25,7 @@ from typesafe_sdk import Choice, Noul
 
 from zoya import decisions, safety, tasks
 from zoya.config import (
+    AX_ACTION_SETTLE_S,
     COMPUTER_MAX_JEV_STEPS,
     COMPUTER_TRANSIENT_RETRIES,
     JEV_STEP_CONFIDENCE,
@@ -97,6 +98,7 @@ class Candidate:
     label: str
     press: Any
     record: dict[str, Any] | None = None
+    identity: str = ""
 
 
 def control_key(index: int) -> str:
@@ -116,9 +118,10 @@ def native_candidates(items: list[tuple[str, str, Any]]) -> list[Candidate]:
         made.append(
             Candidate(
                 key=control_key(index),
-                label=ax.listed_line(role, name),
+                label=ax.described(role, name, _element),
                 press=lambda a=args: ax.ax_press(**a),
                 record={"tool": "ax_press", "args": args},
+                identity=ax.listed_line(role, name),
             )
         )
     return made
@@ -155,6 +158,7 @@ def web_candidates(snapshot_text: str) -> list[Candidate]:
                 key=node.ref,
                 label=identity,
                 press=lambda r=node.ref, seen=identity: browser.click_ref(r, seen),
+                identity=identity,
             )
         )
     return made
@@ -218,6 +222,7 @@ def triage(answers: decisions.Answers) -> str:
 @dataclass
 class _Progress:
     last: str = ""
+    pressed_identity: str = ""
     wrong: set[str] = field(default_factory=set)
     transient: int = 0
     relook: bool = False
@@ -232,7 +237,7 @@ def run(goal: str, plan: list[str], cancel: Any) -> Outcome:
         if (handover := _gui_checkpoint()) is not None:
             return _stop(outcome, handover)
         app, candidates = _look()
-        offered = [c for c in candidates if c.label not in progress.wrong]
+        offered = [c for c in candidates if c.identity not in progress.wrong]
         if not offered:
             return _stop(outcome, NO_CONTROLS)
         answers = _ask(outcome, app, goal, plan, progress.last, offered)
@@ -288,11 +293,11 @@ def _triaged(answers: decisions.Answers, progress: _Progress, outcome: Outcome) 
     if kind == "transient" and progress.transient < COMPUTER_TRANSIENT_RETRIES:
         progress.transient += 1
         progress.relook = True
-        time.sleep(computer.ACTION_SETTLE_S)
+        time.sleep(AX_ACTION_SETTLE_S)
         return True
     progress.transient = 0
-    if kind == "wrong_element" and progress.last.startswith(PRESSED):
-        progress.wrong.add(progress.last.removeprefix(PRESSED))
+    if kind == "wrong_element" and progress.pressed_identity:
+        progress.wrong.add(progress.pressed_identity)
         progress.relook = True
     return True
 
@@ -310,7 +315,9 @@ def _act(
         return STALLED
     if answers.noul("irreversible") >= JEV_STEP_NOUL:
         computer.session.asked = True
+    progress.pressed_identity = candidate.identity
     progress.last = _press(candidate, progress, outcome)
+    time.sleep(AX_ACTION_SETTLE_S)
     outcome.steps += 1
     if computer.session.failures >= MAX_FAILED_ATTEMPTS:
         return computer.session.stop_reason or STALLED
@@ -341,7 +348,7 @@ def _press(candidate: Candidate, progress: _Progress, outcome: Outcome) -> str:
     try:
         candidate.press()
     except ToolError as error:
-        progress.wrong.add(candidate.label)
+        progress.wrong.add(candidate.identity)
         return f"tried {candidate.label} and it failed: {error}"
     outcome.pressed.append(candidate.label)
     if candidate.record is None:

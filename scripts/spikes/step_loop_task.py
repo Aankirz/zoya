@@ -21,12 +21,29 @@ from zoya.config import LOG_DIR, load_env  # noqa: E402
 from zoya.tools import ax, computer  # noqa: E402
 
 LOCKED = "loginwindow"
+FRONT_WAIT_S = 15.0
+FRONT_POLL_S = 0.2
 OUT = LOG_DIR / "spikes" / "step_loop_task.json"
+
+
+def bring_front(name: str) -> bool:
+    """A script run from a terminal makes the terminal frontmost; put the target back."""
+    import subprocess
+
+    subprocess.run(["osascript", "-e", f'tell application "{name}" to activate'], check=False)
+    deadline = time.monotonic() + FRONT_WAIT_S
+    while time.monotonic() < deadline:
+        if ax.front_app()[0] == name:
+            return True
+        time.sleep(FRONT_POLL_S)
+    return False
 
 
 def main() -> None:
     load_env()
     goal = sys.argv[1] if len(sys.argv) > 1 else "turn on dark mode"
+    if len(sys.argv) > 2 and not bring_front(sys.argv[2]):
+        raise SystemExit(f"Could not bring {sys.argv[2]} to the front.")
     if ax.front_app()[0] == LOCKED:
         raise SystemExit("The screen is locked. Unlock it and run this again.")
     computer.begin_session()

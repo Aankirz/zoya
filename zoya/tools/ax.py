@@ -245,17 +245,54 @@ def is_web_page(url: str) -> bool:
     return urlparse(url).scheme in WEB_PAGE_SCHEMES
 
 
-def listed_line(role: str, name: str) -> str:
-    return f"{role.removeprefix('AX')}: {name}".strip()
+TOGGLE_ROLES = {"AXCheckBox", "AXRadioButton", "AXMenuItem", "AXTab", "AXCell"}
+CHECKED_BY_VALUE = {0: "unchecked", 1: "checked", 2: "mixed"}
+VALUE_ROLES = {"AXPopUpButton", "AXComboBox", "AXSlider", "AXMenuButton"}
+STATE_MAX_CHARS = 40
+
+
+def control_state(element: Any) -> str:
+    """What the app says this control's state is: selected, checked, its value, or disabled.
+
+    Without it a control list cannot answer "did that work" — System Settings' Appearance pane
+    serialises byte-identically before and after dark mode is turned on, because only AXSelected
+    moves (measured on this Mac, 2026-09-20).
+    """
+    if element is None:
+        return ""
+    marks = []
+    if _ax(element, "AXSelected") is True:
+        marks.append("selected")
+    role = str(_ax(element, "AXRole") or "")
+    value = _ax(element, "AXValue")
+    if role in TOGGLE_ROLES and isinstance(value, int) and not isinstance(value, bool):
+        marks.append(CHECKED_BY_VALUE.get(value, ""))
+    elif role in TOGGLE_ROLES and value is True:
+        marks.append("checked")
+    elif role in VALUE_ROLES and value is not None and str(value):
+        marks.append(f"= {str(value)[:STATE_MAX_CHARS]}")
+    if _ax(element, "AXEnabled") is False:
+        marks.append("disabled")
+    return ", ".join(mark for mark in marks if mark)
+
+
+def listed_line(role: str, name: str, state: str = "") -> str:
+    line = f"{role.removeprefix('AX')}: {name}".strip()
+    return f"{line} [{state}]" if state else line
+
+
+def described(role: str, name: str, element: Any) -> str:
+    """The line a model or Jev reads: the control, plus whatever state the app publishes."""
+    return listed_line(role, name, control_state(element))
 
 
 def estimated_tokens(text: str) -> int:
     return -(-len(text) // AX_CHARS_PER_TOKEN)
 
 
-def spend(spent: int, role: str, name: str) -> int | None:
+def spend(spent: int, role: str, name: str, state: str = "") -> int | None:
     """The token total after listing this control, or None when the budget cannot pay for it."""
-    total = spent + estimated_tokens(listed_line(role, name))
+    total = spent + estimated_tokens(listed_line(role, name, state))
     return None if total > AX_READ_TOKEN_BUDGET else total
 
 
@@ -274,7 +311,7 @@ def _walk_once(app: Any) -> tuple[list[tuple[str, str, Any]], bool]:
             return found, True
         name = name_of(element)
         if role in LISTED_ROLES and (name or role in TEXT_ROLES):
-            affordable = spend(spent, role, name)
+            affordable = spend(spent, role, name, control_state(element))
             if affordable is None:
                 break
             found.append((role, name, element))
@@ -313,7 +350,7 @@ def ax_read() -> str:
         return f"{name} {WEB_SUBSTRATE_ANSWER}"
     if not items:
         return f"{name} doesn't expose its controls. Take a screenshot instead."
-    lines = [listed_line(role, label) for role, label, _e in items]
+    lines = [described(role, label, element) for role, label, element in items]
     return f"Frontmost app: {name}\n" + safety.wrap_untrusted("\n".join(lines))
 
 
