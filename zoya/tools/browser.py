@@ -55,7 +55,7 @@ from urllib.parse import urlparse
 from playwright.sync_api import Error as PlaywrightError
 from strands import tool
 
-from zoya import overlay, safety, screen
+from zoya import overlay, page_items, safety, screen
 from zoya.config import (
     ACTION_SETTLE_S,
     AGENT_BROWSER_BIN,
@@ -304,6 +304,33 @@ def browser_read() -> str:
     return safety.wrap_untrusted(text) + note
 
 
+NO_RESULTS_SAY = "I opened the page but I can't tell which part of it is the list you asked for."
+RESULTS_HEAD = "{count} results on {host}, the first {shown}:"
+
+
+@tool
+def browser_results(looking_for: str) -> str:
+    """Read back what the page in Zoya's browser is listing: the items, with prices where shown.
+
+    Use after opening a search or results page, before choosing one, so the user hears what is
+    there instead of only that the page opened.
+
+    Args:
+        looking_for: what the user asked for, e.g. "wireless mouse", so the right list is read.
+    """
+    title = on_page(lambda page: page.title())
+    found = page_items.families(_agent_browser("snapshot", "--compact", "--urls"))
+    family, confidence = page_items.choose(looking_for, title, found)
+    log_stage = safety.log_safety_timing
+    log_stage(event="page_results", lists=len(found), chosen=bool(family), confidence=confidence)
+    if family is None:
+        raise ToolError(NO_RESULTS_SAY)
+    shown = min(len(family.items), page_items.MAX_SPOKEN_ITEMS)
+    host = urlparse(family.items[0].url).netloc
+    head = RESULTS_HEAD.format(count=len(family.items), host=host, shown=shown)
+    return head + "\n" + safety.wrap_untrusted(page_items.read_back(family))
+
+
 @tool
 def browser_screenshot() -> dict[str, Any]:
     """Look at the page in Zoya's browser as an image, when reading the text isn't enough."""
@@ -458,19 +485,54 @@ def order_limit() -> Decimal | None:
     return Decimal(raw) if raw else None
 
 
+def page_subject(say: str, control: str, title: str, ref: str) -> str:
+    """What this action is about, in the page's own words (v2 Phase D2 item 2, D98).
+
+    Asked once per confirmation and reused by the re-probe, so the sentence the user hears is the
+    sentence the token is bound to; everything else about that re-probe still runs afresh.
+
+    Page text reaches Jev as state inside `wrap_untrusted` and reaches the user only as one of
+    the names the page itself prints, never as a sentence the page wrote. An unconfident answer
+    is "", because a summary that names the wrong thing is worse than one that names none.
+    """
+    try:
+        snapshot_text = _agent_browser("snapshot", "--compact", "--urls")
+    except ToolError:
+        log.debug("no snapshot for the confirmation summary", exc_info=True)
+        return ""
+    subjects = page_items.subject_candidates(snapshot_text, ref, title)
+    name, confidence = page_items.subject(say, control, title, subjects)
+    safety.log_safety_timing(
+        event="page_subject", named=bool(name), confidence=round(confidence, 3)
+    )
+    return name
+
+
+def _subject_for(risky: safety.RiskyLabel, target: Target, item: str, ref: str) -> str:
+    """The page's own word for what this click is about; "" when the caller already named it,
+    when the money path will verify a name by OCR instead, or when Jev cannot say."""
+    if item.strip() or risky.kind == "purchase":
+        return ""
+    control = safety.spoken_name(target.facts.labels) or "an unnamed control"
+    return page_subject(risky.say, control, target.title, ref)
+
+
 def _verified_action(
-    risky: safety.RiskyLabel, target: Target, amount: str, item: str
+    risky: safety.RiskyLabel, target: Target, amount: str, item: str, subject: str = ""
 ) -> safety.Action:
     """The summary from evidence. Purchases: amount and item visible on screen (OCR). Send and
-    delete: the recipient or file visible on screen. Anything else risky (checkout, submit,
-    unnamed, commerce page): the click itself is confirmed, named with the page's host."""
+    delete: the recipient or file visible on screen, named by the caller or read off the page.
+    Anything else risky (checkout, submit, subscribe, unnamed, commerce page): the click itself
+    is confirmed, named with what the page says it is about, or the host when it cannot say."""
     if risky.kind not in ("purchase", "send", "delete"):
-        return safety.Action(risky.kind, risky.say, target=target.host)
-    if not item.strip():
+        return safety.Action(risky.kind, risky.say, target=subject or target.host)
+    named = item.strip() or ("" if risky.kind == "purchase" else subject)
+    if not named:
         raise ToolError(
             "Before clicking that, read the page and call browser_click again with `item` set to "
             "the item, recipient or file exactly as shown."
         )
+    item = named
     evidence = _screen_rows(target)
     rows = [row.text for row in evidence.rows]
     if not safety.target_on_screen(item, rows):
@@ -564,7 +626,8 @@ def click_checked(
         if reversible is None:
             return f"Clicked {what}.", None
         return _reversible_said(what, reversible.undo, before), None
-    action = _verified_action(risky, target, amount, item)
+    subject = _subject_for(risky, target, item, "")
+    action = _verified_action(risky, target, amount, item, subject)
 
     def live() -> safety.Action:
         """Re-probe right before acting: same element, same risky label, same screen evidence."""
@@ -573,7 +636,7 @@ def click_checked(
         now = safety.click_risk(again.facts)
         if not same or now != risky:
             return safety.Action("changed", "changed")
-        return _verified_action(now, again, amount, item)
+        return _verified_action(now, again, amount, item, subject)
 
     safety.require_confirmation(action, current=live)
     safety.log_safety_timing(event="browser_click_confirmed", risk=risky.kind)
@@ -885,14 +948,15 @@ def click_ref(ref: str, approved_name: str, amount: str = "", item: str = "") ->
         if reversible is None:
             return f"Clicked {approved_name}."
         return _reversible_said(approved_name, reversible.undo, before)
-    action = _verified_action(risky, target, amount, item)
+    subject = _subject_for(risky, target, item, ref)
+    action = _verified_action(risky, target, amount, item, subject)
 
     def live() -> safety.Action:
         again = _ref_probe(ref, approved_name)
         now = safety.click_risk(again.facts)
         if now != risky:
             return safety.Action("changed", "changed")
-        return _verified_action(now, again, amount, item)
+        return _verified_action(now, again, amount, item, subject)
 
     safety.require_confirmation(action, current=live)
     safety.log_safety_timing(event="ref_click_confirmed", risk=risky.kind)
@@ -921,4 +985,11 @@ def fill_ref(ref: str, text: str, field_name: str) -> str:
     return f"Typed into {field_name}."
 
 
-TOOLS = [browser_open, browser_read, browser_screenshot, browser_click, browser_type]
+TOOLS = [
+    browser_open,
+    browser_read,
+    browser_results,
+    browser_screenshot,
+    browser_click,
+    browser_type,
+]

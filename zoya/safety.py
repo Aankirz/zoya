@@ -125,6 +125,7 @@ TOOL_RISK: dict[str, RiskClass] = {
     # Browser: reading and navigating are free; clicks and typing check their real target.
     "browser_open": "free",
     "browser_read": "free",
+    "browser_results": "free",
     "browser_click": "guarded",
     "browser_type": "guarded",
     # Computer use (Phase 5): seeing and reading are free; every input to the Mac checks its target.
@@ -211,15 +212,18 @@ RISKY_PHRASES: tuple[tuple[str, str, str], ...] = (
     ),
     ("checkout", r"checkout|check out|proceed to checkout", "Check out"),
     ("send", r"send(?: message| money)?", "Send"),
-    ("send", r"post|publish|भेज\S*|bhej\w*", "Send"),
+    ("send", r"post|publish|भेज\S*|bhej\w*", "Post"),
     (
         "delete",
         r"delete|remove|erase|trash|discard|हटा\S*|मिटा\S*|डिलीट\S*|hata\w*|mita\w*",
         "Delete",
     ),
     ("submit", r"submit|confirm|सबमिट\S*|जमा करें", "Submit"),
+    ("submit", r"reserve|book(?: this)? (?:room|table|stay|trip|seat)", "Reserve"),
     # Phase 4: YouTube's known final buttons publish as the user (Phase 3 residual: list them).
-    ("post", r"subscribe|subscribed|unsubscribe|like|comment|reply|सब्सक्राइब\S*", "Post"),
+    ("post", r"unsubscribe", "Unsubscribe"),
+    ("post", r"subscribe|subscribed|सब्सक्राइब\S*", "Subscribe"),
+    ("post", r"like|comment|reply", "Post"),
 )
 _RISKY = [
     (kind, re.compile(rf"(?:^| )(?:{pattern})(?: |$)"), say) for kind, pattern, say in RISKY_PHRASES
@@ -786,13 +790,17 @@ class Action:
     def summary(self) -> str:
         parts = [f"I'm about to {self.say.lower()}"]
         if self.target:
-            parts.append(f"{SUMMARY_CONNECTOR.get(self.kind, 'on')} {self.target}".strip())
+            connector = SAY_CONNECTOR.get(
+                self.say.casefold(), SUMMARY_CONNECTOR.get(self.kind, "on")
+            )
+            parts.append(f"{connector} {self.target}".strip())
         if self.amount:
             parts.append(f"total {self.amount}")
         return " ".join(parts) + "."
 
 
 SUMMARY_CONNECTOR = {"purchase": "for", "send": "to", "delete": "", "tool": "", "post": ""}
+SAY_CONNECTOR = {"subscribe": "to", "unsubscribe": "from", "reply": "to", "reserve": "", "post": ""}
 
 
 def summary_hash(summary: str) -> str:
