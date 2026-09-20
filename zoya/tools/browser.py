@@ -184,6 +184,12 @@ def _chrome() -> int:
     return port
 
 
+def is_ours(pid: int) -> bool:
+    """Whether `pid` is the Chrome Zoya launched. Any other browser is a window it cannot see."""
+    process = _state.get("chrome")
+    return process is not None and process.poll() is None and process.pid == pid
+
+
 def close() -> None:
     """Shutdown: Chrome is Zoya's child process now, so end it by PID (never by name pattern)."""
     process = _state.pop("chrome", None)

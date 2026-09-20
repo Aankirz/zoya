@@ -172,6 +172,11 @@ def test_occurrence_counts_controls_sharing_a_name():
     assert step_loop.occurrence_of(controls, 2) == 2
 
 
+class _Pid:
+    def processIdentifier(self):  # noqa: N802 — AppKit's own spelling
+        return 4321
+
+
 SNAPSHOT = """- searchbox "Search Amazon.in" [ref=e430]: wireless mouse
 - button "Add to cart" [ref=e898]
 - button [ref=e1214]
@@ -185,6 +190,8 @@ def test_a_web_page_is_read_and_clicked_by_ref_never_by_its_macos_tree(screen, m
     clicked = []
     monkeypatch.setattr(step_loop.ax, "read_controls", lambda _app: ([], True))
     monkeypatch.setattr(browser, "snapshot", lambda: SNAPSHOT)
+    monkeypatch.setattr(browser, "is_ours", lambda _pid: True)
+    monkeypatch.setattr(step_loop.ax, "frontmost_regular_app", lambda: _Pid())
     monkeypatch.setattr(browser, "click_ref", lambda ref, name: clicked.append((ref, name)))
     screen["replies"] = [answers(control="e898"), answers(done=1.0)]
 
@@ -194,6 +201,22 @@ def test_a_web_page_is_read_and_clicked_by_ref_never_by_its_macos_tree(screen, m
     assert clicked == [("e898", 'button "Add to cart"')]
     assert outcome.recorded == [], "a ref is a handle, not an identity: never record it as a flow"
     assert step_loop.computer.session.asked is True
+
+
+def test_a_page_in_another_browser_is_refused_not_clicked_in_zoyas_chrome(screen, monkeypatch):
+    """snapshot() reads Zoya's Chrome, so acting on Safari would click an unseen window."""
+    from zoya.tools import browser
+
+    monkeypatch.setattr(step_loop.ax, "read_controls", lambda _app: ([], True))
+    monkeypatch.setattr(step_loop.ax, "frontmost_regular_app", lambda: _Pid())
+    monkeypatch.setattr(browser, "is_ours", lambda _pid: False)
+    monkeypatch.setattr(browser, "snapshot", lambda: pytest.fail("must not snapshot"))
+
+    outcome = run()
+
+    assert outcome.escalate and not outcome.done
+    assert outcome.reason == step_loop.OTHER_BROWSER
+    assert outcome.jev_calls == 0
 
 
 def test_unnamed_refs_are_not_offered_to_jev():

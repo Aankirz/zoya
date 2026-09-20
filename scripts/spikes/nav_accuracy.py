@@ -3,7 +3,11 @@
 Gap 2's measurement. One batched step-loop call per (app, goal), from whatever screen the app
 opens on, with nothing pressed: the answer is the loop's first navigation decision in isolation.
 
-Run: .venv/bin/python scripts/spikes/nav_accuracy.py [repeats]
+Run: .venv/bin/python scripts/spikes/nav_accuracy.py [repeats] [app ...]
+
+`open -a` moves focus only when it is run from the shell, not from this process, so the
+one-case form measures whatever is already frontmost and the caller does the switching:
+    open -a Calendar && .venv/bin/python scripts/spikes/nav_accuracy.py --current "<goal>" "<x>"
 """
 
 from __future__ import annotations
@@ -74,11 +78,29 @@ def ask_once(goal: str) -> dict[str, object]:
     }
 
 
+def one_case(goal: str, expected: str, repeats: int) -> list[dict[str, object]]:
+    rows = []
+    for _ in range(repeats):
+        row = {"goal": goal, "expected": expected, **ask_once(goal)}
+        rows.append(row)
+        print(json.dumps(row))
+    return rows
+
+
+def append(rows: list[dict[str, object]]) -> None:
+    OUT.parent.mkdir(parents=True, exist_ok=True)
+    existing = json.loads(OUT.read_text()) if OUT.exists() else []
+    OUT.write_text(json.dumps(existing + rows, indent=1))
+
+
 def main() -> None:
     load_env()
     if ax.front_app()[0] == LOCKED:
         raise SystemExit("The screen is locked. Unlock it and run this again.")
     decisions.warm()
+    if sys.argv[1:2] == ["--current"]:
+        append(one_case(sys.argv[2], sys.argv[3], int(sys.argv[4]) if len(sys.argv) > 4 else 3))
+        return
     repeats = int(sys.argv[1]) if len(sys.argv) > 1 else 1
     results = []
     for app, goal, expected in CASES:

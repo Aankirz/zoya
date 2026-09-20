@@ -75,6 +75,7 @@ JEV_DOWN = "jev unavailable"
 PRESSED = "pressed "
 BUSY_SCREEN = "the screen stayed busy with another task."
 CIRCLING = "I went round in a circle in this app without getting anywhere."
+OTHER_BROWSER = "that's a web page in another browser, which I can't read from here."
 
 
 @dataclass
@@ -248,7 +249,9 @@ def run(goal: str, plan: list[str], cancel: Any) -> Outcome:
             return _stop(outcome, computer.session.stop_reason or "cancelled")
         if (handover := _gui_checkpoint()) is not None:
             return _stop(outcome, handover)
-        app, candidates = _look()
+        app, candidates, unreadable = _look()
+        if unreadable:
+            return _stop(outcome, unreadable)
         offered = [c for c in candidates if c.identity not in progress.wrong]
         if not offered:
             return _stop(outcome, NO_CONTROLS)
@@ -286,15 +289,22 @@ def _gui_checkpoint() -> str | None:
     return None
 
 
-def _look() -> tuple[str, list[Candidate]]:
-    """The frontmost window on its own substrate: accessibility for native, refs for web (D84)."""
+def _look() -> tuple[str, list[Candidate], str]:
+    """The frontmost window on its own substrate: accessibility for native, refs for web (D84).
+
+    A web page in a browser that is not Zoya's own Chrome has no substrate here: `snapshot()`
+    reads Zoya's Chrome over CDP, so acting on it would click a window the user is not looking
+    at. Measured: Safari showing example.com, the loop offered example.org's refs from Chrome.
+    """
     from zoya.tools import browser
 
     app, element = ax.front_app()
     items, web = ax.read_controls(element)
     if not web:
-        return app, native_candidates(items)
-    return app, web_candidates(browser.snapshot())
+        return app, native_candidates(items), ""
+    if not browser.is_ours(ax.frontmost_regular_app().processIdentifier()):
+        return app, [], OTHER_BROWSER
+    return app, web_candidates(browser.snapshot()), ""
 
 
 def _triaged(answers: decisions.Answers, progress: _Progress, outcome: Outcome) -> bool:
