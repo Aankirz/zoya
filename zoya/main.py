@@ -53,10 +53,12 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
 
 def _warm_browser() -> None:
     """§9.7: the skill catalogue, trigger index and Playwright driver at startup; Chrome itself
-    opens on first use (browser.warm)."""
-    from zoya import harness
+    opens on first use (browser.warm). Jev's connection is opened here too, so the first
+    question of the session does not pay a TLS handshake on the voice path."""
+    from zoya import decisions, harness
     from zoya.tools import ToolError, browser
 
+    decisions.warm()
     harness.trigger_index()
     try:
         browser.warm()

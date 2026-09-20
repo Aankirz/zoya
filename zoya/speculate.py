@@ -18,6 +18,7 @@ import logging
 import threading
 import time
 
+from zoya import decisions
 from zoya.config import SPECULATION_TTL_S, SPECULATION_WAIT_S
 from zoya.router import RouteDecision, clean_command, route
 
@@ -61,6 +62,7 @@ def prepare(text: str) -> bool:
 
 def _run(preparation: _Preparation) -> None:
     try:
+        decisions.warm()
         preparation.decision = route(preparation.text)
     except Exception as error:  # noqa: BLE001 — speculation may never break the voice loop
         log.warning("speculative route failed (%s)", type(error).__name__)
