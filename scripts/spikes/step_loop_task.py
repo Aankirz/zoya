@@ -16,6 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from zoya import decisions  # noqa: E402
 from zoya.agents import step_loop  # noqa: E402
 from zoya.config import LOG_DIR, load_env  # noqa: E402
 from zoya.tools import ax, computer  # noqa: E402
@@ -41,6 +42,7 @@ def bring_front(name: str) -> bool:
 
 def main() -> None:
     load_env()
+    decisions.warm()
     goal = sys.argv[1] if len(sys.argv) > 1 else "turn on dark mode"
     if len(sys.argv) > 2 and not bring_front(sys.argv[2]):
         raise SystemExit(f"Could not bring {sys.argv[2]} to the front.")

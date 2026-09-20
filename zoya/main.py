@@ -51,14 +51,23 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _warm_browser() -> None:
-    """§9.7: the skill catalogue, trigger index and Playwright driver at startup; Chrome itself
-    opens on first use (browser.warm). Jev's connection is opened here too, so the first
-    question of the session does not pay a TLS handshake on the voice path."""
-    from zoya import decisions, harness
-    from zoya.tools import ToolError, browser
+def _warm_jev() -> None:
+    """Jev's TLS connection, opened before the first question rather than on the voice path.
+
+    Unconditional: `_warm_browser` is skipped when --page is given, and the first call of a
+    process was measured at 948-1,034 ms against ~424 ms once a connection is open.
+    """
+    from zoya import decisions
 
     decisions.warm()
+
+
+def _warm_browser() -> None:
+    """§9.7: the skill catalogue, trigger index and Playwright driver at startup; Chrome itself
+    opens on first use (browser.warm)."""
+    from zoya import harness
+    from zoya.tools import ToolError, browser
+
     harness.trigger_index()
     try:
         browser.warm()
@@ -80,6 +89,7 @@ def _start(args: argparse.Namespace):  # noqa: ANN202 — returns VoiceLoop, imp
     print(f"overlay: {overlay.start(presence=args.overlay)}")  # menu-bar Stop / Quit always
     audio.engine()
     _warm_up()
+    threading.Thread(target=_warm_jev, name="zoya-jev-warm", daemon=True).start()
     if not args.page:  # --page launches it right away below
         threading.Thread(target=_warm_browser, name="zoya-browser-warm", daemon=True).start()
     loop = VoiceLoop(

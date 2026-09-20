@@ -62,6 +62,7 @@ def one_step(goal: str) -> dict[str, object]:
 
 def main() -> None:
     load_env()
+    decisions.warm()
     goal = sys.argv[1] if len(sys.argv) > 1 else "turn on dark mode"
     repeats = int(sys.argv[2]) if len(sys.argv) > 2 else 10
     runs = []
