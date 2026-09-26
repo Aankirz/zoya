@@ -4,7 +4,7 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-09-26",
   "workers_dev": true,
-  "observability": { "enabled": true },
+  "observability": { "enabled": true, "logs": { "invocation_logs": false } },
   "vars": {
     "OPENAI_BASE_URL": "https://api.openai.com/v1",
     "AI_GATEWAY_BASE_URL": "https://ai-gateway.vercel.sh/v1"
