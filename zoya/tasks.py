@@ -158,7 +158,9 @@ def _run(task: Task, run: Callable[[Task], None]) -> None:
     try:
         run(task)
     except Exception:  # noqa: BLE001 — handle_command already speaks failures; never kill the loop
-        log.exception("task %s crashed", task.name)
+        from zoya import crash
+
+        crash.task_crashed(task.name)
     finally:
         _finish(task)
 
