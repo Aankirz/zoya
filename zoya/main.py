@@ -77,12 +77,11 @@ def _warm_browser() -> None:
 
 def _start(args: argparse.Namespace):  # noqa: ANN202 — returns VoiceLoop, imported lazily
     started = time.monotonic()
-    from zoya import audio, aws
+    from zoya import audio
     from zoya.__main__ import _warm_up
     from zoya.orchestrator import setup_tracing
     from zoya.voice import VoiceLoop
 
-    print(f"keys: {aws.load_provider_secrets()}")
     print(f"tracing: {setup_tracing()}")
     from zoya import overlay
 
@@ -138,21 +137,30 @@ def main(argv: list[str] | None = None) -> int:
         os.environ[ORDER_LIMIT_ENV] = args.order_limit
     if args.disable_tts:
         os.environ[DISABLE_TTS_ENV] = args.disable_tts
-    logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
+    from zoya import crash
+
+    crash.install()
     logging.getLogger("zoya.speech").setLevel(logging.INFO)  # tts engine + first-chunk timing
     logging.getLogger("botocore.credentials").setLevel(logging.CRITICAL)
 
-    from zoya import audio, speech
+    from zoya import audio, aws, first_run, speech
     from zoya.setup_models import ModelsMissing
+    from zoya.supervisor import EXIT_CANNOT_START
 
     audio.restore_after_kill()  # before anything else: undo a previous run killed while ducked
     for quit_signal in (signal.SIGTERM, signal.SIGHUP):  # kill / terminal closed → same as Ctrl+C
         signal.signal(quit_signal, _raise_interrupt)
+    print(f"keys: {aws.load_provider_secrets()}")
     try:
+        first_run.run()
         loop = _start(args)
     except ModelsMissing as missing:
         print(f"Zoya can't start: {missing}")
-        return 1
+        return EXIT_CANNOT_START
+    except KeyboardInterrupt:
+        speech.cancel()
+        return 0
+    crash.announce_restart()
     from zoya.shutdown import QUIT_KEYS_LABEL
     from zoya.voice import push_to_talk_label
 

@@ -7,6 +7,7 @@ other setting is a named constant here. Later phases add keys append-only.
 from __future__ import annotations
 
 import os
+from functools import cache
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -362,8 +363,28 @@ RELAY_URL_ENV = "ZOYA_RELAY_URL"
 LICENSE_KEY_ENV = "ZOYA_LICENSE_KEY"
 
 
+LICENSE_KEYCHAIN_ACCOUNT = "license"
+
+
+@cache
+def _keychain_license() -> str:
+    from zoya import keychain
+
+    try:
+        return keychain.read(LICENSE_KEYCHAIN_ACCOUNT).strip()
+    except keychain.KeychainError:
+        return ""
+
+
+def save_license_key(key: str) -> None:
+    from zoya import keychain
+
+    keychain.store(LICENSE_KEYCHAIN_ACCOUNT, key)
+    _keychain_license.cache_clear()
+
+
 def license_key() -> str:
-    return os.environ.get(LICENSE_KEY_ENV, "").strip()
+    return _keychain_license() or os.environ.get(LICENSE_KEY_ENV, "").strip()
 
 
 def relay_url() -> str:
