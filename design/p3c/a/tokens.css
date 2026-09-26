@@ -1,0 +1,41 @@
+/* Hallmark · macrostructure: app shell (sidebar + centered column) · genre: modern-minimal · theme: custom "Graphite"
+ * vibe: "graphite capsule, paper hub, blue voice, amber yes" · paper oklch(96.9% 0.002 260) · accent oklch(62% 0.19 255)
+ * display: New York (ui-serif) · body: SF Pro (system) · axes: light / classical-serif / cool
+ */
+:root {
+  --paper: oklch(96.9% 0.002 260);
+  --card: oklch(99.6% 0.002 260);
+  --ink: oklch(15% 0.005 260);
+  --muted: oklch(40% 0.006 260);
+  --rule: oklch(86% 0.004 260);
+  --graphite: oklch(21% 0.008 260);
+  --graphite-line: oklch(100% 0.002 260 / 0.14);
+  --on-graphite: oklch(97% 0.003 260);
+  --on-graphite-muted: oklch(80% 0.006 260);
+  --voice: oklch(70% 0.16 252);
+  --link: oklch(43% 0.16 258);
+  --focus: oklch(45% 0.17 258);
+  --yes: oklch(84% 0.16 84);
+  --alert: oklch(72% 0.17 35);
+  --danger: oklch(41% 0.15 27);
+  --shadow: oklch(12% 0.01 260 / 0.28);
+  --hover-on-graphite: oklch(100% 0.002 260 / 0.24);
+  --nav-hover: oklch(92% 0.004 260);
+  --success: oklch(55% 0.13 150);
+  --yes-wash: oklch(95% 0.05 84);
+  --danger-wash: oklch(95% 0.02 27);
+
+  --font-ui: -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif;
+  --font-display: ui-serif, "New York", Georgia, serif;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur: 200ms;
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --muted: var(--ink);
+    --rule: var(--muted);
+    --graphite-line: oklch(100% 0 0 / 0.6);
+    --on-graphite-muted: var(--on-graphite);
+  }
+}

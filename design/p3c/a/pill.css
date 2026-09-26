@@ -1,0 +1,223 @@
+.zp {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  height: 44px;
+  padding: 0 6px 0 16px;
+  border-radius: 999px;
+  background: var(--graphite);
+  box-shadow:
+    inset 0 0 0 1px var(--graphite-line),
+    0 10px 28px var(--shadow);
+  color: var(--on-graphite);
+  font: 600 13px/1 var(--font-ui);
+  white-space: nowrap;
+}
+
+.zp[data-state="idle"] {
+  width: 40px;
+  height: 10px;
+  padding: 0;
+  gap: 0;
+}
+
+.zp-bars {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 22px;
+}
+
+.zp-bars i {
+  width: 3px;
+  height: var(--h);
+  border-radius: 2px;
+  background: currentColor;
+  transform-origin: center;
+}
+
+.zp[data-state="listening"] .zp-bars i {
+  animation: zp-level 900ms var(--ease-out) infinite alternate;
+  animation-delay: calc(var(--i) * -130ms);
+}
+
+.zp[data-state="speaking"] {
+  background: var(--link);
+}
+
+.zp[data-state="speaking"] .zp-bars i {
+  animation: zp-level 600ms var(--ease-out) infinite alternate;
+  animation-delay: calc(var(--i) * -90ms);
+}
+
+@keyframes zp-level {
+  from {
+    transform: scaleY(0.35);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+.zp-dots {
+  display: inline-flex;
+  gap: 5px;
+}
+
+.zp-dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.35;
+  animation: zp-think 1.2s linear infinite;
+  animation-delay: calc(var(--i) * 200ms);
+}
+
+@keyframes zp-think {
+  30% {
+    opacity: 1;
+  }
+}
+
+.zp[data-state="error"] {
+  box-shadow:
+    inset 0 0 0 2px var(--alert),
+    0 10px 28px var(--shadow);
+}
+
+.zp-alert {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--alert);
+}
+
+.zp-stop {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--graphite-line);
+  color: inherit;
+  cursor: pointer;
+  transition: background-color var(--dur) var(--ease-out), transform 100ms var(--ease-out);
+}
+
+.zp-stop::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.zp-stop:hover {
+  background: var(--hover-on-graphite);
+}
+
+.zp-stop:active {
+  transform: scale(0.94);
+}
+
+.zp-stop:focus-visible {
+  outline: 2px solid var(--voice);
+  outline-offset: 2px;
+}
+
+/* The safety gate: the loudest thing on screen. Amber, taller, outlined in ink. */
+.zp[data-state="confirm"] {
+  height: auto;
+  gap: 14px;
+  padding: 10px 10px 10px 20px;
+  background: var(--yes);
+  box-shadow:
+    inset 0 0 0 2px var(--ink),
+    0 14px 36px var(--shadow);
+  color: var(--ink);
+}
+
+.zp-ask {
+  display: grid;
+  gap: 4px;
+  text-align: left;
+}
+
+.zp-ask small {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.zp-ask strong {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.zp[data-state="confirm"] .zp-stop {
+  width: 44px;
+  height: 44px;
+  background: var(--ink);
+  color: var(--yes);
+}
+
+.zp[data-state="confirm"] .zp-stop:focus-visible {
+  outline-color: var(--ink);
+}
+
+.zc {
+  display: grid;
+  gap: 4px;
+  max-width: 560px;
+  padding: 12px 18px;
+  border-radius: 16px;
+  background: var(--card);
+  box-shadow:
+    0 0 0 1px var(--rule),
+    0 10px 28px var(--shadow);
+  color: var(--ink);
+  font: 500 17px/1.35 var(--font-ui);
+  text-align: center;
+  text-wrap: balance;
+}
+
+.zc-heard {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.is-large .zp {
+  height: 56px;
+  gap: 14px;
+  font-size: 17px;
+}
+
+.is-large .zp[data-state="confirm"] {
+  height: auto;
+}
+
+.is-large .zp-ask strong {
+  font-size: 24px;
+}
+
+.is-large .zp-ask small {
+  font-size: 18px;
+}
+
+.is-large .zc {
+  max-width: 720px;
+  font-size: 24px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zp-bars i,
+  .zp-dots i {
+    animation: none;
+  }
+
+  .zp-dots i {
+    opacity: 1;
+  }
+}

@@ -1,0 +1,39 @@
+/* Hallmark · macrostructure: app shell (tinted sidebar + centered column) · genre: modern-minimal · theme: custom "Daylight"
+ * vibe: "zoya blue, her eyes in the pill, soft daylight" · paper oklch(99.4% 0.006 255) · accent oklch(52% 0.19 258)
+ * display + body: Inter (the website's face) · axes: light / geometric-sans / cool
+ */
+@font-face {
+  font-family: "Inter";
+  src: url("../fonts/InterVariable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+:root {
+  --paper: oklch(99.4% 0.006 255);
+  --sky: oklch(97% 0.02 255);
+  --sky-2: oklch(94% 0.035 255);
+  --ink: oklch(15% 0.005 260);
+  --muted: oklch(40% 0.006 260);
+  --rule: oklch(90% 0.012 255);
+  --blue: oklch(52% 0.19 258);
+  --blue-deep: oklch(30% 0.12 258);
+  --on-blue: oklch(99% 0.004 255);
+  --night: oklch(22% 0.02 258);
+  --yes: oklch(90% 0.14 95);
+  --danger: oklch(47% 0.17 30);
+  --focus: oklch(45% 0.17 258);
+  --shadow: oklch(30% 0.1 258 / 0.22);
+  --done: oklch(40% 0.1 150);
+
+  --font: "Inter", -apple-system, sans-serif;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur: 220ms;
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --muted: var(--ink);
+    --rule: var(--muted);
+  }
+}

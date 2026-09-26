@@ -1,0 +1,427 @@
+/* The review sheet itself (not a product surface): neutral, so each direction reads on its own. */
+:root {
+  --sheet-bg: oklch(96.9% 0.002 260);
+  --sheet-card: oklch(99.6% 0.002 260);
+  --sheet-ink: oklch(15% 0.005 260);
+  --sheet-muted: oklch(40% 0.006 260);
+  --sheet-rule: oklch(86% 0.004 260);
+  --sheet-focus: oklch(45% 0.17 258);
+  --sheet-dock-light: oklch(97% 0.004 260 / 0.72);
+  --sheet-dock-dark: oklch(24% 0.006 260 / 0.78);
+  --sheet-font: -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  overflow-x: clip;
+}
+
+body {
+  margin: 0;
+  background: var(--sheet-bg);
+  color: var(--sheet-ink);
+  font-family: var(--sheet-font);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--sheet-focus);
+}
+
+:focus-visible {
+  outline: 3px solid var(--sheet-focus);
+  outline-offset: 3px;
+}
+
+.sheet {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 48px 24px 96px;
+}
+
+.sheet-head {
+  max-width: 68ch;
+  margin: 0 auto 56px;
+  text-align: center;
+}
+
+.sheet-head h1 {
+  margin: 0;
+  font-size: 40px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.sheet-head p {
+  margin: 12px 0 0;
+  color: var(--sheet-muted);
+}
+
+.sheet-section {
+  margin-top: 72px;
+}
+
+.sheet-section > h2 {
+  margin: 0 0 8px;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.sheet-section > p {
+  max-width: 72ch;
+  margin: 0 0 24px;
+  color: var(--sheet-muted);
+}
+
+.sheet-note {
+  color: var(--sheet-muted);
+  font-size: 14px;
+}
+
+/* A real-size desktop: 1512 x 982 points, the capture of this Mac. */
+.desktop {
+  position: relative;
+  width: 1512px;
+  height: 982px;
+  overflow: hidden;
+  border: 1px solid var(--sheet-rule);
+  border-radius: 12px;
+  background: url("assets/desktop.jpg") center / 1512px 982px no-repeat;
+}
+
+.scroll-x {
+  overflow-x: auto;
+  padding-bottom: 12px;
+}
+
+/* One crop per state, at 1:1, cut from the bottom-centre of the same desktop. */
+.state-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 720px), 1fr));
+  gap: 20px;
+}
+
+.state-crop {
+  margin: 0;
+}
+
+.state-stage {
+  position: relative;
+  height: 380px;
+  overflow: hidden;
+  border: 1px solid var(--sheet-rule);
+  border-radius: 12px;
+  background: url("assets/desktop.jpg") center bottom / 1512px 982px no-repeat;
+}
+
+.state-crop figcaption {
+  margin-top: 8px;
+  font-size: 14px;
+}
+
+.state-crop figcaption b {
+  font-weight: 600;
+}
+
+.pill-dock {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  translate: -50% 0;
+}
+
+/* Hub frames: true 1280 x 800 pages, shown at a scale with a link to open at full size. */
+.hub-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+
+.hub-frame {
+  margin: 0;
+}
+
+.hub-viewport {
+  width: calc(1280px * var(--s));
+  height: calc(800px * var(--s));
+  overflow: hidden;
+  border: 1px solid var(--sheet-rule);
+  border-radius: 10px;
+  background: var(--sheet-card);
+}
+
+.hub-viewport iframe {
+  width: 1280px;
+  height: 800px;
+  border: 0;
+  transform: scale(var(--s));
+  transform-origin: 0 0;
+}
+
+.hub-frame figcaption {
+  margin-top: 8px;
+  font-size: 14px;
+}
+
+/* Icons: full-bleed square art, masked here the way macOS masks it (824 of 1024, continuous corners). */
+.icon-tile {
+  position: relative;
+  display: inline-block;
+  width: var(--size);
+  height: var(--size);
+  flex: none;
+}
+
+.icon-tile > span {
+  position: absolute;
+  inset: 9.77%;
+  overflow: hidden;
+  border-radius: 22.4%;
+  corner-shape: superellipse(1.6);
+  box-shadow:
+    0 calc(var(--size) * 0.012) calc(var(--size) * 0.03) oklch(10% 0 0 / 0.28),
+    inset 0 0 0 max(1px, calc(var(--size) * 0.002)) oklch(100% 0 0 / 0.18);
+}
+
+.icon-tile img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.icon-real {
+  display: block;
+  width: var(--size);
+  height: var(--size);
+  flex: none;
+}
+
+.icons-1024 {
+  display: flex;
+  gap: 24px;
+}
+
+.icon-label {
+  margin-top: 6px;
+  text-align: center;
+  font-size: 14px;
+}
+
+.dock {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid oklch(100% 0 0 / 0.35);
+  border-radius: 28px;
+  background: var(--sheet-dock-light);
+  backdrop-filter: blur(20px) saturate(1.4);
+}
+
+.dock.is-dark {
+  border-color: oklch(100% 0 0 / 0.12);
+  background: var(--sheet-dock-dark);
+}
+
+.dock-scene {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  padding: 32px;
+  border-radius: 12px;
+  background: url("assets/desktop.jpg") center bottom / cover;
+}
+
+.dock-scene.is-dark {
+  background: oklch(20% 0.01 260);
+}
+
+.finder-list {
+  display: grid;
+  gap: 4px;
+  width: 360px;
+  padding: 10px;
+  border: 1px solid var(--sheet-rule);
+  border-radius: 10px;
+  background: var(--sheet-card);
+  font-size: 13px;
+}
+
+.finder-list.is-dark {
+  border-color: oklch(35% 0.006 260);
+  background: oklch(22% 0.006 260);
+  color: oklch(95% 0.004 260);
+}
+
+.finder-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1;
+}
+
+.spec {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 16px;
+  max-width: 900px;
+  margin: 0;
+}
+
+.spec dt {
+  font-weight: 600;
+}
+
+.spec dd {
+  margin: 0;
+  color: var(--sheet-muted);
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.swatch {
+  display: grid;
+  gap: 4px;
+  width: 132px;
+  font-size: 12px;
+}
+
+.swatch i {
+  display: block;
+  height: 48px;
+  border: 1px solid var(--sheet-rule);
+  border-radius: 8px;
+  background: var(--c);
+}
+
+.findings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+  gap: 24px;
+}
+
+.findings section {
+  padding: 20px 24px;
+  border: 1px solid var(--sheet-rule);
+  border-radius: 12px;
+  background: var(--sheet-card);
+}
+
+.findings h3 {
+  margin: 0 0 8px;
+  font-size: 17px;
+}
+
+.findings ul {
+  margin: 0;
+  padding-left: 1.2em;
+}
+
+.findings li + li {
+  margin-top: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.is-card {
+  background: var(--sheet-card);
+}
+
+.card {
+  display: grid;
+  gap: 20px;
+  padding: 24px;
+}
+
+.card h2 {
+  margin: 0;
+  font-size: 28px;
+  letter-spacing: -0.02em;
+}
+
+.card-line {
+  margin: -12px 0 0;
+  font-size: 17px;
+}
+
+.card .spec {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+  font-size: 14px;
+}
+
+.card .spec dd + dt {
+  margin-top: 8px;
+}
+
+.card .swatch {
+  width: 64px;
+  font-size: 11px;
+}
+
+.card .swatch i {
+  height: 32px;
+}
+
+.card-crop .state-stage {
+  height: 250px;
+}
+
+.card-icons {
+  display: flex;
+  justify-content: space-between;
+}
+
+.card-findings {
+  font-size: 14px;
+}
+
+.card-findings h3 {
+  margin: 8px 0 4px;
+  font-size: 15px;
+}
+
+.card-findings ul {
+  margin: 0;
+  padding-left: 1.2em;
+}
+
+.card-crop .pill-dock {
+  scale: 0.8;
+  transform-origin: 50% 100%;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

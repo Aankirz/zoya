@@ -1,0 +1,213 @@
+.cp {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  height: 56px;
+  padding: 0 8px 0 18px;
+  border: 2.5px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  box-shadow: 0 8px 22px var(--shadow);
+  color: var(--ink);
+  font: 700 17px/1 var(--font);
+  white-space: nowrap;
+}
+
+.cp[data-state="idle"] {
+  height: 30px;
+  padding: 0 14px;
+  border-width: 2px;
+}
+
+.cp-cell {
+  display: grid;
+  grid-template-columns: repeat(2, 5px);
+  grid-template-rows: repeat(3, 5px);
+  gap: 3px 4px;
+}
+
+.cp-cell i {
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.cp-cell i.off {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px currentColor;
+  opacity: 0.4;
+}
+
+.cp-meter {
+  position: relative;
+  width: 64px;
+  height: 12px;
+  overflow: hidden;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+}
+
+.cp-meter::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--blue);
+  transform-origin: left;
+  animation: cp-level 800ms var(--ease-out) infinite alternate;
+}
+
+@keyframes cp-level {
+  from {
+    transform: scaleX(0.25);
+  }
+  to {
+    transform: scaleX(0.85);
+  }
+}
+
+.cp-glyph {
+  width: 24px;
+  height: 24px;
+  flex: none;
+}
+
+.cp-stop {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--card);
+  font: 700 16px/1 var(--font);
+  cursor: pointer;
+  transition: transform 100ms var(--ease-out);
+}
+
+.cp-stop::before {
+  content: "";
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.cp-stop:hover {
+  background: var(--blue);
+}
+
+.cp-stop:active {
+  transform: scale(0.96);
+}
+
+.cp-stop:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.cp[data-state="listening"] {
+  border-color: var(--blue);
+}
+
+.cp[data-state="speaking"] {
+  background: var(--ink);
+  color: var(--card);
+}
+
+.cp[data-state="speaking"] .cp-stop {
+  background: var(--card);
+  color: var(--ink);
+}
+
+.cp[data-state="error"] {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* The safety gate: tactile-paving yellow with its raised-dot field, a thick ink edge, the biggest type Zoya shows. */
+.cp[data-state="confirm"] {
+  height: auto;
+  gap: 16px;
+  padding: 10px 10px 10px 10px;
+  border-width: 3px;
+  background: var(--yellow);
+}
+
+.cp-domes {
+  width: 48px;
+  height: 48px;
+  flex: none;
+  margin-left: 8px;
+  color: var(--ink);
+}
+
+.cp-ask {
+  display: grid;
+  gap: 6px;
+  text-align: left;
+}
+
+.cp-ask small {
+  font-size: 16px;
+}
+
+.cp-ask strong {
+  font-size: 22px;
+}
+
+.cp[data-state="confirm"] .cp-stop {
+  height: 52px;
+  font-size: 18px;
+}
+
+.cc {
+  display: grid;
+  gap: 6px;
+  max-width: 600px;
+  padding: 14px 20px;
+  border: 2px solid var(--line);
+  border-radius: 18px;
+  background: var(--card);
+  box-shadow: 0 8px 22px var(--shadow);
+  color: var(--ink);
+  font: 400 20px/1.35 var(--font);
+  text-align: left;
+}
+
+.cc b {
+  font-size: 14px;
+}
+
+.is-large .cp {
+  height: 68px;
+  font-size: 22px;
+}
+
+.is-large .cp[data-state="confirm"] {
+  height: auto;
+}
+
+.is-large .cp-ask strong {
+  font-size: 30px;
+}
+
+.is-large .cc {
+  max-width: 760px;
+  font-size: 28px;
+}
+
+.is-large .cc b {
+  font-size: 18px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cp-stop:active {
+    transform: none;
+  }
+
+  .cp-meter::before {
+    animation: none;
+    transform: scaleX(0.6);
+  }
+}

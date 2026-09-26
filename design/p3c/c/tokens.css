@@ -1,0 +1,36 @@
+/* Hallmark · macrostructure: app shell (keyboard sidebar + centered column) · genre: utilitarian · theme: custom "Tactile"
+ * vibe: "tactile paving yellow, ink outlines, big honest type" · paper oklch(96.9% 0.006 260) · accent oklch(88% 0.17 95)
+ * display + body: Atkinson Hyperlegible Next · axes: light / humanist-sans / warm accent
+ */
+@font-face {
+  font-family: "Atkinson Hyperlegible Next";
+  src: url("../fonts/AtkinsonHyperlegibleNext.ttf") format("truetype");
+  font-weight: 200 800;
+  font-display: swap;
+}
+
+:root {
+  --paper: oklch(96.9% 0.006 260);
+  --card: oklch(99.4% 0.006 260);
+  --ink: oklch(15% 0.005 260);
+  --muted: oklch(34% 0.006 260);
+  --line: oklch(15% 0.005 260);
+  --soft-line: oklch(80% 0.004 260);
+  --yellow: oklch(88% 0.17 95);
+  --yellow-soft: oklch(95% 0.07 95);
+  --blue: oklch(45% 0.17 258);
+  --danger: oklch(45% 0.16 27);
+  --focus: oklch(45% 0.17 258);
+  --shadow: oklch(12% 0.01 260 / 0.22);
+
+  --font: "Atkinson Hyperlegible Next", -apple-system, sans-serif;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur: 160ms;
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --muted: var(--ink);
+    --soft-line: var(--ink);
+  }
+}

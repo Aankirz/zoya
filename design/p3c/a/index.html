@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zoya P3c · Graphite</title>
+<link rel="stylesheet" href="../sheet.css">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="pill.css">
+<script src="../sheet.js"></script>
+<script src="pill.js"></script>
+<script src="findings.js"></script>
+</head>
+<body>
+<script>
+start({
+  name: "A · Graphite",
+  line: "A graphite capsule that stays out of the way until it matters. Blue is her voice; amber is your yes.",
+  type: "New York for Hub titles, SF Pro for everything else: the Mac's own pair, so Zoya feels native on day one.",
+  motion: "Level-driven bars while listening and speaking; three dots while thinking; everything else holds still. 200 ms ease-out between sizes.",
+  confirm: "The pill turns amber, grows, gains an ink outline and says “Say confirm”. Stop becomes a large ink button.",
+  tokens: [
+    ["paper", "oklch(96.9% 0.002 260)"],
+    ["card", "oklch(99.6% 0.002 260)"],
+    ["ink", "oklch(15% 0.005 260)"],
+    ["graphite", "oklch(21% 0.008 260)"],
+    ["voice", "oklch(70% 0.16 252)"],
+    ["zoya blue", "oklch(43% 0.16 258)"],
+    ["yes", "oklch(84% 0.16 84)"],
+    ["alert", "oklch(72% 0.17 35)"],
+  ],
+  icons: [
+    ["icons/a1-rest.svg", "Rest"],
+    ["icons/a2-listen.svg", "Listen"],
+    ["icons/a3-voice.svg", "Voice"],
+  ],
+  pill: pillA,
+  findings: FINDINGS,
+});
+</script>
+</body>
+</html>
