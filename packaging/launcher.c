@@ -6,6 +6,15 @@
 #include <string.h>
 
 static const char *DEFAULT_MODULE = "zoya.app";
+static const char *AGENT_ARG = "--agent";
+static const int EXIT_REFUSED = 2;
+
+static const char *ALLOWED_MODULES[] = {
+    "zoya.app",
+    "zoya.overlay",
+    "zoya.permissions",
+    "zoya.setup_models",
+};
 
 static const char *SEARCH_PATHS[] = {
     "Resources/app",
@@ -14,8 +23,20 @@ static const char *SEARCH_PATHS[] = {
     "Resources/python/lib/python3.12/site-packages",
 };
 
-static int python_style(int argc, char **argv) {
-    return argc > 1 && argv[1][0] == '-' && argv[1][1] != '-';
+static int allowed_module(int argc, char **argv) {
+    if (argc < 3 || strcmp(argv[1], "-m") != 0) {
+        return 0;
+    }
+    for (size_t i = 0; i < sizeof ALLOWED_MODULES / sizeof ALLOWED_MODULES[0]; i++) {
+        if (strcmp(argv[2], ALLOWED_MODULES[i]) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int app_launch(int argc, char **argv) {
+    return argc == 1 || strcmp(argv[1], AGENT_ARG) == 0;
 }
 
 static PyStatus set_search_paths(PyConfig *config, const char *contents) {
@@ -65,7 +86,7 @@ static PyStatus configure(PyConfig *config, const char *contents, int argc, char
     config->write_bytecode = 0;
     config->safe_path = 1;
     config->buffered_stdio = 0;
-    if (python_style(argc, argv)) {
+    if (allowed_module(argc, argv)) {
         return PyConfig_SetBytesArgv(config, argc, argv);
     }
     char **full = calloc((size_t)argc + 3, sizeof(char *));
@@ -81,6 +102,10 @@ static PyStatus configure(PyConfig *config, const char *contents, int argc, char
 }
 
 int main(int argc, char **argv) {
+    if (!allowed_module(argc, argv) && !app_launch(argc, argv)) {
+        fprintf(stderr, "Zoya only runs her own code.\n");
+        return EXIT_REFUSED;
+    }
     char contents[PATH_MAX];
     if (resolve_contents(contents) != 0) {
         fprintf(stderr, "Zoya could not find its own bundle.\n");

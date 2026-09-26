@@ -239,10 +239,10 @@ def compile_launcher(source: Path, python_home: Path, macos: Path) -> None:
     run("install_name_tool", "-change", old, f"@rpath/lib{PYTHON_TAG}.dylib", launcher)
 
 
-def precompile(contents: Path) -> None:
+def precompile(source: Path, contents: Path) -> None:
     resources = contents / "Resources"
     run(
-        contents / "MacOS" / APP_NAME,
+        source / "bin" / PYTHON_TAG,
         "-m",
         "compileall",
         "-q",
@@ -253,6 +253,41 @@ def precompile(contents: Path) -> None:
         resources / "app",
         resources / "python" / "lib" / PYTHON_TAG,
     )
+
+
+def refused_launches(marker: Path) -> list[list[str]]:
+    code = f"open({str(marker)!r}, 'w').write('ran')"
+    script = marker.with_suffix(".py")
+    script.write_text(code)
+    return [
+        ["-c", code],
+        ["-i", "-c", code],
+        ["-", code],
+        [str(script)],
+        ["-m", "zoya"],
+        ["-m", "zoya.main", "--help"],
+        ["-m", "compileall", str(marker.parent)],
+        ["-I", "-m", "zoya.overlay"],
+        ["-m"],
+    ]
+
+
+def check_refusals(app: Path) -> None:
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as folder:
+        marker = Path(folder) / "ran"
+        for arguments in refused_launches(marker):
+            result = subprocess.run(
+                [str(app / "Contents" / "MacOS" / APP_NAME), *arguments],
+                input=f"open({str(marker)!r}, 'w').write('ran')\n",
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+            if result.returncode == 0 or marker.exists():
+                sys.exit(f"The launcher ran {arguments}; it must refuse it.")
 
 
 def is_macho(path: Path) -> bool:
@@ -323,9 +358,10 @@ def build() -> Path:
     add_sparkle(contents)
     write_info_plist(contents, app_version)
     compile_launcher(source, python_home, macos)
-    precompile(contents)
+    precompile(source, contents)
     unlock_signing_keychain()
     sign_bundle(app)
+    check_refusals(app)
     archive = DIST / f"{APP_NAME}-{app_version}.zip"
     archive.unlink(missing_ok=True)
     run("ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", app, archive)
