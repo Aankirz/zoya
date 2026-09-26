@@ -164,10 +164,14 @@ def _native(state: str, questions: Mapping[str, Question], timeout_s: float) -> 
 def _endpoint() -> tuple[str, str, str]:
     """(host, path, key) of the evaluate endpoint: the relay with a license, else the gateway."""
     license = license_key()
-    base = f"{relay_url()}/v1" if license else os.environ.get("AI_GATEWAY_BASE_URL", "").rstrip("/")
+    relay = relay_url()
+    base = (
+        (f"{relay}/v1" if relay else "") if license else os.environ.get("AI_GATEWAY_BASE_URL", "")
+    )
+    base = base.rstrip("/")
     key = license or os.environ.get("AI_GATEWAY_API_KEY", "")
     if not base or not key:
-        raise _Fatal("AI_GATEWAY_BASE_URL or AI_GATEWAY_API_KEY is not set")
+        raise _Fatal("the Jev endpoint or its key is not set")
     parsed = urllib.parse.urlparse(base)
     secure = parsed.scheme == "https" or (
         parsed.scheme == "http" and parsed.hostname in LOOPBACK_HOSTS

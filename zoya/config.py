@@ -357,7 +357,7 @@ AX_ACTION_SETTLE_S = 0.3
 
 # --- Production P1: the relay (D105, D107) -----------------------------------------------------
 
-RELAY_URL = "https://zoya-relay.workers.dev"
+RELAY_URL = ""
 RELAY_URL_ENV = "ZOYA_RELAY_URL"
 LICENSE_KEY_ENV = "ZOYA_LICENSE_KEY"
 

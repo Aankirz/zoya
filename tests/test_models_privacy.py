@@ -10,7 +10,7 @@ import pytest
 
 from zoya import decisions
 from zoya.config import BRAIN_PLANNING_REASONING_EFFORT, BRAIN_STEP_REASONING_EFFORT
-from zoya.models import brain_planning_model, get_model
+from zoya.models import RelayNotConfigured, brain_planning_model, get_model
 from zoya.orchestrator import ReasoningSchedule
 
 ROLES = ["brain", "vision", "router"]
@@ -136,3 +136,13 @@ def test_without_a_license_key_bring_your_own_keys_are_unchanged():
     assert model.client_args["api_key"] == "sk-test"
     assert "base_url" not in model.client_args
     assert "base_url" not in brain_planning_model().client_args
+
+
+def test_a_license_key_without_a_relay_address_is_never_sent_anywhere(licensed, monkeypatch):
+    monkeypatch.delenv("ZOYA_RELAY_URL")
+
+    with pytest.raises(RelayNotConfigured):
+        get_model("brain", provider="openai")
+    with pytest.raises(RelayNotConfigured):
+        brain_planning_model()
+    assert not decisions.ask("state", {"stop": decisions.Noul(instructions="Stop?")})

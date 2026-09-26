@@ -75,6 +75,10 @@ CAP_REACHED_SAY = (
     "You've used this month's allowance for bigger tasks. "
     "Simple commands, like opening an app, still work."
 )
+RELAY_NOT_CONFIGURED_SAY = (
+    "Zoya's service address isn't set up on this Mac yet, so I can't do that. "
+    "Simple commands, like opening an app, still work."
+)
 RELAY_UNREACHABLE_SAY = (
     "I can't reach Zoya's service right now. Check your internet. Simple commands still work."
 )
@@ -87,9 +91,15 @@ RELAY_SAYINGS = {
 HTTP_UNAUTHORIZED = 401
 
 
+class RelayNotConfigured(RuntimeError):
+    pass
+
+
 def _openai_client_args(role: Role) -> dict[str, object]:
     limits = {"timeout": MODEL_TIMEOUT_S[role], "max_retries": MODEL_MAX_RETRIES}
     if key := license_key():
+        if not relay_url():
+            raise RelayNotConfigured("ZOYA_LICENSE_KEY is set but the relay address is not")
         return {"api_key": key, "base_url": f"{relay_url()}/v1", **limits}
     return {"api_key": os.environ["OPENAI_API_KEY"], **limits}
 
@@ -108,6 +118,8 @@ def relay_failure(error: BaseException) -> str:
     if not license_key():
         return ""
     for link in _causes(error):
+        if isinstance(link, RelayNotConfigured):
+            return RELAY_NOT_CONFIGURED_SAY
         if isinstance(link, openai.APIConnectionError):
             return RELAY_UNREACHABLE_SAY
         if isinstance(link, openai.APIStatusError):
