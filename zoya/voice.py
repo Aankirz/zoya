@@ -36,6 +36,7 @@ from zoya import (
     aec,
     audio,
     decisions,
+    diagnostics,
     events,
     orchestrator,
     safety,
@@ -1078,7 +1079,7 @@ class VoiceLoop:
         return True
 
     def _dispatch(self, text: str, speech_end_at: float, pre: dict[str, int]) -> None:
-        if _quit(text):
+        if _quit(text) or _problem_report(text):
             return
         if not is_usable_command(text):
             audio.engine().silence_all()  # nothing heard: end the working loop quietly
@@ -1138,6 +1139,13 @@ def _quit(text: str) -> bool:
     if not shutdown.is_quit_phrase(text):
         return False
     threading.Thread(target=shutdown.quit_zoya, name="zoya-quit", daemon=True).start()
+    return True
+
+
+def _problem_report(text: str) -> bool:
+    if not diagnostics.is_report_phrase(text):
+        return False
+    threading.Thread(target=diagnostics.send_report, name="zoya-report", daemon=True).start()
     return True
 
 

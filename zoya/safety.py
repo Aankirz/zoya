@@ -757,7 +757,20 @@ SECRET_FIELD = re.compile(
     re.I,
 )
 CARD_OR_LONG_NUMBER = re.compile(r"(?:\d[ -]?){8,}\d")
-SECRET_VALUE = re.compile(r"\b(otp|password|passcode|pin|cvv)\b(\W*)\S+", re.I)
+SECRET_VALUE = re.compile(
+    r"\b(otp|password|passcode|passwd|pin|cvv)\b([^\w\[]*(?:(?:is|was)\s+)?)[^\s\"',}]+", re.I
+)
+CODE_NEAR_DIGITS = re.compile(r"\b(otp|code)\b([^\d\n]{0,30})\d{4,8}\b", re.I)
+API_KEY = re.compile(
+    r"\b(?:sk|pk|rk)-[\w-]{16,}|\bzoya_[\w-]{16,}|\b(?:AKIA|ASIA)[A-Z0-9]{16}\b|"
+    r"\bsm_[\w-]{16,}|\bnpg_\w{8,}|\bvck_[\w-]{16,}"
+)
+NAMED_SECRET = re.compile(
+    r"([\"']?\w*(?:key|secret|token|password|credential)\w*[\"']?\s*[=:]\s*[\"']?)[^\s\"',}]+",
+    re.I,
+)
+BEARER = re.compile(r"\b(Bearer\s+)\S+", re.I)
+LONG_BASE64 = re.compile(r"(?:data:[\w/+.-]+;base64,)?[A-Za-z0-9+/_-]{200,}={0,2}")
 
 
 def is_secret_field(
@@ -771,6 +784,11 @@ def is_secret_field(
 
 def redact(text: str) -> str:
     """Audit/log text: never card numbers, OTPs or passwords (AGENTS.md §6)."""
+    text = LONG_BASE64.sub("[redacted]", text)
+    text = API_KEY.sub("[redacted]", text)
+    text = BEARER.sub(r"\1[redacted]", text)
+    text = NAMED_SECRET.sub(r"\1[redacted]", text)
+    text = CODE_NEAR_DIGITS.sub(r"\1\2[redacted]", text)
     return SECRET_VALUE.sub(r"\1\2[redacted]", CARD_OR_LONG_NUMBER.sub("[redacted]", text))
 
 
