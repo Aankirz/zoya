@@ -36,7 +36,14 @@ from typing import Any
 
 from typesafe_sdk import Choice, Noul, Score
 
-from zoya.config import JEV_BACKOFF_S, JEV_DEADLINE_S, JEV_RETRY_STATUS, JEV_TIMEOUT_S
+from zoya.config import (
+    JEV_BACKOFF_S,
+    JEV_DEADLINE_S,
+    JEV_RETRY_STATUS,
+    JEV_TIMEOUT_S,
+    license_key,
+    relay_url,
+)
 
 log = logging.getLogger(__name__)
 
@@ -45,7 +52,8 @@ Question = Noul | Choice | Score
 GATEWAY_TYPES = {"noul": "boolean"}
 HTTP_ERROR = 400
 POOL_MAX = 4
-_pool: list[http.client.HTTPSConnection] = []
+LOOPBACK_HOSTS = ("localhost", "127.0.0.1")
+_pool: list[http.client.HTTPConnection] = []
 _pool_lock = threading.Lock()
 GATEWAY_PROBABILITY_FIELD = {"boolean": "probability"}
 
@@ -129,7 +137,7 @@ def _ms(started: float) -> int:
 def _evaluate(state: str, questions: Mapping[str, Question], timeout_s: float) -> dict[str, Any]:
     if timeout_s <= 0:
         raise _Retryable("no time left")
-    if os.environ.get("TYPESAFE_API_KEY"):
+    if os.environ.get("TYPESAFE_API_KEY") and not license_key():
         return _native(state, questions, timeout_s)
     return _gateway(state, questions, timeout_s)
 
@@ -154,19 +162,29 @@ def _native(state: str, questions: Mapping[str, Question], timeout_s: float) -> 
 
 
 def _endpoint() -> tuple[str, str, str]:
-    """(host, path, key) of the gateway's evaluate endpoint, from the environment."""
-    base = os.environ.get("AI_GATEWAY_BASE_URL", "").rstrip("/")
-    key = os.environ.get("AI_GATEWAY_API_KEY", "")
+    """(host, path, key) of the evaluate endpoint: the relay with a license, else the gateway."""
+    license = license_key()
+    base = f"{relay_url()}/v1" if license else os.environ.get("AI_GATEWAY_BASE_URL", "").rstrip("/")
+    key = license or os.environ.get("AI_GATEWAY_API_KEY", "")
     if not base or not key:
         raise _Fatal("AI_GATEWAY_BASE_URL or AI_GATEWAY_API_KEY is not set")
     parsed = urllib.parse.urlparse(base)
-    if parsed.scheme != "https" or not parsed.hostname:
-        raise _Fatal(f"AI_GATEWAY_BASE_URL must be an https URL, got {base!r}")
+    secure = parsed.scheme == "https" or (
+        parsed.scheme == "http" and parsed.hostname in LOOPBACK_HOSTS
+    )
+    if not secure or not parsed.hostname:
+        raise _Fatal(f"the Jev endpoint must be an https URL, got {base!r}")
     port = f":{parsed.port}" if parsed.port else ""
     return f"{parsed.hostname}{port}", f"{parsed.path}/evaluate", key
 
 
-def _take(host: str, timeout_s: float) -> tuple[http.client.HTTPSConnection, bool]:
+def _connect(host: str, timeout_s: float) -> http.client.HTTPConnection:
+    if host.split(":")[0] in LOOPBACK_HOSTS:
+        return http.client.HTTPConnection(host, timeout=timeout_s)
+    return http.client.HTTPSConnection(host, timeout=timeout_s)
+
+
+def _take(host: str, timeout_s: float) -> tuple[http.client.HTTPConnection, bool]:
     """An idle kept-alive connection to `host`, or a new one. True = it was already open."""
     with _pool_lock:
         while _pool:
@@ -175,10 +193,10 @@ def _take(host: str, timeout_s: float) -> tuple[http.client.HTTPSConnection, boo
                 connection.timeout = timeout_s
                 return connection, True
             connection.close()
-    return http.client.HTTPSConnection(host, timeout=timeout_s), False
+    return _connect(host, timeout_s), False
 
 
-def _give_back(connection: http.client.HTTPSConnection) -> None:
+def _give_back(connection: http.client.HTTPConnection) -> None:
     with _pool_lock:
         if len(_pool) < POOL_MAX:
             _pool.append(connection)

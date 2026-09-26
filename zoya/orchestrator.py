@@ -451,7 +451,12 @@ def _execute(decision: RouteDecision, timings: dict[str, int]) -> tuple[str, boo
         return (safety.CANCELLED_SAY if said == safety.ALREADY_DECLINED else said), False
     except (KeyboardInterrupt, TaskCancelled):
         return STOPPED_MESSAGE, False
-    except Exception:  # noqa: BLE001 — never crash on a command; say so politely
+    except Exception as error:  # noqa: BLE001 — never crash on a command; say so politely
+        from zoya.models import relay_failure
+
+        if spoken := relay_failure(error):
+            log.warning("command refused by the relay: %s", type(error).__name__)
+            return spoken, False
         log.exception("command failed")
         return GENERIC_FAILURE, False
     finally:

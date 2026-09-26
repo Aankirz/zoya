@@ -63,7 +63,7 @@ default_env ROUTER_MODEL gpt-5.6-luna
 default_env ELEVENLABS_VOICE_ID Be3X8pg7kLN4vyyMC3QN
 default_env AWS_REGION ap-south-1
 
-ask_secret OPENAI_API_KEY "OpenAI API key: Zoya's brain" "https://platform.openai.com/api-keys" yes
+[[ -n "$(env_value ZOYA_LICENSE_KEY)" ]] || ask_secret OPENAI_API_KEY "OpenAI API key: Zoya's brain" "https://platform.openai.com/api-keys" yes
 ask_secret TINYFISH_API_KEY "TinyFish key: web search (free)" "https://tinyfish.ai" no
 ask_secret ELEVENLABS_API_KEY "ElevenLabs key: backup voice" "https://elevenlabs.io/app/settings/api-keys" no
 ask_secret SUPERMEMORY_API_KEY "Supermemory key: remembers your preferences" "https://console.supermemory.ai" no
@@ -74,15 +74,17 @@ if [[ -z "$(env_value AWS_PROFILE)" ]]; then
   [[ -n "$profile" ]] && set_env AWS_PROFILE "$profile"
 fi
 
-say_step "Checking the OpenAI key"
-key="$(env_value OPENAI_API_KEY)"
-status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 https://api.openai.com/v1/models -H "Authorization: Bearer $key" || echo 000)"
-unset key
-if [[ "$status" != "200" ]]; then
-  set_env OPENAI_API_KEY ""
-  fail "OpenAI rejected that key (HTTP $status). Run ./start.sh again and paste a valid key."
+if [[ -z "$(env_value ZOYA_LICENSE_KEY)" ]]; then
+  say_step "Checking the OpenAI key"
+  key="$(env_value OPENAI_API_KEY)"
+  status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 https://api.openai.com/v1/models -H "Authorization: Bearer $key" || echo 000)"
+  unset key
+  if [[ "$status" != "200" ]]; then
+    set_env OPENAI_API_KEY ""
+    fail "OpenAI rejected that key (HTTP $status). Run ./start.sh again and paste a valid key."
+  fi
+  echo "  OpenAI key works."
 fi
-echo "  OpenAI key works."
 
 say_step "Downloading Zoya's on-device speech models (once)"
 uv run python -m zoya.setup_models

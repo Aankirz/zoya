@@ -354,3 +354,17 @@ AGENT_BROWSER_SESSION = "zoya"
 AGENT_BROWSER_TIMEOUT_S = 20.0  # bound on one agent-browser subprocess
 
 AX_ACTION_SETTLE_S = 0.3
+
+# --- Production P1: the relay (D105, D107) -----------------------------------------------------
+
+RELAY_URL = "https://zoya-relay.workers.dev"
+RELAY_URL_ENV = "ZOYA_RELAY_URL"
+LICENSE_KEY_ENV = "ZOYA_LICENSE_KEY"
+
+
+def license_key() -> str:
+    return os.environ.get(LICENSE_KEY_ENV, "").strip()
+
+
+def relay_url() -> str:
+    return (os.environ.get(RELAY_URL_ENV) or RELAY_URL).rstrip("/")

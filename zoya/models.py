@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import os
 
+import openai
 from strands.models import BedrockModel, Model
 from strands.models.openai import OpenAIModel
 from strands.models.openai_responses import OpenAIResponsesModel
@@ -39,6 +40,8 @@ from zoya.config import (
     MODEL_MAX_RETRIES,
     MODEL_TIMEOUT_S,
     PROMPT_CACHE_TTL,
+    license_key,
+    relay_url,
 )
 
 Role = str  # "brain" | "vision" | "router"
@@ -64,12 +67,54 @@ def _cache_params(cache_key: str) -> dict[str, object]:
     return {"prompt_cache_key": cache_key, "prompt_cache_options": {"ttl": PROMPT_CACHE_TTL}}
 
 
+LICENSE_INVALID_SAY = (
+    "Your Zoya key isn't valid, so I can't do that. "
+    "Simple commands, like opening an app, still work."
+)
+CAP_REACHED_SAY = (
+    "You've used this month's allowance for bigger tasks. "
+    "Simple commands, like opening an app, still work."
+)
+RELAY_UNREACHABLE_SAY = (
+    "I can't reach Zoya's service right now. Check your internet. Simple commands still work."
+)
+RELAY_SAYINGS = {
+    "zoya_license_invalid": LICENSE_INVALID_SAY,
+    "zoya_cap_reached": CAP_REACHED_SAY,
+    "zoya_relay_unavailable": RELAY_UNREACHABLE_SAY,
+    "zoya_upstream_unreachable": RELAY_UNREACHABLE_SAY,
+}
+HTTP_UNAUTHORIZED = 401
+
+
 def _openai_client_args(role: Role) -> dict[str, object]:
-    return {
-        "api_key": os.environ["OPENAI_API_KEY"],
-        "timeout": MODEL_TIMEOUT_S[role],
-        "max_retries": MODEL_MAX_RETRIES,
-    }
+    limits = {"timeout": MODEL_TIMEOUT_S[role], "max_retries": MODEL_MAX_RETRIES}
+    if key := license_key():
+        return {"api_key": key, "base_url": f"{relay_url()}/v1", **limits}
+    return {"api_key": os.environ["OPENAI_API_KEY"], **limits}
+
+
+def _causes(error: BaseException) -> list[BaseException]:
+    chain: list[BaseException] = []
+    link: BaseException | None = error
+    while link is not None and link not in chain:
+        chain.append(link)
+        link = link.__cause__ or link.__context__
+    return chain
+
+
+def relay_failure(error: BaseException) -> str:
+    """What to say when a model call failed at the relay, or "" when it is not a relay failure."""
+    if not license_key():
+        return ""
+    for link in _causes(error):
+        if isinstance(link, openai.APIConnectionError):
+            return RELAY_UNREACHABLE_SAY
+        if isinstance(link, openai.APIStatusError):
+            if spoken := RELAY_SAYINGS.get(str(link.code or "")):
+                return spoken
+            return LICENSE_INVALID_SAY if link.status_code == HTTP_UNAUTHORIZED else ""
+    return ""
 
 
 def brain_planning_model(cache_key: str = "") -> Model:

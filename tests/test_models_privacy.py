@@ -8,11 +8,15 @@ from types import SimpleNamespace
 
 import pytest
 
+from zoya import decisions
 from zoya.config import BRAIN_PLANNING_REASONING_EFFORT, BRAIN_STEP_REASONING_EFFORT
 from zoya.models import brain_planning_model, get_model
 from zoya.orchestrator import ReasoningSchedule
 
 ROLES = ["brain", "vision", "router"]
+RELAY = "https://relay.test"
+LICENSE = "zoya_test_license"
+HI = [{"role": "user", "content": [{"text": "hi"}]}]
 
 
 @pytest.fixture(autouse=True)
@@ -22,6 +26,16 @@ def _openai_env(monkeypatch):
     monkeypatch.setenv("BRAIN_MODEL", "gpt-5.6-terra")
     monkeypatch.setenv("VISION_MODEL", "gpt-5.6-terra")
     monkeypatch.setenv("ROUTER_MODEL", "gpt-5.6-luna")
+    monkeypatch.delenv("ZOYA_LICENSE_KEY", raising=False)
+    monkeypatch.delenv("ZOYA_RELAY_URL", raising=False)
+
+
+@pytest.fixture
+def licensed(monkeypatch):
+    monkeypatch.setenv("ZOYA_LICENSE_KEY", LICENSE)
+    monkeypatch.setenv("ZOYA_RELAY_URL", RELAY)
+    monkeypatch.delenv("OPENAI_API_KEY")
+    monkeypatch.delenv("AI_GATEWAY_API_KEY", raising=False)
 
 
 @pytest.mark.parametrize("role", ROLES)
@@ -91,3 +105,34 @@ def test_reasoning_is_dropped_after_the_planning_call():
     effort = model.get_config()["params"]["reasoning"]["effort"]
     assert effort == BRAIN_STEP_REASONING_EFFORT
     assert model._format_request([{"role": "user", "content": [{"text": "hi"}]}])["store"] is False
+
+
+@pytest.mark.parametrize("role", ROLES)
+def test_licensed_model_goes_to_the_relay_and_still_sets_store_false(role, licensed):
+    model = get_model(role, provider="openai")
+    config = model.get_config()
+
+    assert model.client_args["base_url"] == f"{RELAY}/v1"
+    assert model.client_args["api_key"] == LICENSE
+    assert config["params"]["store"] is False, f"{role}: the relay is a second guard, not the first"
+    assert config.get("stateful") is not True
+
+
+def test_licensed_planning_model_goes_to_the_relay_with_store_false_in_the_body(licensed):
+    model = brain_planning_model()
+
+    assert model.client_args["base_url"] == f"{RELAY}/v1"
+    assert model.client_args["api_key"] == LICENSE
+    assert model._format_request(HI)["store"] is False
+
+
+def test_licensed_jev_goes_to_the_relay_with_the_license_key(licensed):
+    assert decisions._endpoint() == ("relay.test", "/v1/evaluate", LICENSE)
+
+
+def test_without_a_license_key_bring_your_own_keys_are_unchanged():
+    model = get_model("brain", provider="openai")
+
+    assert model.client_args["api_key"] == "sk-test"
+    assert "base_url" not in model.client_args
+    assert "base_url" not in brain_planning_model().client_args
