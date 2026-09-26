@@ -102,13 +102,22 @@ describe("the monthly cap", () => {
   });
 
   it("still lets the router model and Jev through over the cap, and meters them", async () => {
-    const store = await fakeStore({ [GOOD]: license({ capCents: 1, spentCents: 5 }) });
+    const store = await fakeStore({ [GOOD]: license({ capCents: 1, spentCents: 2 }) });
     upstream({ answers: {}, usage: { inputTokens: 281, outputTokens: 21 } });
     const jev = await call(store, "/v1/evaluate", { model: "typesafe-ai/jev", state: "", questions: {} });
     upstream(CHAT_USAGE);
     const router = await call(store, "/v1/chat/completions", { model: "gpt-5.6-luna" });
     expect([jev.status, router.status]).toEqual([200, 200]);
     expect(store.recorded).toHaveLength(2);
+  });
+
+  it("refuses every model once spend passes the overall ceiling", async () => {
+    const store = await fakeStore({ [GOOD]: license({ capCents: 10, spentCents: 30 }) });
+    const { fetchMock } = upstream(CHAT_USAGE);
+    const jev = await call(store, "/v1/evaluate", { model: "typesafe-ai/jev", state: "", questions: {} });
+    const router = await call(store, "/v1/chat/completions", { model: "gpt-5.6-luna" });
+    expect([jev.json().error.code, router.json().error.code]).toEqual(["zoya_cap_reached", "zoya_cap_reached"]);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

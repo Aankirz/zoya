@@ -1,4 +1,4 @@
-import { HEAVY_MODELS, PRICES_USD_PER_1M, costCents, usageFrom, type Usage } from "./cost";
+import { HEAVY_MODELS, OVERALL_CEILING_MULTIPLIER, PRICES_USD_PER_1M, costCents, usageFrom, type Usage } from "./cost";
 
 export type License = { id: number; active: boolean; capCents: number; spentCents: number };
 
@@ -122,12 +122,17 @@ export async function handle(request: Request, env: Env, store: Store, waitUntil
     log({ ...describe(call), status: refused.status });
     return refused;
   }
-  if (HEAVY_MODELS.has(model) && auth.license.spentCents >= auth.license.capCents) {
+  if (overCap(auth.license, model)) {
     log({ ...describe(call), status: 402, event: "cap_reached" });
     return fail(402, "zoya_cap_reached", "This month's allowance for heavy tasks is used up.");
   }
   const meter = (usage: Usage | null, status: number) => settle(call, auth.license, usage, status, store);
   return forward(env, path, rewrite(path, body), call, meter, waitUntil);
+}
+
+function overCap(license: License, model: string): boolean {
+  const limit = HEAVY_MODELS.has(model) ? license.capCents : license.capCents * OVERALL_CEILING_MULTIPLIER;
+  return license.spentCents >= limit;
 }
 
 async function forward(

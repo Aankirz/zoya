@@ -9,6 +9,7 @@ export const PRICES_USD_PER_1M: Record<string, Price> = {
 };
 
 export const HEAVY_MODELS = new Set(["gpt-5.6-terra"]);
+export const OVERALL_CEILING_MULTIPLIER = 3;
 
 const TOKENS_PER_PRICE_UNIT = 1_000_000;
 const CENTS_PER_USD = 100;
