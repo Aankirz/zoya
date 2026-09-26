@@ -1,11 +1,12 @@
 export type Usage = { input: number; cached: number; cacheWrite: number; output: number };
 
-type Price = { input: number; cached: number; output: number; upstream: "openai" | "jev" };
+type Price = { input: number; cached: number; output: number; upstream: "openai" | "jev" | "polly" };
 
 export const PRICES_USD_PER_1M: Record<string, Price> = {
   "gpt-5.6-terra": { input: 2.0, cached: 0.2, output: 12.0, upstream: "openai" },
   "gpt-5.6-luna": { input: 0.2, cached: 0.02, output: 1.2, upstream: "openai" },
   "typesafe-ai/jev": { input: 0.042, cached: 0.042, output: 0, upstream: "jev" },
+  "amazon-polly-neural": { input: 16.0, cached: 16.0, output: 0, upstream: "polly" },
 };
 
 export const HEAVY_MODELS = new Set(["gpt-5.6-terra"]);

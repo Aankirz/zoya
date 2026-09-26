@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { costCents, usageFrom } from "../src/cost";
 import { handle, sha256Hex, type Env, type License, type Store } from "../src/relay";
+import { signedPostHeaders } from "../src/sigv4";
 
 const ENV: Env = {
   OPENAI_API_KEY: "sk-real",
@@ -8,6 +9,9 @@ const ENV: Env = {
   RELAY_DATABASE_URL: "",
   OPENAI_BASE_URL: "https://openai.test/v1",
   AI_GATEWAY_BASE_URL: "https://gateway.test/v1",
+  AWS_ACCESS_KEY_ID: "AKIDEXAMPLE",
+  AWS_SECRET_ACCESS_KEY: "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY",
+  POLLY_REGION: "ap-south-1",
 };
 const GOOD = "zoya_good";
 const REVOKED = "zoya_revoked";
@@ -88,6 +92,21 @@ describe("store is forced to false", () => {
       stream_options: { include_usage: false },
     });
     expect(sent[0].body.stream_options).toEqual({ include_usage: true });
+  });
+
+  it("renames max_tokens, which gpt-5.6 rejects, to max_completion_tokens", async () => {
+    const store = await fakeStore({ [GOOD]: license() });
+    const { sent } = upstream(CHAT_USAGE);
+    await call(store, "/v1/chat/completions", { model: "gpt-5.6-luna", max_tokens: 500, store: true });
+    expect(sent[0].body).toEqual({ model: "gpt-5.6-luna", max_completion_tokens: 500, store: false });
+  });
+  it("turns reasoning off for function tools on Chat Completions, as gpt-5.6 requires (D43)", async () => {
+    const store = await fakeStore({ [GOOD]: license() });
+    const { sent } = upstream(CHAT_USAGE);
+    const tools = [{ type: "function", function: { name: "save" } }];
+    await call(store, "/v1/chat/completions", { model: "gpt-5.6-luna", tools });
+    await call(store, "/v1/chat/completions", { model: "gpt-5.6-luna", tools, reasoning_effort: "low" });
+    expect(sent.map((s) => s.body.reasoning_effort)).toEqual(["none", "low"]);
   });
 });
 
@@ -212,5 +231,59 @@ describe("the model allowlist", () => {
     const store = await fakeStore({ [GOOD]: license() });
     const reply = await call(store, "/v1/embeddings", { model: "gpt-5.6-luna" });
     expect(reply.status).toBe(404);
+  });
+});
+
+describe("speech through Amazon Polly", () => {
+  const SPEECH = { model: "amazon-polly-neural", text: "Notes is open.", voice: "Kajal", language: "en-IN", sample_rate: "16000" };
+
+  it("signs a request exactly as botocore's SigV4Auth does", async () => {
+    const headers = await signedPostHeaders(
+      { accessKeyId: "AKIDEXAMPLE", secretAccessKey: "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY", sessionToken: "SESSIONTOKEN" },
+      {
+        url: "https://polly.ap-south-1.amazonaws.com/v1/speech",
+        body: '{"Engine":"neural","LanguageCode":"en-IN","OutputFormat":"pcm","SampleRate":"16000","Text":"Notes is open.","VoiceId":"Kajal"}',
+        region: "ap-south-1",
+        service: "polly",
+        amzDate: "20260926T120000Z",
+      },
+    );
+    expect(headers.authorization).toBe(
+      "AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/20260926/ap-south-1/polly/aws4_request, " +
+        "SignedHeaders=content-type;host;x-amz-date;x-amz-security-token, " +
+        "Signature=c2a4cb3a920b65aa89e69f66f616b725ca5a97a3784ca13403bf5e9e8e91269c",
+    );
+  });
+
+  it("streams Polly's audio back and meters the characters Polly bills", async () => {
+    const store = await fakeStore({ [GOOD]: license() });
+    const sent: { url: string; body: Record<string, unknown> }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit) => {
+        sent.push({ url, body: JSON.parse(String(init.body)) });
+        return new Response("PCM", {
+          status: 200,
+          headers: { "Content-Type": "audio/pcm", "x-amzn-RequestCharacters": "1000" },
+        });
+      }),
+    );
+    const result = await call(store, "/v1/speech", SPEECH);
+    expect(result.text).toBe("PCM");
+    expect(sent[0].url).toBe("https://polly.ap-south-1.amazonaws.com/v1/speech");
+    expect(sent[0].body).toMatchObject({ Engine: "neural", VoiceId: "Kajal", OutputFormat: "pcm", Text: "Notes is open." });
+    expect(store.recorded).toEqual([{ licenseId: 1, cents: 1.6 }]);
+  });
+
+  it.each([
+    ["another voice", { voice: "Joanna" }],
+    ["text past Polly's billed limit", { text: "a".repeat(3001) }],
+    ["empty text", { text: " " }],
+  ])("refuses %s", async (_name, change) => {
+    const store = await fakeStore({ [GOOD]: license() });
+    const { fetchMock } = upstream({});
+    const result = await call(store, "/v1/speech", { ...SPEECH, ...change });
+    expect(result.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

@@ -1,4 +1,5 @@
 import { HEAVY_MODELS, OVERALL_CEILING_MULTIPLIER, PRICES_USD_PER_1M, costCents, usageFrom, type Usage } from "./cost";
+import { amzDate, signedPostHeaders } from "./sigv4";
 
 export type License = { id: number; active: boolean; capCents: number; spentCents: number };
 
@@ -13,9 +14,13 @@ export type Env = {
   RELAY_DATABASE_URL: string;
   OPENAI_BASE_URL: string;
   AI_GATEWAY_BASE_URL: string;
+  AWS_ACCESS_KEY_ID: string;
+  AWS_SECRET_ACCESS_KEY: string;
+  AWS_SESSION_TOKEN?: string;
+  POLLY_REGION: string;
 };
 
-type Upstream = "openai" | "jev";
+type Upstream = "openai" | "jev" | "polly";
 type Json = Record<string, unknown>;
 type Call = { fingerprint: string; path: string; model: string; started: number };
 
@@ -23,6 +28,7 @@ const ROUTES: Record<string, Upstream> = {
   "/v1/chat/completions": "openai",
   "/v1/responses": "openai",
   "/v1/evaluate": "jev",
+  "/v1/speech": "polly",
 };
 const UPSTREAM_PATH: Record<string, string> = {
   "/v1/chat/completions": "/chat/completions",
@@ -32,6 +38,10 @@ const UPSTREAM_PATH: Record<string, string> = {
 const FINGERPRINT_CHARS = 8;
 const USAGE_FIELD = /"usage"\s*:\s*\{/;
 const SSE_DATA = "data:";
+const SPEECH_VOICES = new Set(["Kajal"]);
+const SPEECH_LANGUAGES = new Set(["en-IN", "hi-IN"]);
+const SPEECH_SAMPLE_RATES = new Set(["8000", "16000"]);
+const MAX_SPEECH_CHARS = 3000;
 
 export function fail(status: number, code: string, message: string): Response {
   return Response.json({ error: { message, type: "zoya_relay_error", code } }, { status });
@@ -65,6 +75,7 @@ function refusal(upstream: Upstream, body: Json): Response | null {
   if (PRICES_USD_PER_1M[model]?.upstream !== upstream) {
     return fail(403, "zoya_model_not_allowed", `The model ${model || "(none)"} is not available.`);
   }
+  if (upstream === "polly") return speechRefusal(body);
   const tools = Array.isArray(body.tools) ? body.tools : [];
   if (tools.some((tool) => (tool as Json | null)?.type !== "function")) {
     return fail(403, "zoya_tool_not_allowed", "Only function tools are available.");
@@ -72,9 +83,27 @@ function refusal(upstream: Upstream, body: Json): Response | null {
   return null;
 }
 
+function speechRefusal(body: Json): Response | null {
+  const text = typeof body.text === "string" ? body.text : "";
+  const valid =
+    text.trim().length > 0 &&
+    text.length <= MAX_SPEECH_CHARS &&
+    SPEECH_VOICES.has(String(body.voice)) &&
+    SPEECH_LANGUAGES.has(String(body.language)) &&
+    SPEECH_SAMPLE_RATES.has(String(body.sample_rate));
+  return valid ? null : fail(400, "zoya_speech_invalid", "That speech request is not available.");
+}
+
 export function rewrite(path: string, body: Json): Json {
   if (ROUTES[path] !== "openai") return body;
   const sent: Json = { ...body, store: false };
+  if (path === "/v1/chat/completions" && "max_tokens" in body) {
+    const { max_tokens, ...rest } = sent;
+    return rewrite(path, { max_completion_tokens: max_tokens, ...rest });
+  }
+  if (path === "/v1/chat/completions" && Array.isArray(body.tools) && body.tools.length && !("reasoning_effort" in body)) {
+    sent.reasoning_effort = "none";
+  }
   if (path === "/v1/chat/completions" && body.stream === true) {
     const options = body.stream_options && typeof body.stream_options === "object" ? body.stream_options : {};
     sent.stream_options = { ...options, include_usage: true };
@@ -127,6 +156,7 @@ export async function handle(request: Request, env: Env, store: Store, waitUntil
     return fail(402, "zoya_cap_reached", "This month's allowance for heavy tasks is used up.");
   }
   const meter = (usage: Usage | null, status: number) => settle(call, auth.license, usage, status, store);
+  if (upstream === "polly") return speak(env, body, call, meter, waitUntil);
   return forward(env, path, rewrite(path, body), call, meter, waitUntil);
 }
 
@@ -164,6 +194,43 @@ async function forward(
   const text = await response.text();
   waitUntil(meter(usageFromText(text), response.status));
   return new Response(text, { status: response.status, headers });
+}
+
+async function speak(
+  env: Env,
+  body: Json,
+  call: Call,
+  meter: (usage: Usage | null, status: number) => Promise<void>,
+  waitUntil: (p: Promise<unknown>) => void,
+): Promise<Response> {
+  const text = String(body.text);
+  const polly = JSON.stringify({
+    Engine: "neural",
+    LanguageCode: body.language,
+    OutputFormat: "pcm",
+    SampleRate: body.sample_rate,
+    Text: text,
+    VoiceId: body.voice,
+  });
+  const url = `https://polly.${env.POLLY_REGION}.amazonaws.com/v1/speech`;
+  const credentials = {
+    accessKeyId: env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
+    sessionToken: env.AWS_SESSION_TOKEN || undefined,
+  };
+  const signing = { url, body: polly, region: env.POLLY_REGION, service: "polly", amzDate: amzDate(new Date()) };
+  const { host: _host, ...headers } = await signedPostHeaders(credentials, signing);
+  let response: Response;
+  try {
+    response = await fetch(url, { method: "POST", headers, body: polly });
+  } catch (error) {
+    log({ ...describe(call), status: 502, event: "upstream_unreachable", error: errorName(error) });
+    return fail(502, "zoya_upstream_unreachable", "The voice provider could not be reached.");
+  }
+  const characters = Number(response.headers.get("x-amzn-RequestCharacters")) || text.length;
+  waitUntil(meter(response.ok ? { input: characters, cached: 0, cacheWrite: 0, output: 0 } : null, response.status));
+  const contentType = response.headers.get("Content-Type") ?? "application/octet-stream";
+  return new Response(response.body, { status: response.status, headers: { "Content-Type": contentType } });
 }
 
 function usageFromText(text: string): Usage | null {
