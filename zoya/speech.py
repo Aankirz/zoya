@@ -1,8 +1,10 @@
 """narrate(): Zoya speaks (D33, D41, STACK §2), with barge-in (Phase 2).
 
 Order: Amazon Polly Kajal (neural, en-IN, ap-south-1) → ElevenLabs Tara →
-macOS `say`, so Zoya is never silent. Speech runs on one background worker so
-the fast path's timing never includes audio playback, and sentences never overlap.
+macOS `say`, so Zoya is never silent. With a license key (production P2) Polly comes through the
+relay first, so no AWS profile is needed and the relay meters its characters. Speech runs on
+one background worker so the fast path's timing never includes audio playback, and sentences
+never overlap.
 Audio streams chunk by chunk into zoya/audio.py as it arrives; cancel() drops
 everything queued or playing within one 10 ms mixer block.
 
@@ -14,13 +16,16 @@ APIs (verified 2026-09-14):
 from __future__ import annotations
 
 import itertools
+import json
 import logging
 import os
 import queue
 import subprocess
 import threading
 import time
-from collections.abc import Iterator
+import urllib.parse
+import urllib.request
+from collections.abc import Callable, Iterator
 
 from zoya import audio, aws, events
 from zoya.config import (
@@ -32,10 +37,15 @@ from zoya.config import (
     POLLY_ENGINE,
     POLLY_LANGUAGE_CODE,
     POLLY_VOICE_ID,
+    RELAY_SPEECH_MODEL,
+    RELAY_SPEECH_TIMEOUT_S,
     SAY_TIMEOUT_S,
     SPEECH_DRAIN_MARGIN_S,
     SPEECH_SAMPLE_RATE_HZ,
+    license_key,
+    relay_url,
 )
+from zoya.decisions import LOOPBACK_HOSTS
 
 BYTES_PER_SAMPLE = 2
 DRAIN_POLL_S = 0.02
@@ -72,6 +82,34 @@ def _polly_chunks(text: str) -> Iterator[bytes]:
         SampleRate=str(SPEECH_SAMPLE_RATE_HZ),
     )
     yield from response["AudioStream"].iter_chunks(POLLY_CHUNK_BYTES)
+
+
+def _relay_speech_url() -> str:
+    parsed = urllib.parse.urlparse(relay_url())
+    secure = parsed.scheme == "https" or (
+        parsed.scheme == "http" and parsed.hostname in LOOPBACK_HOSTS
+    )
+    if not secure:
+        raise RuntimeError("the relay address is not set up")
+    return f"{relay_url()}/v1/speech"
+
+
+def _relay_polly_chunks(text: str) -> Iterator[bytes]:
+    body = {
+        "model": RELAY_SPEECH_MODEL,
+        "text": text,
+        "voice": POLLY_VOICE_ID,
+        "language": POLLY_LANGUAGE_CODE,
+        "sample_rate": str(SPEECH_SAMPLE_RATE_HZ),
+    }
+    request = urllib.request.Request(
+        _relay_speech_url(),
+        data=json.dumps(body).encode(),
+        headers={"Authorization": f"Bearer {license_key()}", "Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(request, timeout=RELAY_SPEECH_TIMEOUT_S) as response:
+        while chunk := response.read(POLLY_CHUNK_BYTES):
+            yield chunk
 
 
 def _elevenlabs_chunks(text: str) -> Iterator[bytes]:
@@ -133,10 +171,15 @@ def _say(text: str, generation: int) -> None:
     _check(generation)
 
 
+def _engines() -> list[tuple[str, Callable[[str], Iterator[bytes]]]]:
+    cloud = [("polly", _polly_chunks), ("elevenlabs", _elevenlabs_chunks)]
+    return [("polly-relay", _relay_polly_chunks), *cloud] if license_key() else cloud
+
+
 def speak_now(text: str, generation: int | None = None) -> str:
     """Speak `text` and block until played or cancelled. Returns the engine that spoke."""
     generation = _generation if generation is None else generation
-    for engine, synthesize in (("polly", _polly_chunks), ("elevenlabs", _elevenlabs_chunks)):
+    for engine, synthesize in _engines():
         if _disabled(engine):
             continue
         started = time.monotonic()

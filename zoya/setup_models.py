@@ -10,9 +10,16 @@ from __future__ import annotations
 import hashlib
 import os
 import sys
+import urllib.request
 from pathlib import Path
 
-from zoya.config import MODEL_PINS
+from zoya.config import (
+    MEMORY_SERVER_BIN,
+    MEMORY_SERVER_DOWNLOAD_TIMEOUT_S,
+    MEMORY_SERVER_SHA256,
+    MEMORY_SERVER_URL,
+    MODEL_PINS,
+)
 
 SETUP_ETAG_TIMEOUT_S = "5"
 SETUP_DOWNLOAD_TIMEOUT_S = "30"
@@ -57,11 +64,33 @@ def download_all() -> list[str]:
     return problems
 
 
+def download_memory_server() -> list[str]:
+    """Supermemory local's server binary (production P2), pinned by version and sha256."""
+    if MEMORY_SERVER_BIN.exists() and _sha256(MEMORY_SERVER_BIN) == MEMORY_SERVER_SHA256:
+        print(f"supermemory-server: ok ({MEMORY_SERVER_BIN})")
+        return []
+    MEMORY_SERVER_BIN.parent.mkdir(parents=True, exist_ok=True)
+    partial = MEMORY_SERVER_BIN.with_suffix(".download")
+    source = urllib.request.urlopen(MEMORY_SERVER_URL, timeout=MEMORY_SERVER_DOWNLOAD_TIMEOUT_S)
+    with source as src, partial.open("wb") as out:
+        for chunk in iter(lambda: src.read(1 << 20), b""):
+            out.write(chunk)
+    actual = _sha256(partial)
+    if actual != MEMORY_SERVER_SHA256:
+        partial.unlink()
+        print(f"supermemory-server: CHECKSUM MISMATCH {actual}")
+        return ["supermemory-server"]
+    partial.chmod(0o755)
+    partial.replace(MEMORY_SERVER_BIN)
+    print(f"supermemory-server: ok ({MEMORY_SERVER_BIN})")
+    return []
+
+
 def main() -> int:
     os.environ["HF_HUB_OFFLINE"] = "0"
     os.environ.setdefault("HF_HUB_ETAG_TIMEOUT", SETUP_ETAG_TIMEOUT_S)
     os.environ.setdefault("HF_HUB_DOWNLOAD_TIMEOUT", SETUP_DOWNLOAD_TIMEOUT_S)
-    problems = download_all()
+    problems = download_all() + download_memory_server()
     print("all models ready" if not problems else f"failed: {problems}")
     return 1 if problems else 0
 

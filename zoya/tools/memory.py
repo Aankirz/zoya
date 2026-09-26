@@ -2,6 +2,7 @@
 
 - `memory_add` rejects card numbers, OTPs, passwords, PINs and CVVs before anything leaves the Mac
   (§9.8 privacy, §12.3). The filter is the only gate: the model is told, but not trusted.
+- Supermemory local (zoya/memory_server.py) for license users, the cloud with SUPERMEMORY_API_KEY.
 - Supermemory with `dreaming="instant"` (searchable in ~7 s) and `search_mode="hybrid"` (AUDIT B16).
 - Every saved memory is also written to ~/.zoya/memory.json and DynamoDB `zoya-memory`, so search
   still works when Supermemory is down or the free plan pauses (D22).
@@ -27,10 +28,12 @@ from typing import Any
 
 from strands import tool
 
-from zoya import aws, events
+from zoya import aws, events, memory_server
 from zoya.config import (
     MEMORY_LOCAL_FILE,
+    MEMORY_LOCAL_SEARCH_THRESHOLD,
     MEMORY_SEARCH_LIMIT,
+    MEMORY_SERVER_LOCAL_KEY,
     MEMORY_TABLE,
     MEMORY_TIMEOUT_S,
     MEMORY_USER_TAG,
@@ -136,12 +139,26 @@ _local_lock = threading.Lock()
 
 @cache
 def _supermemory() -> Any | None:
-    key = os.environ.get("SUPERMEMORY_API_KEY")
-    if not key:
-        return None
     from supermemory import Supermemory
 
-    return Supermemory(api_key=key, timeout=MEMORY_TIMEOUT_S, max_retries=0)
+    if key := os.environ.get("SUPERMEMORY_API_KEY"):
+        return Supermemory(api_key=key, timeout=MEMORY_TIMEOUT_S, max_retries=0)
+    if memory_server.wanted():
+        memory_server.wait_ready()
+        return Supermemory(
+            api_key=MEMORY_SERVER_LOCAL_KEY,
+            base_url=memory_server.base_url(),
+            timeout=MEMORY_TIMEOUT_S,
+            max_retries=0,
+        )
+    return None
+
+
+def _search_options() -> dict[str, float]:
+    """Supermemory local runs bge-m3, whose scores sit under the cloud's default threshold."""
+    if not memory_server.wanted():
+        return {}
+    return {"threshold": MEMORY_LOCAL_SEARCH_THRESHOLD}
 
 
 def _read_local() -> list[dict[str, str]]:
@@ -277,6 +294,7 @@ def memory_search(query: str) -> str:
                 container_tag=MEMORY_USER_TAG,
                 limit=MEMORY_SEARCH_LIMIT,
                 search_mode="hybrid",
+                **_search_options(),
             )
             found = [text for r in response.results if (text := r.memory or r.chunk)]
     except Exception as error:  # noqa: BLE001 — fall back to the copies

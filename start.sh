@@ -66,7 +66,7 @@ default_env AWS_REGION ap-south-1
 [[ -n "$(env_value ZOYA_LICENSE_KEY)" ]] || ask_secret OPENAI_API_KEY "OpenAI API key: Zoya's brain" "https://platform.openai.com/api-keys" yes
 ask_secret TINYFISH_API_KEY "TinyFish key: web search (free)" "https://tinyfish.ai" no
 ask_secret ELEVENLABS_API_KEY "ElevenLabs key: backup voice" "https://elevenlabs.io/app/settings/api-keys" no
-ask_secret SUPERMEMORY_API_KEY "Supermemory key: remembers your preferences" "https://console.supermemory.ai" no
+[[ -n "$(env_value ZOYA_LICENSE_KEY)" ]] || ask_secret SUPERMEMORY_API_KEY "Supermemory key: remembers your preferences" "https://console.supermemory.ai" no
 
 if [[ -z "$(env_value AWS_PROFILE)" ]]; then
   printf '%sAWS profile name%s (optional: Amazon Polly voice, Translate, DynamoDB…; Enter to skip) %s`aws configure --profile <name>` first%s\n  profile: ' "$BOLD" "$RESET" "$DIM" "$RESET"

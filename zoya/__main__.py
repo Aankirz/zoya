@@ -15,10 +15,11 @@ EXIT_WORDS = {"quit", "exit", "bye"}
 
 def _warm_up() -> None:
     """Load everything once so the first command is as fast as the rest (§13.3 #3)."""
-    from zoya import aws
+    from zoya import aws, memory_server
     from zoya.router import _router_model
     from zoya.tools import collect_tools
 
+    print(f"memory server: {memory_server.start()}")
     collect_tools("zoya.tools", "zoya.agents")
     _router_model()
     aws.client("polly")
