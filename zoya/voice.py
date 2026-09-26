@@ -44,6 +44,7 @@ from zoya import (
     speculate,
     speech,
     tasks,
+    updates,
 )
 from zoya.config import (
     AEC_ENABLED,
@@ -1079,7 +1080,7 @@ class VoiceLoop:
         return True
 
     def _dispatch(self, text: str, speech_end_at: float, pre: dict[str, int]) -> None:
-        if _quit(text) or _problem_report(text):
+        if _quit(text) or _problem_report(text) or updates.answer(text):
             return
         if not is_usable_command(text):
             audio.engine().silence_all()  # nothing heard: end the working loop quietly

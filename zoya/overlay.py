@@ -210,9 +210,9 @@ def _write_loop(child: subprocess.Popen) -> None:
 
 def _read_commands(child: subprocess.Popen) -> None:
     """The overlay's menu-bar item and quit key send {"cmd": "stop" | "quit"} lines back."""
-    from zoya import shutdown
+    from zoya import shutdown, updates
 
-    actions = {"stop": shutdown.stop, "quit": shutdown.quit_zoya}
+    actions = {"stop": shutdown.stop, "quit": shutdown.quit_zoya, "update": updates.offer}
     for line in child.stdout:
         try:
             action = actions.get(json.loads(line).get("cmd"))
@@ -220,6 +220,11 @@ def _read_commands(child: subprocess.Popen) -> None:
             continue
         if action:
             threading.Thread(target=action, name="zoya-overlay-command", daemon=True).start()
+
+
+def send(message: dict[str, Any]) -> None:
+    with contextlib.suppress(queue.Full):
+        _queue.put_nowait(json.dumps(message))
 
 
 def start(presence: bool = True) -> str:

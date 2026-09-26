@@ -29,6 +29,7 @@ import ApplicationServices
 import Quartz
 from PyObjCTools import AppHelper
 
+from zoya import sparkle
 from zoya.overlay_pet import PET_PT, ZOYA_BLUE, Pet
 
 WINDOW_W_PT = 520.0
@@ -74,6 +75,9 @@ CHORD_FLAGS = QUIT_FLAGS | AppKit.NSEventModifierFlagOption | AppKit.NSEventModi
 HIT_ALPHA = 0.01  # fully clear pixels pass clicks through; this keeps the pet's square clickable
 FOLLOW_POINTER_S = 1.0  # the overlay moves to the display the pointer is on
 STATUS_SYMBOL = "circle.fill"
+
+
+_parent_gone = threading.Event()
 
 
 def send_command(command: str) -> None:
@@ -122,6 +126,12 @@ class Controls(AppKit.NSObject):
 
     def quitZoya_(self, _sender: Any) -> None:  # noqa: N802
         send_command("quit")
+
+    def applicationShouldTerminate_(self, _sender: Any) -> int:  # noqa: N802
+        if _parent_gone.is_set():
+            return AppKit.NSTerminateNow
+        send_command("quit")
+        return AppKit.NSTerminateCancel
 
 
 class PetButton(AppKit.NSView):
@@ -477,7 +487,9 @@ def _read_stdin(presence: Presence | None) -> None:
             message = json.loads(line)
         except json.JSONDecodeError:
             continue
-        if presence is not None:
+        if "update" in message:
+            AppHelper.callAfter(sparkle.answer, message["update"])
+        elif presence is not None:
             AppHelper.callAfter(presence.apply, message)
     latencies = presence.latencies_ms if presence is not None else []
     if latencies:  # printed here: stopping the AppKit loop exits without flushing Python
@@ -487,6 +499,7 @@ def _read_stdin(presence: Presence | None) -> None:
             file=sys.stderr,
             flush=True,
         )
+    _parent_gone.set()
     AppHelper.callAfter(AppHelper.stopEventLoop)  # Zoya quit or crashed: the pipe closed
 
 
@@ -508,6 +521,8 @@ def run(controls_only: bool = False) -> int:
     app = AppKit.NSApplication.sharedApplication()
     app.setActivationPolicy_(AppKit.NSApplicationActivationPolicyAccessory)  # no Dock, no focus
     controls = Controls.alloc().init().install()
+    app.setDelegate_(controls)
+    print(f"updates: {sparkle.start(lambda _version: send_command('update'))}", file=sys.stderr)
     presence = None if controls_only else Presence(controls.item.menu())
     threading.Thread(
         target=_read_stdin, args=(presence,), name="overlay-stdin", daemon=True

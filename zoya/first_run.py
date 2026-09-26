@@ -18,6 +18,7 @@ from zoya import config, permissions, speech
 from zoya.decisions import LOOPBACK_HOSTS
 
 STATE_FILE = Path.home() / ".zoya" / "setup.json"
+GRANTS_FILE = Path.home() / ".zoya" / "permissions.json"
 STATE_MODE = 0o600
 POLL_S = 1.0
 FRESH_POLL_S = 3.0
@@ -362,9 +363,20 @@ def run() -> None:
         permissions.release_automation_target()
 
 
+def record_grants(missing: list[str]) -> None:
+    checked = {
+        "version": config.app_version(),
+        "checked_at": _now(),
+        "granted": {name: name not in missing for name in permissions.PERMISSIONS},
+    }
+    GRANTS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    GRANTS_FILE.write_text(json.dumps(checked, indent=2), encoding="utf-8")
+
+
 def _run() -> None:
     state = load_state()
     missing = [name for name in permissions.PERMISSIONS if not permissions.granted(name)]
+    record_grants(missing)
     key = key_needed(state)
     if not missing and not key and not state.get("restarting_for"):
         if not state.get("finished"):

@@ -162,6 +162,9 @@ def main(argv: list[str] | None = None) -> int:
         speech.cancel()
         return 0
     crash.announce_restart()
+    from zoya import updates
+
+    updates.announce_if_updated()
     from zoya.shutdown import QUIT_KEYS_LABEL
     from zoya.voice import push_to_talk_label
 
