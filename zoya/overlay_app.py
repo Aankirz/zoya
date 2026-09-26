@@ -26,10 +26,13 @@ from typing import Any
 
 import AppKit
 import ApplicationServices
+import Foundation
 import Quartz
 from PyObjCTools import AppHelper
 
 from zoya import sparkle
+from zoya.hub import Hub
+from zoya.hub_bridge import OPEN_HUB_NOTICE
 from zoya.overlay_pet import PET_PT, ZOYA_BLUE, Pet
 
 WINDOW_W_PT = 520.0
@@ -82,7 +85,30 @@ _parent_gone = threading.Event()
 
 def send_command(command: str) -> None:
     """Tell Zoya (the parent) to stop or quit: one JSON line on our stdout."""
-    print(json.dumps({"cmd": command}), flush=True)
+    send_message({"cmd": command})
+
+
+def send_message(message: dict[str, Any]) -> None:
+    print(json.dumps(message), flush=True)
+
+
+def _main_menu() -> Any:
+    bar = AppKit.NSMenu.alloc().init()
+    sections = (
+        ("Zoya", (("Quit Zoya", "terminate:", "q"),)),
+        ("Edit", (("Copy", "copy:", "c"), ("Select All", "selectAll:", "a"))),
+        (
+            "Window",
+            (("Close Window", "performClose:", "w"), ("Minimize", "performMiniaturize:", "m")),
+        ),
+    )
+    for name, items in sections:
+        menu = AppKit.NSMenu.alloc().initWithTitle_(name)
+        for title, action, key in items:
+            menu.addItemWithTitle_action_keyEquivalent_(title, action, key)
+        holder = bar.addItemWithTitle_action_keyEquivalent_(name, None, "")
+        bar.setSubmenu_forItem_(menu, holder)
+    return bar
 
 
 class Controls(AppKit.NSObject):
@@ -99,16 +125,26 @@ class Controls(AppKit.NSObject):
         self.item.button().setImage_(image)
         self.item.button().setToolTip_("Zoya")
         menu = AppKit.NSMenu.alloc().init()
-        for title, action in (("Stop", "stop:"), (None, None), ("Quit Zoya", "quitZoya:")):
+        entries = (
+            ("Open Zoya", "openHub:"),
+            ("Stop", "stop:"),
+            (None, None),
+            ("Quit Zoya", "quitZoya:"),
+        )
+        for title, action in entries:
             if title is None:
                 menu.addItem_(AppKit.NSMenuItem.separatorItem())
                 continue
             entry = menu.addItemWithTitle_action_keyEquivalent_(title, action, "")
             entry.setTarget_(self)
-        quit_entry = menu.itemAtIndex_(2)
+        quit_entry = menu.itemWithTitle_("Quit Zoya")
         quit_entry.setKeyEquivalent_("\x1b")
         quit_entry.setKeyEquivalentModifierMask_(QUIT_FLAGS)  # shown in the menu, handled below
         self.item.setMenu_(menu)
+        AppKit.NSApp().setMainMenu_(_main_menu())
+        Foundation.NSDistributedNotificationCenter.defaultCenter().addObserver_selector_name_object_(
+            self, "openHub:", OPEN_HUB_NOTICE, None
+        )
         if not ApplicationServices.AXIsProcessTrusted():  # global key monitors need it
             print("overlay: no Accessibility access, Control + Shift + Esc is off", file=sys.stderr)
         self.monitor = AppKit.NSEvent.addGlobalMonitorForEventsMatchingMask_handler_(
@@ -123,6 +159,15 @@ class Controls(AppKit.NSObject):
 
     def stop_(self, _sender: Any) -> None:
         send_command("stop")
+
+    def openHub_(self, _sender: Any) -> None:  # noqa: N802
+        self.hub.show()
+
+    def applicationShouldHandleReopen_hasVisibleWindows_(  # noqa: N802
+        self, _app: Any, _visible: bool
+    ) -> bool:
+        self.hub.show()
+        return False
 
     def quitZoya_(self, _sender: Any) -> None:  # noqa: N802
         send_command("quit")
@@ -489,6 +534,8 @@ def _read_stdin(presence: Presence | None) -> None:
             continue
         if "update" in message:
             AppHelper.callAfter(sparkle.answer, message["update"])
+        elif isinstance(message.get("hub"), dict):
+            AppHelper.callAfter(_hub_reply, message["hub"])
         elif presence is not None:
             AppHelper.callAfter(presence.apply, message)
     latencies = presence.latencies_ms if presence is not None else []
@@ -504,6 +551,13 @@ def _read_stdin(presence: Presence | None) -> None:
 
 
 PARENT_POLL_S = 0.5
+_hub: list[Hub] = []
+
+
+def _hub_reply(reply: dict[str, Any]) -> None:
+    request = reply.get("id")
+    if _hub and isinstance(request, int) and not isinstance(request, bool):
+        _hub[0].reply(request, reply.get("ok") is True)
 
 
 def _exit_when_orphaned(parent_pid: int) -> None:
@@ -520,7 +574,10 @@ def run(controls_only: bool = False) -> int:
     ).start()
     app = AppKit.NSApplication.sharedApplication()
     app.setActivationPolicy_(AppKit.NSApplicationActivationPolicyAccessory)  # no Dock, no focus
-    controls = Controls.alloc().init().install()
+    controls = Controls.alloc().init()
+    controls.hub = Hub(send_message)
+    _hub.append(controls.hub)
+    controls.install()
     app.setDelegate_(controls)
     print(f"updates: {sparkle.start(lambda _version: send_command('update'))}", file=sys.stderr)
     presence = None if controls_only else Presence(controls.item.menu())

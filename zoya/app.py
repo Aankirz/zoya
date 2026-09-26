@@ -27,7 +27,6 @@ MOVE_ME = (
     "I can't run from the folder I was downloaded to. Move Zoya into your Applications folder, "
     "then open me again from there."
 )
-ALREADY_RUNNING = "I'm already running. Say Hey Zoya whenever you need me."
 NOT_BUNDLED = "zoya.app runs inside Zoya.app. From source, use ./start.sh."
 
 
@@ -63,12 +62,22 @@ def agent_running() -> bool:
     return printed.returncode == 0 and "state = running" in printed.stdout
 
 
+def open_hub() -> None:
+    from Foundation import NSDistributedNotificationCenter
+
+    from zoya.hub_bridge import OPEN_HUB_NOTICE
+
+    NSDistributedNotificationCenter.defaultCenter().postNotificationName_object_userInfo_deliverImmediately_(
+        OPEN_HUB_NOTICE, None, None, True
+    )
+
+
 def launch(executable: Path) -> int:
     if TRANSLOCATED in str(executable):
         say_directly(MOVE_ME)
         return 0
     if agent_running():
-        say_directly(ALREADY_RUNNING)
+        open_hub()
         return 0
     CRASH_LOG.unlink(missing_ok=True)
     RUN_MARKER.unlink(missing_ok=True)

@@ -145,3 +145,11 @@ def start(offer: Callable[[str], None]) -> str:
     _state.update(driver=driver, updater=updater)
     updater.checkForUpdatesInBackground()
     return f"on ({updater.feedURL()})"
+
+
+def check_now() -> bool:
+    updater = _state.get("updater")
+    if updater is None:
+        return False
+    updater.checkForUpdatesInBackground()
+    return True

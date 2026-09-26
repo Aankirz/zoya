@@ -208,18 +208,40 @@ def _write_loop(child: subprocess.Popen) -> None:
             return
 
 
+def _forget(message: dict[str, Any]) -> None:
+    from zoya import hub_bridge
+    from zoya.tools import memory
+
+    item, request = message.get("memory"), message.get("request")
+    valid = hub_bridge._memory_id(item) and hub_bridge._request_id(request)
+    if valid:
+        send({"hub": {"id": request, "ok": memory.forget(item)}})
+
+
+def _report(_message: dict[str, Any]) -> None:
+    from zoya import diagnostics
+
+    diagnostics.send_report()
+
+
 def _read_commands(child: subprocess.Popen) -> None:
-    """The overlay's menu-bar item and quit key send {"cmd": "stop" | "quit"} lines back."""
     from zoya import shutdown, updates
 
-    actions = {"stop": shutdown.stop, "quit": shutdown.quit_zoya, "update": updates.offer}
+    plain = {"stop": shutdown.stop, "quit": shutdown.quit_zoya, "update": updates.offer}
+    with_message = {"forget": _forget, "report": _report}
     for line in child.stdout:
         try:
-            action = actions.get(json.loads(line).get("cmd"))
+            message = json.loads(line)
+            name = message.get("cmd")
         except (json.JSONDecodeError, AttributeError):
             continue
-        if action:
-            threading.Thread(target=action, name="zoya-overlay-command", daemon=True).start()
+        if name in plain:
+            target, args = plain[name], ()
+        elif name in with_message:
+            target, args = with_message[name], (message,)
+        else:
+            continue
+        threading.Thread(target=target, args=args, name="zoya-overlay-command", daemon=True).start()
 
 
 def send(message: dict[str, Any]) -> None:

@@ -26,6 +26,7 @@ dependencies = [
   "pyobjc-framework-ScreenCaptureKit==12.2.2",
   "pyobjc-framework-Vision==12.2.2",  # on-device OCR for the safety gate, MIT
   "pyobjc-framework-CoreAudio==12.2.2",  # process tap for echo cancellation (D62), MIT
+  "pyobjc-framework-WebKit==12.2.2",  # the Hub: WKWebView of bundled files only (D119), MIT
   "livekit==1.1.18",  # WebRTC AEC3 via rtc.AudioProcessingModule (D62), Apache-2.0
   "playwright==1.62.0",
   "python-pptx==1.0.2",

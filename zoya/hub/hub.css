@@ -1,0 +1,36 @@
+:root {
+  color-scheme: light dark;
+  font: 16px/1.5 -apple-system, sans-serif;
+}
+
+body {
+  display: grid;
+  grid-template-columns: 15rem minmax(0, 1fr);
+  min-height: 100vh;
+  margin: 0;
+}
+
+nav {
+  padding: 3.25rem 0.75rem 1rem;
+}
+
+nav ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+nav a {
+  display: block;
+  padding: 0.5rem 0.75rem;
+}
+
+main {
+  max-width: 40rem;
+  padding: 4rem 2rem;
+}
+
+:focus-visible {
+  outline: 3px solid Highlight;
+  outline-offset: 2px;
+}
