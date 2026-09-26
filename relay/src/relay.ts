@@ -170,7 +170,8 @@ async function checkLicense(request: Request, store: Store): Promise<Response> {
   const auth = await authorise(request, store);
   if (auth instanceof Response) return auth;
   log({ fingerprint: auth.fingerprint, path: LICENSE_PATH, status: 200 });
-  return Response.json({ valid: true });
+  const { spentCents, capCents } = auth.license;
+  return Response.json({ valid: true, month: monthOf(new Date()), usedCents: Math.round(spentCents * 100) / 100, capCents });
 }
 
 function overCap(license: License, model: string): boolean {

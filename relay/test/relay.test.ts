@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { costCents, usageFrom } from "../src/cost";
-import { ROUTES, handle, sha256Hex, type Env, type License, type Store } from "../src/relay";
+import { ROUTES, handle, monthOf, sha256Hex, type Env, type License, type Store } from "../src/relay";
 import { signedPostHeaders } from "../src/sigv4";
 
 const ENV: Env = {
@@ -163,6 +163,12 @@ describe("license keys", () => {
     expect((await check(REVOKED)).status).toBe(401);
     expect(fetchMock).not.toHaveBeenCalled();
     expect(store.recorded).toEqual([]);
+  });
+
+  it("reports this month's cents used and the cap with the license check", async () => {
+    const store = await fakeStore({ [GOOD]: license({ capCents: 500, spentCents: 123.456789 }) });
+    const reply = await handle(new Request("https://relay.test/v1/license", { headers: { Authorization: `Bearer ${GOOD}` } }), ENV, store, () => {});
+    expect(await reply.json()).toEqual({ valid: true, month: monthOf(new Date()), usedCents: 123.46, capCents: 500 });
   });
 });
 
