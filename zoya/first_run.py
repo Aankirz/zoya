@@ -233,6 +233,7 @@ def _restart(name: str, state: dict) -> None:
     say(RESTARTING.format(label=LABELS[name]))
     save_state({**state, "restarting_for": name})
     sys.stdout.flush()
+    permissions.release_automation_target()
     os.execv(sys.executable, [sys.executable, "-m", "zoya.main", *sys.argv[1:]])
 
 
@@ -355,6 +356,13 @@ def _greet(state: dict, missing: list[str], key: bool) -> None:
 
 
 def run() -> None:
+    try:
+        _run()
+    finally:
+        permissions.release_automation_target()
+
+
+def _run() -> None:
     state = load_state()
     missing = [name for name in permissions.PERMISSIONS if not permissions.granted(name)]
     key = key_needed(state)

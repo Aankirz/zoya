@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 import threading
+import time
 from functools import cache
 
 import objc
@@ -27,10 +28,13 @@ AE_NOT_RUNNING = -600
 PROBE_TIMEOUT_S = 10.0
 PS_TIMEOUT_S = 2.0
 OPEN_TIMEOUT_S = 10.0
+LAUNCH_WAIT_S = 5.0
+LAUNCH_POLL_S = 0.1
 MIC_REQUEST_S = 0.2
 CORE_SERVICES = "/System/Library/Frameworks/CoreServices.framework/CoreServices"
 AV_FOUNDATION = "/System/Library/Frameworks/AVFoundation.framework"
 HOST_FALLBACK = "your terminal app"
+_launched = None
 
 
 class _AEDesc(ctypes.Structure):
@@ -95,7 +99,14 @@ def granted(name: str) -> bool:
         return bool(CGPreflightScreenCaptureAccess())
     if name == "microphone":
         return microphone_status() == AV_AUTHORIZED
-    return automation_status() == AE_GRANTED
+    status = automation_status()
+    if status != AE_NOT_RUNNING:
+        return status == AE_GRANTED
+    _launch_automation_target()
+    try:
+        return automation_status() == AE_GRANTED
+    finally:
+        release_automation_target()
 
 
 def granted_fresh(name: str) -> bool:
@@ -126,9 +137,44 @@ def _ask_microphone() -> None:
         sd.sleep(round(MIC_REQUEST_S * 1000))
 
 
+def _running_targets() -> list:
+    from AppKit import NSRunningApplication
+
+    return list(NSRunningApplication.runningApplicationsWithBundleIdentifier_(AUTOMATION_TARGET_ID))
+
+
 def _launch_automation_target() -> None:
+    global _launched
+    before = {app.processIdentifier() for app in _running_targets()}
     command = ["open", "-g", "-j", "-b", AUTOMATION_TARGET_ID]
     subprocess.run(command, capture_output=True, timeout=OPEN_TIMEOUT_S, check=False)
+    deadline = time.monotonic() + LAUNCH_WAIT_S
+    ours: list[int] = []
+    while time.monotonic() < deadline:
+        ours = [pid for app in _running_targets() if (pid := app.processIdentifier()) not in before]
+        if ours and automation_status() != AE_NOT_RUNNING:
+            break
+        time.sleep(LAUNCH_POLL_S)
+    if ours:
+        _launched = ours[0]
+
+
+def _instance(pid: int):  # noqa: ANN202
+    from AppKit import NSRunningApplication
+
+    return NSRunningApplication.runningApplicationWithProcessIdentifier_(pid)
+
+
+def release_automation_target() -> None:
+    global _launched
+    pid, _launched = _launched, None
+    app = _instance(pid) if pid is not None else None
+    if app is None or app.isActive():
+        return
+    app.terminate()
+    deadline = time.monotonic() + LAUNCH_WAIT_S
+    while _instance(pid) is not None and time.monotonic() < deadline:
+        time.sleep(LAUNCH_POLL_S)
 
 
 def request(name: str) -> None:
