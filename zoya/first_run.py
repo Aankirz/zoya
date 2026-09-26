@@ -14,7 +14,7 @@ from pathlib import Path
 
 import numpy as np
 
-from zoya import config, permissions, speech
+from zoya import config, keychain, permissions, speech
 from zoya.decisions import LOOPBACK_HOSTS
 
 STATE_FILE = Path.home() / ".zoya" / "setup.json"
@@ -73,6 +73,10 @@ INTRO = (
 )
 WELCOME_BACK = "Welcome back. Let's carry on with setup."
 REVOKED = "Something I need has been turned off: {items}. Let's turn it back on."
+MOVED = (
+    "I'm running as {host} now, so macOS asks for my permissions once more, this time for "
+    "{host}: {items}. Let's go through them."
+)
 STEP = "Next: {label}. {purpose}"
 GRANTED = "{label} is on. I checked."
 WAITING = "I'm still waiting for {label} to be turned on."
@@ -106,6 +110,13 @@ NO_RELAY = (
     "Zoya's service address isn't set up on this Mac yet, so I can't check a key. "
     "Simple commands, like opening an app, will still work."
 )
+KEYCHAIN_PROMPT = (
+    "You saved your Zoya key before, when you ran me from source. macOS is about to ask "
+    "whether Zoya may use it. Type your Mac's password, then choose Always Allow. "
+    "It only asks once."
+)
+KEYCHAIN_ADOPTED = "Thank you. Your key is working in the app."
+KEYCHAIN_REFUSED = "I couldn't read your saved key, so let's set it up again."
 DONE = "That's everything. I'm ready. Say Hey Zoya whenever you need me."
 GOODBYE = "Goodbye. I'll pick up setup where we left off next time."
 
@@ -353,7 +364,17 @@ def _greet(state: dict, missing: list[str], key: bool) -> None:
         spoken = ", ".join(items[:-1]) + f", and {items[-1]}" if len(items) > 1 else items[0]
         say(INTRO.format(count=len(items), items=spoken))
         return
-    say(REVOKED.format(items=", ".join(items)) if state.get("finished") else WELCOME_BACK)
+    if not state.get("finished"):
+        say(WELCOME_BACK)
+        return
+    host = permissions.host_app()
+    previous_host = state.get("host") or ("" if config.APP_BUNDLE else host)
+    spoken = ", ".join(items)
+    say(
+        MOVED.format(host=host, items=spoken)
+        if previous_host != host
+        else REVOKED.format(items=spoken)
+    )
 
 
 def run() -> None:
@@ -373,14 +394,30 @@ def record_grants(missing: list[str]) -> None:
     GRANTS_FILE.write_text(json.dumps(checked, indent=2), encoding="utf-8")
 
 
+def adopt_saved_license() -> None:
+    account = config.LICENSE_KEYCHAIN_ACCOUNT
+    if not config.APP_BUNDLE or not keychain.exists(account):
+        return
+    if keychain.readable_without_prompt(account):
+        return
+    say(KEYCHAIN_PROMPT)
+    try:
+        config.save_license_key(keychain.read(account))
+    except keychain.KeychainError:
+        say(KEYCHAIN_REFUSED)
+        return
+    say(KEYCHAIN_ADOPTED)
+
+
 def _run() -> None:
+    adopt_saved_license()
     state = load_state()
     missing = [name for name in permissions.PERMISSIONS if not permissions.granted(name)]
     record_grants(missing)
     key = key_needed(state)
     if not missing and not key and not state.get("restarting_for"):
-        if not state.get("finished"):
-            save_state({**state, "finished": _now()})
+        if not state.get("finished") or not state.get("host"):
+            save_state({**state, "finished": _now(), "host": permissions.host_app()})
         return
     _greet(state, missing, key)
     restarting = state.get("restarting_for", "")
@@ -395,5 +432,6 @@ def _run() -> None:
         state = load_state()
     if key:
         license_step(state)
-    save_state({**load_state(), "restarting_for": "", "finished": _now()})
+    finished = {"restarting_for": "", "finished": _now(), "host": permissions.host_app()}
+    save_state({**load_state(), **finished})
     say(DONE)

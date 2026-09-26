@@ -18,6 +18,7 @@ _NAMES = (
     "kSecReturnData",
     "kSecMatchLimit",
     "kSecMatchLimitOne",
+    "kSecReturnAttributes",
 )
 
 
@@ -32,7 +33,12 @@ def _security() -> dict[str, Any]:
     objc.loadBundleFunctions(
         bundle,
         found,
-        [("SecItemAdd", b"i@o^@"), ("SecItemCopyMatching", b"i@o^@"), ("SecItemDelete", b"i@")],
+        [
+            ("SecItemAdd", b"i@o^@"),
+            ("SecItemCopyMatching", b"i@o^@"),
+            ("SecItemDelete", b"i@"),
+            ("SecKeychainSetUserInteractionAllowed", b"iZ"),
+        ],
     )
     objc.loadBundleVariables(bundle, found, [(name, b"@") for name in _NAMES])
     return found
@@ -57,6 +63,26 @@ def read(account: str) -> str:
     if status != ERR_SEC_SUCCESS:
         raise KeychainError(f"reading the keychain failed with status {status}")
     return bytes(data).decode("utf-8")
+
+
+def exists(account: str) -> bool:
+    sec = _security()
+    status, _ = sec["SecItemCopyMatching"](
+        {**_query(account), sec["kSecReturnAttributes"]: True}, None
+    )
+    return status == ERR_SEC_SUCCESS
+
+
+def readable_without_prompt(account: str) -> bool:
+    allow = _security()["SecKeychainSetUserInteractionAllowed"]
+    allow(False)
+    try:
+        read(account)
+        return True
+    except KeychainError:
+        return False
+    finally:
+        allow(True)
 
 
 def delete(account: str) -> None:
