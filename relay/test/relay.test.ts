@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { costCents, usageFrom } from "../src/cost";
-import { handle, sha256Hex, type Env, type License, type Store } from "../src/relay";
+import { ROUTES, handle, sha256Hex, type Env, type License, type Store } from "../src/relay";
 import { signedPostHeaders } from "../src/sigv4";
 
 const ENV: Env = {
@@ -276,6 +276,21 @@ describe("speech through Amazon Polly", () => {
   });
 
   it.each([
+    ["no model at all", { model: undefined }],
+    ["the cheap Jev model", { model: "typesafe-ai/jev" }],
+    ["an unknown model", { model: "free-tts" }],
+  ])("meters %s at the Polly price, whatever the client says", async (_name, change) => {
+    const store = await fakeStore({ [GOOD]: license() });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("PCM", { status: 200, headers: { "x-amzn-RequestCharacters": "1000" } })),
+    );
+    const result = await call(store, "/v1/speech", { ...SPEECH, ...change });
+    expect(result.status).toBe(200);
+    expect(store.recorded).toEqual([{ licenseId: 1, cents: 1.6 }]);
+  });
+
+  it.each([
     ["another voice", { voice: "Joanna" }],
     ["text past Polly's billed limit", { text: "a".repeat(3001) }],
     ["empty text", { text: " " }],
@@ -285,5 +300,20 @@ describe("speech through Amazon Polly", () => {
     const result = await call(store, "/v1/speech", { ...SPEECH, ...change });
     expect(result.status).toBe(400);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("every route is metered", () => {
+  it.each(Object.keys(ROUTES))("%s never reaches its upstream without a priced model", async (path) => {
+    const store = await fakeStore({ [GOOD]: license() });
+    const { fetchMock } = upstream(CHAT_USAGE);
+    const body = { text: "Notes is open.", voice: "Kajal", language: "en-IN", sample_rate: "16000", input: "hi" };
+    const result = await call(store, path, body);
+    if (fetchMock.mock.calls.length === 0) {
+      expect(result.status).toBe(403);
+      return;
+    }
+    expect(store.recorded).toHaveLength(1);
+    expect(store.recorded[0].cents).toBeGreaterThan(0);
   });
 });

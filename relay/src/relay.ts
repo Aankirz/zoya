@@ -24,7 +24,7 @@ type Upstream = "openai" | "jev" | "polly";
 type Json = Record<string, unknown>;
 type Call = { fingerprint: string; path: string; model: string; started: number };
 
-const ROUTES: Record<string, Upstream> = {
+export const ROUTES: Record<string, Upstream> = {
   "/v1/chat/completions": "openai",
   "/v1/responses": "openai",
   "/v1/evaluate": "jev",
@@ -38,6 +38,7 @@ const UPSTREAM_PATH: Record<string, string> = {
 const FINGERPRINT_CHARS = 8;
 const USAGE_FIELD = /"usage"\s*:\s*\{/;
 const SSE_DATA = "data:";
+const SERVER_MODELS: Partial<Record<Upstream, string>> = { polly: "amazon-polly-neural" };
 const SPEECH_VOICES = new Set(["Kajal"]);
 const SPEECH_LANGUAGES = new Set(["en-IN", "hi-IN"]);
 const SPEECH_SAMPLE_RATES = new Set(["8000", "16000"]);
@@ -70,8 +71,11 @@ async function readJson(request: Request): Promise<Json | null> {
   }
 }
 
-function refusal(upstream: Upstream, body: Json): Response | null {
-  const model = typeof body.model === "string" ? body.model : "";
+export function meteredModel(upstream: Upstream, body: Json): string {
+  return SERVER_MODELS[upstream] ?? (typeof body.model === "string" ? body.model : "");
+}
+
+function refusal(upstream: Upstream, model: string, body: Json): Response | null {
   if (PRICES_USD_PER_1M[model]?.upstream !== upstream) {
     return fail(403, "zoya_model_not_allowed", `The model ${model || "(none)"} is not available.`);
   }
@@ -144,8 +148,8 @@ export async function handle(request: Request, env: Env, store: Store, waitUntil
   if (auth instanceof Response) return auth;
   const body = await readJson(request);
   if (!body) return fail(400, "invalid_json", "The request body must be a JSON object.");
-  const refused = refusal(upstream, body);
-  const model = String(body.model ?? "");
+  const model = meteredModel(upstream, body);
+  const refused = refusal(upstream, model, body);
   const call: Call = { fingerprint: auth.fingerprint, path, model, started: Date.now() };
   if (refused) {
     log({ ...describe(call), status: refused.status });
@@ -260,7 +264,13 @@ export async function streamUsage(body: ReadableStream<Uint8Array>): Promise<Usa
 }
 
 async function settle(call: Call, license: License, usage: Usage | null, status: number, store: Store): Promise<void> {
-  const cents = usage ? costCents(call.model, usage) : 0;
+  let cents = 0;
+  try {
+    cents = usage ? costCents(call.model, usage) : 0;
+  } catch (error) {
+    log({ ...describe(call), status, event: "unpriced_model", error: errorName(error) });
+    return;
+  }
   log({ ...describe(call), status, ...(usage ?? {}), cents: Number(cents.toFixed(6)), metered: usage !== null });
   if (!usage) return;
   try {
