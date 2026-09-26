@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "zoya-relay",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-26",
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  "vars": {
+    "OPENAI_BASE_URL": "https://api.openai.com/v1",
+    "AI_GATEWAY_BASE_URL": "https://ai-gateway.vercel.sh/v1"
+  }
+}

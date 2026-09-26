@@ -1,0 +1,21 @@
+{
+  "name": "zoya-relay",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --env-file ../.env",
+    "deploy": "wrangler deploy",
+    "test": "vitest run",
+    "license": "node --env-file-if-exists=../.env scripts/license.mjs"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.1.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260926.1",
+    "@types/node": "^22.20.4",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.2",
+    "wrangler": "^4.141.0"
+  }
+}
