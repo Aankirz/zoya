@@ -153,6 +153,17 @@ describe("license keys", () => {
     expect(reply.json().error.code).toBe("zoya_license_invalid");
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("answers a license check without calling or metering any upstream", async () => {
+    const store = await fakeStore({ [GOOD]: license(), [REVOKED]: license({ id: 2, active: false }) });
+    const { fetchMock } = upstream(CHAT_USAGE);
+    const check = (key: string) =>
+      handle(new Request("https://relay.test/v1/license", { headers: { Authorization: `Bearer ${key}` } }), ENV, store, () => {});
+    expect((await check(GOOD)).status).toBe(200);
+    expect((await check(REVOKED)).status).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(store.recorded).toEqual([]);
+  });
 });
 
 describe("the cost of a call", () => {

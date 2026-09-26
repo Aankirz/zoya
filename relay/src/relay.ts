@@ -35,6 +35,7 @@ const UPSTREAM_PATH: Record<string, string> = {
   "/v1/responses": "/responses",
   "/v1/evaluate": "/evaluate",
 };
+const LICENSE_PATH = "/v1/license";
 const FINGERPRINT_CHARS = 8;
 const USAGE_FIELD = /"usage"\s*:\s*\{/;
 const SSE_DATA = "data:";
@@ -142,6 +143,7 @@ async function authorise(request: Request, store: Store): Promise<{ license: Lic
 
 export async function handle(request: Request, env: Env, store: Store, waitUntil: (p: Promise<unknown>) => void): Promise<Response> {
   const path = new URL(request.url).pathname;
+  if (path === LICENSE_PATH && request.method === "GET") return checkLicense(request, store);
   const upstream = ROUTES[path];
   if (!upstream || request.method !== "POST") return fail(404, "not_found", "Not found.");
   const auth = await authorise(request, store);
@@ -162,6 +164,13 @@ export async function handle(request: Request, env: Env, store: Store, waitUntil
   const meter = (usage: Usage | null, status: number) => settle(call, auth.license, usage, status, store);
   if (upstream === "polly") return speak(env, body, call, meter, waitUntil);
   return forward(env, path, rewrite(path, body), call, meter, waitUntil);
+}
+
+async function checkLicense(request: Request, store: Store): Promise<Response> {
+  const auth = await authorise(request, store);
+  if (auth instanceof Response) return auth;
+  log({ fingerprint: auth.fingerprint, path: LICENSE_PATH, status: 200 });
+  return Response.json({ valid: true });
 }
 
 function overCap(license: License, model: string): boolean {
