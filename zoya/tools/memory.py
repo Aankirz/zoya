@@ -183,11 +183,9 @@ def _put_dynamodb(item: dict[str, str]) -> None:
         dynamodb = aws.client("dynamodb")
         if dynamodb is None:
             return
-        pk = f"{'order' if item['category'] == 'order_history' else 'memory'}#{MEMORY_USER_TAG}"
         dynamodb.put_item(
             TableName=MEMORY_TABLE,
-            Item={"pk": {"S": pk}, "sk": {"S": f"{item['at']}#{item['id']}"}}
-            | {key: {"S": value} for key, value in item.items()},
+            Item=_dynamodb_key(item) | {key: {"S": value} for key, value in item.items()},
         )
     except Exception as error:  # noqa: BLE001 — a copy; the local file already has it
         log.warning("DynamoDB memory copy failed (%s)", aws._reason(error))
@@ -212,6 +210,55 @@ def _query_dynamodb() -> list[dict[str, str]]:
     except Exception as error:  # noqa: BLE001 — search falls back to nothing, said politely
         log.warning("DynamoDB memory query failed (%s)", aws._reason(error))
         return []
+
+
+def _dynamodb_key(item: dict[str, str]) -> dict[str, dict[str, str]]:
+    kind = "order" if item.get("category") == "order_history" else "memory"
+    return {"pk": {"S": f"{kind}#{MEMORY_USER_TAG}"}, "sk": {"S": f"{item['at']}#{item['id']}"}}
+
+
+def _forget_supermemory(item: dict[str, str]) -> None:
+    client = _supermemory()
+    if client is None:
+        return
+    try:
+        client.documents.delete(item["id"])
+        return
+    except Exception as error:  # noqa: BLE001
+        log.info("Supermemory delete by id failed (%s), looking it up", type(error).__name__)
+    listed = client.documents.list(
+        container_tags=[MEMORY_USER_TAG], include_content=True, limit=LOCAL_MAX_ITEMS
+    )
+    for document in listed.memories:
+        if (document.content or "").strip() == item["content"]:
+            client.documents.delete(document.id)
+
+
+def _forget_dynamodb(item: dict[str, str]) -> None:
+    dynamodb = aws.client("dynamodb")
+    if dynamodb is not None:
+        dynamodb.delete_item(TableName=MEMORY_TABLE, Key=_dynamodb_key(item))
+
+
+def memories() -> list[dict[str, str]]:
+    return list(reversed(_read_local()))
+
+
+def forget(item_id: str) -> bool:
+    item = next((i for i in _read_local() if i.get("id") == item_id), None)
+    if item is None:
+        return False
+    try:
+        _forget_supermemory(item)
+        _forget_dynamodb(item)
+    except Exception as error:  # noqa: BLE001
+        log.warning("memory delete failed (%s)", type(error).__name__)
+        return False
+    with _local_lock:
+        kept = [i for i in _read_local() if i.get("id") != item_id]
+        MEMORY_LOCAL_FILE.write_text(json.dumps(kept, ensure_ascii=False), encoding="utf-8")
+    log.info("memory deleted from every copy")
+    return True
 
 
 def local_matches(query: str, items: list[dict[str, str]]) -> list[str]:
@@ -251,6 +298,7 @@ def remember(content: str, category: str = "preference") -> str:
         if client is not None:
             client.add(
                 content=text,
+                custom_id=item["id"],
                 container_tag=MEMORY_USER_TAG,
                 dreaming="instant",
                 metadata={"category": kind},
