@@ -218,6 +218,10 @@ def _parent_and_command(pid: int) -> tuple[int, str]:
 def host_app() -> str:
     from AppKit import NSRunningApplication
 
+    from zoya.config import APP_BUNDLE
+
+    if APP_BUNDLE:
+        return APP_BUNDLE.stem
     pid = os.getppid()
     while pid > 1:
         parent, command = _parent_and_command(pid)

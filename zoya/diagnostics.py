@@ -104,14 +104,8 @@ def _git_commit() -> str:
 
 
 def versions() -> dict:
-    from importlib.metadata import PackageNotFoundError, version
-
-    try:
-        zoya_version = version("zoya")
-    except PackageNotFoundError:
-        zoya_version = "unknown"
     return {
-        "zoya": zoya_version,
+        "zoya": config.app_version(),
         "commit": _git_commit(),
         "macos": platform.mac_ver()[0],
         "machine": platform.machine(),

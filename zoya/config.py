@@ -7,6 +7,8 @@ other setting is a named constant here. Later phases add keys append-only.
 from __future__ import annotations
 
 import os
+import plistlib
+import sys
 from functools import cache
 from pathlib import Path
 
@@ -25,7 +27,13 @@ FIREWORKS_BASE_URL = "https://api.fireworks.ai/inference/v1"
 # --- Phase 1 -------------------------------------------------------------------
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-LOG_DIR = REPO_ROOT / "logs"
+_EXECUTABLE = Path(sys.executable).resolve()
+APP_BUNDLE = (
+    _EXECUTABLE.parents[2]
+    if _EXECUTABLE.parent.name == "MacOS" and _EXECUTABLE.parents[2].suffix == ".app"
+    else None
+)
+LOG_DIR = Path.home() / "Library" / "Logs" / "Zoya" if APP_BUNDLE else REPO_ROOT / "logs"
 TIMING_LOG = LOG_DIR / "timing.log"
 
 DEFAULT_AWS_REGION = "ap-south-1"  # D30
@@ -122,6 +130,7 @@ MODEL_PINS = {
         {"smart-turn-v3.2-cpu.onnx": SMART_TURN_SHA256},
     ),
 }
+MODEL_DOWNLOAD_BYTES = 1_848_671_719
 PARTIAL_EVERY_S = 0.15  # re-check for "Zoya, stop" this often while Zoya talks or works
 PARTIAL_MIN_S = 0.35
 WAKE_WINDOW_S = 2.5  # the name must come in the first 3 words: spot only this much audio
@@ -207,6 +216,19 @@ ONSET_MIN_KEPT = 0.4  # cancelled/raw level: leftover echo ~0.1, the user over Z
 OTHER_AUDIO_MIN_RMS = 0.003  # tap reference above this = another app is playing: duck it too
 BARGE_IN_SPEECH_GAIN = 10 ** (-20 / 20)  # Zoya keeps talking, 20 dB quieter
 BARGE_IN_HOLD_S = 2.5  # restore this long after the user's last voiced block, if no stop/wake
+
+
+@cache
+def app_version() -> str:
+    if APP_BUNDLE:
+        with (APP_BUNDLE / "Contents" / "Info.plist").open("rb") as handle:
+            return plistlib.load(handle)["CFBundleShortVersionString"]
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        return version("zoya")
+    except PackageNotFoundError:
+        return "unknown"
 
 
 def load_env() -> None:
@@ -350,7 +372,9 @@ CHROME_SHUTDOWN_TIMEOUT_S = 5.0  # SIGTERM to Zoya's Chrome child, then SIGKILL
 
 # agent-browser 0.38.1. `--cdp <port|url>` and `--session <name>` are global flags that come before
 # the command: `agent-browser --session zoya --cdp 9222 snapshot -i` (README "CDP Mode").
-AGENT_BROWSER_BIN = "agent-browser"
+AGENT_BROWSER_BIN = (
+    str(APP_BUNDLE / "Contents" / "MacOS" / "agent-browser") if APP_BUNDLE else "agent-browser"
+)
 AGENT_BROWSER_SESSION = "zoya"
 AGENT_BROWSER_TIMEOUT_S = 20.0  # bound on one agent-browser subprocess
 
@@ -402,7 +426,11 @@ MEMORY_SERVER_URL = (
     f"server-v{MEMORY_SERVER_VERSION}/supermemory-server-darwin-arm64"
 )
 MEMORY_SERVER_SHA256 = "12b7817a105ed0a9e70f96c461fb6f8dded5d70eaeb6034e774778c257bed78a"
-MEMORY_SERVER_BIN = Path.home() / ".zoya" / "bin" / "supermemory-server"
+MEMORY_SERVER_BIN = (
+    APP_BUNDLE / "Contents" / "MacOS" / "supermemory-server"
+    if APP_BUNDLE
+    else Path.home() / ".zoya" / "bin" / "supermemory-server"
+)
 MEMORY_SERVER_DATA_DIR = Path.home() / ".zoya" / "supermemory"
 MEMORY_SERVER_PID_FILE = Path.home() / ".zoya" / "supermemory.pid"
 MEMORY_SERVER_LOG = LOG_DIR / "supermemory.log"

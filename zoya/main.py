@@ -144,7 +144,7 @@ def main(argv: list[str] | None = None) -> int:
     logging.getLogger("botocore.credentials").setLevel(logging.CRITICAL)
 
     from zoya import audio, aws, first_run, speech
-    from zoya.setup_models import ModelsMissing
+    from zoya.setup_models import ModelsMissing, ensure_downloaded
     from zoya.supervisor import EXIT_CANNOT_START
 
     audio.restore_after_kill()  # before anything else: undo a previous run killed while ducked
@@ -153,6 +153,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"keys: {aws.load_provider_secrets()}")
     try:
         first_run.run()
+        ensure_downloaded(first_run.say)
         loop = _start(args)
     except ModelsMissing as missing:
         print(f"Zoya can't start: {missing}")

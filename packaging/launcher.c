@@ -1,0 +1,100 @@
+#include <Python.h>
+#include <libgen.h>
+#include <limits.h>
+#include <mach-o/dyld.h>
+#include <stdlib.h>
+#include <string.h>
+
+static const char *DEFAULT_MODULE = "zoya.app";
+
+static const char *SEARCH_PATHS[] = {
+    "Resources/app",
+    "Resources/python/lib/python3.12",
+    "Resources/python/lib/python3.12/lib-dynload",
+    "Resources/python/lib/python3.12/site-packages",
+};
+
+static int python_style(int argc, char **argv) {
+    return argc > 1 && argv[1][0] == '-' && argv[1][1] != '-';
+}
+
+static PyStatus set_search_paths(PyConfig *config, const char *contents) {
+    char path[PATH_MAX];
+    config->module_search_paths_set = 1;
+    for (size_t i = 0; i < sizeof SEARCH_PATHS / sizeof SEARCH_PATHS[0]; i++) {
+        snprintf(path, sizeof path, "%s/%s", contents, SEARCH_PATHS[i]);
+        wchar_t *wide = Py_DecodeLocale(path, NULL);
+        if (wide == NULL) {
+            return PyStatus_NoMemory();
+        }
+        PyStatus status = PyWideStringList_Append(&config->module_search_paths, wide);
+        PyMem_RawFree(wide);
+        if (PyStatus_Exception(status)) {
+            return status;
+        }
+    }
+    return PyStatus_Ok();
+}
+
+static int resolve_contents(char *contents) {
+    char raw[PATH_MAX];
+    char resolved[PATH_MAX];
+    uint32_t size = sizeof raw;
+    if (_NSGetExecutablePath(raw, &size) != 0 || realpath(raw, resolved) == NULL) {
+        return -1;
+    }
+    char *macos = dirname(resolved);
+    snprintf(contents, PATH_MAX, "%s/..", macos);
+    return realpath(contents, resolved) == NULL ? -1 : (strlcpy(contents, resolved, PATH_MAX), 0);
+}
+
+static PyStatus configure(PyConfig *config, const char *contents, int argc, char **argv) {
+    char path[PATH_MAX];
+    PyStatus status;
+    snprintf(path, sizeof path, "%s/Resources/python", contents);
+    status = PyConfig_SetBytesString(config, &config->home, path);
+    if (PyStatus_Exception(status)) {
+        return status;
+    }
+    status = set_search_paths(config, contents);
+    if (PyStatus_Exception(status)) {
+        return status;
+    }
+    config->use_environment = 0;
+    config->user_site_directory = 0;
+    config->write_bytecode = 0;
+    config->safe_path = 1;
+    config->buffered_stdio = 0;
+    if (python_style(argc, argv)) {
+        return PyConfig_SetBytesArgv(config, argc, argv);
+    }
+    char **full = calloc((size_t)argc + 3, sizeof(char *));
+    full[0] = argv[0];
+    full[1] = "-m";
+    full[2] = (char *)DEFAULT_MODULE;
+    for (int i = 1; i < argc; i++) {
+        full[i + 2] = argv[i];
+    }
+    status = PyConfig_SetBytesArgv(config, argc + 2, full);
+    free(full);
+    return status;
+}
+
+int main(int argc, char **argv) {
+    char contents[PATH_MAX];
+    if (resolve_contents(contents) != 0) {
+        fprintf(stderr, "Zoya could not find its own bundle.\n");
+        return 1;
+    }
+    PyConfig config;
+    PyConfig_InitPythonConfig(&config);
+    PyStatus status = configure(&config, contents, argc, argv);
+    if (!PyStatus_Exception(status)) {
+        status = Py_InitializeFromConfig(&config);
+    }
+    PyConfig_Clear(&config);
+    if (PyStatus_Exception(status)) {
+        Py_ExitStatusException(status);
+    }
+    return Py_RunMain();
+}

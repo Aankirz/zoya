@@ -234,7 +234,7 @@ def _restart(name: str, state: dict) -> None:
     save_state({**state, "restarting_for": name})
     sys.stdout.flush()
     permissions.release_automation_target()
-    os.execv(sys.executable, [sys.executable, "-m", "zoya.main", *sys.argv[1:]])
+    os.execv(sys.executable, [sys.executable, *sys.orig_argv[1:]])
 
 
 def _instructions(name: str) -> str:
