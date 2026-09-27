@@ -43,6 +43,9 @@ PRICES_USD_PER_1M = {
 }
 JEV_USD_PER_1M = 0.042
 BLANK_PAGE = "about:blank"
+MARKER = "zoyaeval"
+RUN_ID = f"{secrets.randbelow(9000) + 1000}"
+NOTHING_LEFT = ("", "0")
 
 
 @dataclass
@@ -62,6 +65,7 @@ class Run:
     failed_checks: list[str] = field(default_factory=list)
     route: str = ""
     error: str = ""
+    leftover: str = ""
 
 
 class Meter:
@@ -229,10 +233,10 @@ def execute(command: str, run: Run) -> None:
     run.error = run.error or outcome.get("error", "")
 
 
-def run_task(task: dict[str, Any]) -> Run:
+def run_task(task: dict[str, Any], index: int) -> Run:
     from zoya import orchestrator
 
-    token = f"zebra{secrets.randbelow(9000) + 1000}"
+    token = f"{MARKER}{RUN_ID}{index:02d}"
     command = task["command"].replace("{token}", token)
     run = Run(task["id"], task["group"], command)
     orchestrator._conversation.clear()
@@ -253,6 +257,9 @@ def run_task(task: dict[str, Any]) -> Run:
     run.cents = round(run.cents, 3)
     for step in task.get("teardown", []):
         shell(step.replace("{token}", token))
+    if probe := task.get("leftover"):
+        left = shell(probe.replace("{token}", token))
+        run.leftover = "" if left in NOTHING_LEFT else f"{token}: {left}"
     return run
 
 
@@ -283,6 +290,8 @@ def table(label: str, runs: list[Run]) -> str:
         f"{sum(r.jev_calls for r in runs)} Jev calls, "
         f"{round(sum(r.seconds for r in runs))} s, {round(sum(r.cents for r in runs), 2)} cents",
     ]
+    leftovers = [r.leftover for r in runs if r.leftover]
+    lines += ["", f"Leftovers not removed: {'; '.join(leftovers) or 'none'}"]
     return "\n".join(lines) + "\n"
 
 
@@ -312,12 +321,14 @@ def main() -> int:
     decisions.warm()
     tasks = select(json.loads(TASKS_FILE.read_text(encoding="utf-8")), args.only, args.group)
     runs = []
-    for task in tasks:
-        runs.append(run_task(task))
+    for index, task in enumerate(tasks):
+        runs.append(run_task(task, index))
         last = runs[-1]
         print(f"> {last.id}: {last.command}", flush=True)
         print(f"  {'PASS' if last.success else 'FAIL'} {last.seconds}s {last.route}", flush=True)
         print(f"  said: {' | '.join(last.said)[:400]}", flush=True)
+        if last.leftover:
+            print(f"  LEFTOVER, not removed: {last.leftover}", flush=True)
         if last.confirmations or last.failed_checks or last.error:
             print(f"  asked: {last.confirmations} failed: {last.failed_checks} {last.error}")
     OUT_DIR.mkdir(parents=True, exist_ok=True)
