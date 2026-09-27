@@ -188,6 +188,14 @@ export const FAQ = {
       a: "no. zoya looks at your screen only when a task needs it, like when you ask “what's on my screen?”. it listens for “hey zoya” right on your mac, and your voice recordings stay there.",
     },
     {
+      q: "who is zoya for?",
+      a: "anyone with a mac. and if you can't see the screen, zoya is fully built for you too.",
+    },
+    {
+      q: "how much does it cost?",
+      a: "$20 a month, with everything included. you don't need an api key.",
+    },
+    {
       q: "does zoya replace voiceover?",
       a: "no. keep voiceover for moving around your mac. zoya works right alongside it and takes on whole tasks.",
     },
