@@ -26,9 +26,12 @@ class FakeDocuments:
         self.deleted: list[str] = []
         self.fail_custom = fail_custom
 
-    def delete(self, id: str) -> None:  # noqa: A002 — the SDK's own parameter name
-        if self.fail_custom and id == GONE["id"]:
+    def get(self, id: str) -> SimpleNamespace:  # noqa: A002
+        if self.fail_custom or id != GONE["id"]:
             raise RuntimeError("404")
+        return SimpleNamespace(id="sm-" + id)
+
+    def delete(self, id: str) -> None:  # noqa: A002
         self.deleted.append(id)
 
     def list(self, **_options: object) -> SimpleNamespace:
@@ -67,7 +70,7 @@ def test_forget_removes_the_memory_from_every_copy(copies, monkeypatch) -> None:
     _supermemory(monkeypatch, documents)
     assert memory.forget(GONE["id"]) is True
     assert json.loads(local.read_text()) == [KEPT]
-    assert documents.deleted == [GONE["id"]]
+    assert documents.deleted == ["sm-" + GONE["id"]]
     assert dynamo.deleted == [
         {"pk": {"S": f"memory#{memory.MEMORY_USER_TAG}"}, "sk": {"S": f"{GONE['at']}#{GONE['id']}"}}
     ]

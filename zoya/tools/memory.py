@@ -217,21 +217,25 @@ def _dynamodb_key(item: dict[str, str]) -> dict[str, dict[str, str]]:
     return {"pk": {"S": f"{kind}#{MEMORY_USER_TAG}"}, "sk": {"S": f"{item['at']}#{item['id']}"}}
 
 
+def _document_ids(client: Any, item: dict[str, str]) -> list[str]:
+    try:
+        return [client.documents.get(item["id"]).id]
+    except Exception as error:  # noqa: BLE001
+        log.info(
+            "no Supermemory document by custom id (%s), matching by text", type(error).__name__
+        )
+    listed = client.documents.list(
+        container_tags=[MEMORY_USER_TAG], include_content=True, limit=LOCAL_MAX_ITEMS
+    )
+    return [d.id for d in listed.memories if (d.content or "").strip() == item["content"]]
+
+
 def _forget_supermemory(item: dict[str, str]) -> None:
     client = _supermemory()
     if client is None:
         return
-    try:
-        client.documents.delete(item["id"])
-        return
-    except Exception as error:  # noqa: BLE001
-        log.info("Supermemory delete by id failed (%s), looking it up", type(error).__name__)
-    listed = client.documents.list(
-        container_tags=[MEMORY_USER_TAG], include_content=True, limit=LOCAL_MAX_ITEMS
-    )
-    for document in listed.memories:
-        if (document.content or "").strip() == item["content"]:
-            client.documents.delete(document.id)
+    for document_id in _document_ids(client, item):
+        client.documents.delete(document_id)
 
 
 def _forget_dynamodb(item: dict[str, str]) -> None:
