@@ -2,7 +2,6 @@ import { AppWindow } from "./components/AppWindows";
 import { DemoVideo } from "./components/DemoVideo";
 import { FolderWordmark } from "./components/FolderWordmark";
 import { HelloWindow } from "./components/HelloWindow";
-import { InstallCommand } from "./components/InstallCommand";
 import { MenuBar } from "./components/MenuBar";
 import { FolderIcon, HeroProps, TrashIcon } from "./components/Props";
 import { Waveform } from "./components/Talk";
@@ -10,7 +9,7 @@ import { TypingBubble } from "./components/TypingBubble";
 import { VisitorCount } from "./components/VisitorCount";
 import { WaitlistForm } from "./components/WaitlistForm";
 import { AppKind } from "./components/AppWindows";
-import { ABILITIES, CHARGE, CONTACT_EMAIL, DEMO, FAQ, FOOTER, GET_ZOYA, HERO, HOW, PRICING, SKIP_LINK, TALK, WHY } from "./copy";
+import { ABILITIES, CHARGE, CONTACT_EMAIL, DEMO, FAQ, FOOTER, HERO, HOW, PRICING, SKIP_LINK, TALK, WHY } from "./copy";
 import { OutlinePlus } from "./icons/rune";
 import { getVisitorCount } from "@/lib/visitors";
 
@@ -109,37 +108,6 @@ export default async function Home() {
         <section className="abilities charge" id="charge">
           <h2 className="capsule">{CHARGE.label}</h2>
           <FeatureRows rows={CHARGE.items} />
-        </section>
-
-        <section className="abilities install" id="get-zoya">
-          <p className="capsule" aria-hidden="true">
-            {GET_ZOYA.label}
-          </p>
-          <h2 className="section-title">{GET_ZOYA.title}</h2>
-          <p className="install-needs">{GET_ZOYA.needs}</p>
-          <ol className="ability-list install-steps">
-            {GET_ZOYA.steps.map((step, index) => (
-              <li className="ability install-step" key={step.title}>
-                <span className="capsule" aria-hidden="true">
-                  {GET_ZOYA.stepLabel} {index + 1}
-                </span>
-                <h3 className="ability-title">{step.title}</h3>
-                {step.showCommand ? <InstallCommand /> : null}
-                <p className="ability-line">
-                  {step.line}
-                  {step.command ? (
-                    <>
-                      {" "}
-                      <code className="inline-command">{step.command}</code>
-                    </>
-                  ) : null}
-                </p>
-              </li>
-            ))}
-          </ol>
-          <p className="ability-line install-after">
-            {GET_ZOYA.after} <code className="inline-command">{GET_ZOYA.afterCommand}</code>
-          </p>
         </section>
 
         <section className="abilities install" id="talk">
