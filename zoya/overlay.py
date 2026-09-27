@@ -34,6 +34,7 @@ import subprocess
 import sys
 import threading
 import time
+from collections.abc import Callable
 from typing import Any
 
 from zoya import events
@@ -91,6 +92,7 @@ STOP_KINDS = {"stop", "cancel"}
 _child: subprocess.Popen | None = None
 _last_level = 0.0
 _presence = False
+_ask_handler: Callable[[str], None] | None = None
 CONTROLS_ONLY_ARG = "--controls-only"
 _queue: queue.Queue[str] = queue.Queue(QUEUE_MAX)
 
@@ -246,6 +248,19 @@ def _forget(message: dict[str, Any]) -> None:
         send({"hub": {"id": request, "ok": memory.forget(item)}})
 
 
+def on_ask(handler: Callable[[str], None]) -> None:
+    global _ask_handler
+    _ask_handler = handler
+
+
+def _ask(message: dict[str, Any]) -> None:
+    from zoya import hub_bridge
+
+    text = hub_bridge.ask_text(message.get("text"))
+    if text is not None and _ask_handler is not None:
+        _ask_handler(text)
+
+
 def _report(_message: dict[str, Any]) -> None:
     from zoya import diagnostics
 
@@ -256,7 +271,7 @@ def _read_commands(child: subprocess.Popen) -> None:
     from zoya import shutdown, updates
 
     plain = {"stop": shutdown.stop, "quit": shutdown.quit_zoya, "update": updates.offer}
-    with_message = {"forget": _forget, "report": _report}
+    with_message = {"forget": _forget, "report": _report, "ask": _ask}
     for line in child.stdout:
         try:
             message = json.loads(line)

@@ -94,6 +94,7 @@ def _start(args: argparse.Namespace):  # noqa: ANN202 — returns VoiceLoop, imp
     loop = VoiceLoop(
         wake_enabled=not args.no_wake, test_wake=args.test_wake, record_clips=args.record_clips
     )
+    overlay.on_ask(loop.ask)
     if args.page:
         from zoya.tools import ToolError
         from zoya.tools.browser import browser_open

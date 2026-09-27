@@ -1553,3 +1553,19 @@ def test_a_truncated_window_title_names_the_page_only_when_both_ends_match(windo
 )
 def test_the_screen_check_looks_for_the_host_chromes_address_bar_actually_draws(host, shown):
     assert browser_tools.omnibox_host(host) == shown
+
+
+@pytest.mark.parametrize("typed", ["confirm", "yes", "confirm it"])
+def test_a_typed_request_never_answers_a_waiting_confirmation(loop, monkeypatch, typed):
+    from zoya import speech
+
+    instance, _calls = loop
+    monkeypatch.setattr(safety, "awaiting_reply", lambda: True)
+    answered, started = [], []
+    monkeypatch.setattr(instance.confirmations, "reply", lambda *a, **k: answered.append(a))
+    monkeypatch.setattr(orchestrator, "start_task", lambda *a, **k: started.append(a))
+    monkeypatch.setattr(speech, "narrate", lambda *_a, **_k: None)
+
+    instance.ask(typed)
+
+    assert answered == [] and started == []

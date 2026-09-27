@@ -1089,6 +1089,11 @@ class VoiceLoop:
         print(f"#{self.utterances} still listening — heard {heard!r} again")
         return True
 
+    def ask(self, text: str) -> None:
+        print(f"TYPED {text!r}")
+        events.emit(events.OverlayEvent(text, "listening", {"role": "user"}))
+        self._dispatch(text, time.monotonic(), {})
+
     def _dispatch(self, text: str, speech_end_at: float, pre: dict[str, int]) -> None:
         if _quit(text) or _problem_report(text) or updates.answer(text):
             return

@@ -107,3 +107,28 @@ def test_a_confirm_token_expires() -> None:
     token = guard.issue()
     now[0] += hub_bridge.CLEAR_TOKEN_TTL_S + 1
     assert guard.redeem(token) is False
+
+
+def test_a_typed_request_passes_as_plain_text() -> None:
+    command = hub_bridge.parse({"cmd": "ask", "id": 9, "args": {"text": "  open notes  "}})
+    assert command is not None and command.args == {"text": "  open notes  "}
+    assert hub_bridge.ask_text(command.args["text"]) == "open notes"
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        {"text": ""},
+        {"text": "   "},
+        {"text": "x" * (hub_bridge.ASK_MAX_CHARS + 1)},
+        {"text": 'open notes\n{"cmd": "quit"}'},
+        {"text": "open notes\u0000"},
+        {"text": "open notes‮"},
+        {"text": 42},
+        {"text": ["open notes"]},
+        {"text": "open notes", "cmd": "quit"},
+        {"words": "open notes"},
+    ],
+)
+def test_a_typed_request_cannot_smuggle_anything_else(args) -> None:  # noqa: ANN001
+    assert hub_bridge.parse({"cmd": "ask", "id": 9, "args": args}) is None

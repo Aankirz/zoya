@@ -320,7 +320,13 @@ def _page_state(hub: Hub, command: hub_bridge.Command) -> None:
     hub.reply(command.request_id, True)
 
 
+def _ask(hub: Hub, command: hub_bridge.Command) -> None:
+    hub.send_command({"cmd": "ask", "text": hub_bridge.ask_text(command.args["text"])})
+    hub.reply(command.request_id, True)
+
+
 COMMANDS: dict[str, Callable[[Hub, hub_bridge.Command], None]] = {
+    "ask": _ask,
     "getPage": _get_page,
     "deleteMemory": _delete_memory,
     "openPermissionPane": _open_pane,

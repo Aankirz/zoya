@@ -16,6 +16,8 @@ MEMORY_ID = re.compile(r"[0-9a-f]{32}")
 MESSAGE_KEYS = frozenset({"cmd", "id", "args"})
 OPEN_HUB_NOTICE = "app.zoya.Zoya.openHub"
 CLEAR_TOKEN_TTL_S = 120.0
+ASK_MAX_CHARS = 500
+UNSAFE_CHAR = re.compile(r"[\x00-\x1f\x7f-\x9f\u200b-\u200f\u2028-\u202e\u2066-\u2069\ufeff]")
 TOKEN_BYTES = 16
 
 
@@ -39,6 +41,12 @@ def _memory_id(value: object) -> bool:
     return isinstance(value, str) and MEMORY_ID.fullmatch(value) is not None
 
 
+def ask_text(value: object) -> str | None:
+    if not isinstance(value, str) or len(value) > ASK_MAX_CHARS or UNSAFE_CHAR.search(value):
+        return None
+    return value.strip() or None
+
+
 def _setting(args: dict[str, Any]) -> bool:
     check = SETTINGS.get(args.get("key")) if isinstance(args.get("key"), str) else None
     return check is not None and check(args.get("value"))
@@ -54,6 +62,7 @@ ARGUMENTS: dict[str, dict[str, Callable[[object], bool]]] = {
     "prepareClearHistory": {},
     "clearHistory": {"token": _memory_id},
     "pageState": {"page": _one_of(PAGES), "headerVisible": _boolean},
+    "ask": {"text": lambda value: ask_text(value) is not None},
 }
 WHOLE_CHECKS: dict[str, Callable[[dict[str, Any]], bool]] = {"setSetting": _setting}
 
