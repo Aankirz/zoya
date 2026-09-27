@@ -7,7 +7,7 @@ Usage:
   python -m zoya.main --test-wake --record-clips  # also save each utterance to logs/wake_clips/
   python -m zoya.main --disable-tts polly     # Polly off → ElevenLabs → macOS voice (#7)
   python -m zoya.main --page http://127.0.0.1:8765/place_order.html  # open a page in Zoya's browser
-  python -m zoya.main --login                 # sign in once: Amazon.in, YouTube, Spotify, Gmail
+  python -m zoya.main --login                 # sign in once to the sites Zoya should use
   python -m zoya.main --order-limit 300       # Done-when #5 test run: never offer a bigger order
   python -m zoya.main --overlay               # stage overlay: presence, captions, action ring
 Every stage's timing is printed and appended to logs/timing.log. Quit: Control + Shift + Esc,
@@ -112,18 +112,14 @@ def open_login_sites() -> int:
     cookies land in the real keychain that Zoya's Playwright launch reads (coordinator)."""
     import subprocess
 
-    from zoya.config import BROWSER_PROFILE_DIR, LOGIN_SITES
+    from zoya.config import BROWSER_PROFILE_DIR
 
-    command = [
-        "open",
-        "-na",
-        "Google Chrome",
-        "--args",
-        f"--user-data-dir={BROWSER_PROFILE_DIR}",
-        *LOGIN_SITES,
-    ]
+    command = ["open", "-na", "Google Chrome", "--args", f"--user-data-dir={BROWSER_PROFILE_DIR}"]
     result = subprocess.run(command, stdin=subprocess.DEVNULL, timeout=10, check=False)
-    print("Sign in to each tab, then quit that Chrome window (Cmd+Q) before starting Zoya.")
+    print(
+        "Sign in to the sites you want Zoya to use, then quit that Chrome window (Cmd+Q) before "
+        "starting Zoya."
+    )
     return result.returncode
 
 

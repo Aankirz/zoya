@@ -69,7 +69,7 @@ NAME_WORDS = 3
 
 # Tool name → resource class. Everything else is background (no screen, no browser page).
 GUI_TOOLS = {"computer_task", "click", "type_text", "key", "scroll", "ax_press", "run_shortcut"}
-BROWSER_PREFIXES = ("browser_", "amazon_", "youtube_", "spotify_")
+BROWSER_PREFIXES = ("browser_", "open_url")
 
 
 @dataclass(eq=False)

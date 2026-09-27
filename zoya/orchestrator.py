@@ -68,7 +68,6 @@ SKILL_FALLBACK = "skill_fallback"  # a skill action failed; the brain retried wi
 MAX_CONVERSATION_TURNS = 6  # follow-ups keep context; older turns drop to bound token cost
 OLD_RESULT_MAX_CHARS = 300  # a finished turn's tool results, as follow-ups see them
 ACK = "On it."
-SITE_NAME = re.compile(r"\b(amazon|flipkart|youtube|spotify|google|gmail|whatsapp)\b", re.I)
 QUICK_QUESTION = re.compile(r"^(?:what|who|when|where|why|how|which|is|are|was|does|do)\b", re.I)
 SENTENCE_END = re.compile(r"(?<=[.!?।])\s+")
 
@@ -421,13 +420,10 @@ def acknowledge(decision: RouteDecision) -> str:
     (https://getstream.io/blog/speculative-tool-calling-voice/). Quick questions and fast tools
     answer before an acknowledgement would finish."""
     command = clean_command(decision.text)
-    site = SITE_NAME.search(command)
     brain = decision.route == "orchestrator" or (decision.route == "skill" and not decision.tool)
-    if not (brain or decision.skill == "shopping"):  # shopping actions load several pages
+    if not brain or QUICK_QUESTION.match(command):
         return ""
-    if QUICK_QUESTION.match(command) and not site:
-        return ""
-    return f"{ACK} Checking {site.group(1).capitalize()}." if site else ACK
+    return ACK
 
 
 def _execute(decision: RouteDecision, timings: dict[str, int]) -> tuple[str, bool]:

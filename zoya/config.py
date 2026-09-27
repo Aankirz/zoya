@@ -192,12 +192,6 @@ MEMORY_PROFILE_TTL_S = 15 * 60
 MEMORY_PROFILE_SETTLE_S = 10.0
 ALERTS_TOPIC_ARN = "arn:aws:sns:ap-south-1:567487920371:zoya-alerts"  # trusted contact (Flow 10)
 PLACES_MAX_RESULTS = 3
-LOGIN_SITES = (
-    "https://www.amazon.in/",
-    "https://www.youtube.com/",
-    "https://open.spotify.com/",
-    "https://mail.google.com/",
-)
 # Done-when #5 test run only (coordinator): `python -m zoya.main --order-limit 300` sets this env
 # var; above that payable total Zoya never asks to confirm. Unset = no limit.
 ORDER_LIMIT_ENV = "ZOYA_ORDER_LIMIT_RUPEES"

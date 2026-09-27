@@ -45,6 +45,7 @@ import re
 import signal
 import socket
 import subprocess
+import threading
 import time
 import urllib.request
 from collections.abc import Callable
@@ -103,7 +104,7 @@ NEARBY_MAX_CHARS = 2000
 EXTRA_ARGS = ["--autoplay-policy=no-user-gesture-required", "--disable-extensions"]
 SCREENSHOT_QUALITY = 60
 SIGN_IN_PATH = re.compile(r"/(?:ap/signin|signin|login|log-in|accounts|servicelogin)\b", re.I)
-CAPTCHA = "iframe[src*=captcha], iframe[title*=challenge i], #captchacharacters"
+CAPTCHA = "iframe[src*=captcha], iframe[title*=challenge i], input[id*=captcha i]"
 QUERY = re.compile(r"\?[^\"'\s>]*")
 SIGN_IN_NOTE = (
     "\n[Zoya note: this page asks the user to sign in or prove they're human. Don't type anything; "
@@ -689,6 +690,56 @@ UNCHANGED_SAY = "Clicked {what}, but nothing on the page changed."
 UNDONE_SAY = "Clicked {what}. To undo, say {undo}."
 SHOWN_SAY = "Clicked {what} and {shown}. To undo, say {undo}."
 UNSHOWN_SAY = "Clicked {what}, but I can't see anything on the page that says it worked."
+ORDER_DONE = re.compile(
+    r"thank you for (?:your )?(?:order|purchase|booking)"
+    r"|your (?:order|booking|reservation) (?:has been |is |was )?(?:placed|confirmed|received)"
+    r"|order (?:placed|confirmed) successfully|payment (?:was )?successful",
+    re.I,
+)
+ORDER_TEXT_MAX_CHARS = 20_000
+UNCONFIRMED_ORDER_SAY = (
+    "Warning: {host} is showing an order confirmation that you did not confirm. Please check "
+    "your orders there now. I've alerted your trusted contact."
+)
+
+
+def where(url: str) -> str:
+    parsed = urlparse(url)
+    return f"{parsed.netloc}{parsed.path}"
+
+
+def order_happened(was: str, url: str, text: str) -> bool:
+    """After a click the user did not confirm as a purchase: did the page just move to an order,
+    booking or payment confirmation? Only a navigation counts, and only strict phrases.
+
+    ponytail: phrase list, English only; a site that confirms an order in other words is missed.
+    """
+    return bool(url) and where(url) != was and bool(ORDER_DONE.search(text))
+
+
+def _unconfirmed_order(url: str) -> None:
+    from zoya import events, speech
+    from zoya.tools.handoff import alert
+
+    host = urlparse(url).netloc or "the site"
+    said = UNCONFIRMED_ORDER_SAY.format(host=host)
+    events.emit(events.EarconEvent("error"))
+    speech.narrate(said)
+    safety.audit_event(safety.Action("purchase", "click", target=host), "unexpected order placed")
+    threading.Thread(target=alert, args=(host, "unexpected_order"), daemon=True).start()
+    raise safety.ConfirmationDeclined(said)
+
+
+def _playwright_url_and_text() -> tuple[str, str]:
+    return _on_browser(lambda: (_page().url, _page().inner_text("body")[:ORDER_TEXT_MAX_CHARS]))
+
+
+def _check_no_order(target: Target, read: Callable[[], tuple[str, str]], confirmed: Any) -> None:
+    if confirmed is not None and confirmed.kind == "purchase":
+        return
+    now = _settled(read)
+    if order_happened(f"{target.host}{target.facts.path}", *now):
+        _unconfirmed_order(now[0])
 
 
 def _page_state() -> Any:
@@ -714,6 +765,19 @@ def _reversible_said(what: str, undo: str, before: Any) -> str:
     if before is not None and _page_state() == before:
         return UNCHANGED_SAY.format(what=what)
     return UNDONE_SAY.format(what=what, undo=undo)
+
+
+def _settled(read: Callable[[], tuple[str, str]]) -> tuple[str, str]:
+    time.sleep(ACTION_SETTLE_S)
+    try:
+        return read()
+    except ToolError:
+        return "", ""
+
+
+def _ref_url_and_text() -> tuple[str, str]:
+    url = ref_page_state()[0]
+    return url, _snapshot_or_blank()[:ORDER_TEXT_MAX_CHARS]
 
 
 def ref_page_state() -> tuple[str, str]:
@@ -791,6 +855,7 @@ def click_checked(
         reversible = safety.reversible_click(target.facts)
         before = _page_state() if reversible else None
         _click(target.handle)
+        _check_no_order(target, _playwright_url_and_text, None)
         if reversible is None:
             return f"Clicked {what}.", None
         return _reversible_said(what, reversible.undo, before), None
@@ -809,6 +874,7 @@ def click_checked(
     safety.require_confirmation(action, current=live)
     safety.log_safety_timing(event="browser_click_confirmed", risk=risky.kind)
     _click(target.handle)
+    _check_no_order(target, _playwright_url_and_text, risky)
     return risky.say, risky
 
 
@@ -1113,6 +1179,7 @@ def click_ref(ref: str, approved_name: str, amount: str = "", item: str = "") ->
         if reversible is None:
             _ring(target)
             _agent_browser("click", f"@{ref}")
+            _check_no_order(target, _ref_url_and_text, None)
             return f"Clicked {approved_name}."
         was_at, seen = ref_page_state(), _snapshot_or_blank()
         was = _control_name(seen, ref)
@@ -1133,6 +1200,7 @@ def click_ref(ref: str, approved_name: str, amount: str = "", item: str = "") ->
     safety.log_safety_timing(event="ref_click_confirmed", risk=risky.kind)
     _ring(target)
     _agent_browser("click", f"@{ref}")
+    _check_no_order(target, _ref_url_and_text, risky)
     return f"Clicked {risky.say}. The user confirmed it out loud."
 
 
