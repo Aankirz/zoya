@@ -66,6 +66,7 @@ class Run:
     route: str = ""
     error: str = ""
     leftover: str = ""
+    tools: list[str] = field(default_factory=list)
 
 
 class Meter:
@@ -125,6 +126,8 @@ def install_meters() -> None:
 
     def before_tool(self: Any, event: Any) -> None:
         meter.count("steps")
+        if meter.run is not None:
+            meter.run.tools.append(str(event.tool_use.get("name", "")))
         original_before_tool(self, event)
 
     safety.ConfirmationGate.before_tool = before_tool
