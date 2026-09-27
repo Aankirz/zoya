@@ -25,6 +25,7 @@ def _boolean(value: object) -> bool:
 
 SETTINGS: dict[str, Callable[[object], bool]] = {
     "largerText": _boolean,
+    "easierLetters": _boolean,
     "launchAtLogin": _boolean,
     "pillPosition": _one_of(PILL_POSITIONS),
 }

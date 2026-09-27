@@ -15,7 +15,7 @@ import objc
 import WebKit
 from PyObjCTools import AppHelper
 
-from zoya import hub_bridge, hub_data
+from zoya import hub_bridge, hub_data, login_item
 
 HUB_DIR = Path(__file__).parent / "hub"
 SCHEME = "zoya"
@@ -24,6 +24,7 @@ HANDLER = "zoya"
 
 MAX_MESSAGE_CHARS = 16_384
 WINDOW_SIZE = (1080.0, 720.0)
+DRAG_HEIGHT = 28.0
 MIN_SIZE = (820.0, 560.0)
 TYPES = {
     ".html": "text/html",
@@ -79,6 +80,14 @@ class SchemeHandler(AppKit.NSObject, protocols=[objc.protocolNamed("WKURLSchemeH
         return
 
 
+class DragStrip(AppKit.NSView):
+    def mouseDownCanMoveWindow(self) -> bool:  # noqa: N802
+        return True
+
+    def mouseDown_(self, event: Any) -> None:  # noqa: N802
+        self.window().performWindowDragWithEvent_(event)
+
+
 class Messages(AppKit.NSObject, protocols=[objc.protocolNamed("WKScriptMessageHandler")]):
     def userContentController_didReceiveScriptMessage_(  # noqa: N802
         self, _controller: Any, message: Any
@@ -103,6 +112,7 @@ def _decode(body: object) -> object:
 class Hub:
     def __init__(self, send_command: Callable[[dict[str, Any]], None]) -> None:
         self.send_command = send_command
+        self.on_settings: Callable[[dict[str, Any]], None] = lambda _settings: None
         self.window: Any = None
         self.view: Any = None
         self.keep: list[Any] = []
@@ -138,7 +148,16 @@ class Hub:
         window.setDelegate_(events)
         self.keep.append(events)
         self.view = self._web_view()
-        window.setContentView_(self.view)
+        root = AppKit.NSView.alloc().initWithFrame_(((0, 0), WINDOW_SIZE))
+        self.view.setFrame_(((0, 0), WINDOW_SIZE))
+        self.view.setAutoresizingMask_(AppKit.NSViewWidthSizable | AppKit.NSViewHeightSizable)
+        strip = DragStrip.alloc().initWithFrame_(
+            ((0, WINDOW_SIZE[1] - DRAG_HEIGHT), (WINDOW_SIZE[0], DRAG_HEIGHT))
+        )
+        strip.setAutoresizingMask_(AppKit.NSViewWidthSizable | AppKit.NSViewMinYMargin)
+        root.addSubview_(self.view)
+        root.addSubview_(strip)
+        window.setContentView_(root)
         window.center()
         store = WebKit.WKContentRuleListStore.defaultStore()
         store.compileContentRuleListForIdentifier_encodedContentRuleList_completionHandler_(
@@ -184,7 +203,7 @@ class Hub:
 
 
 PAGES: dict[str, Callable[[], object]] = {
-    "today": lambda: {"entries": hub_data.today()},
+    "today": lambda: {"entries": hub_data.today(), "setup": hub_data.setup()},
     "history": lambda: {"entries": hub_data.history()},
     "memory": lambda: {"items": hub_data.memories()},
     "plan": lambda: {"plan": hub_data.plan()},
@@ -222,7 +241,12 @@ def _problem_report(hub: Hub, command: hub_bridge.Command) -> None:
 
 
 def _set_setting(hub: Hub, command: hub_bridge.Command) -> None:
-    hub.reply(command.request_id, hub_data.save_setting(command.args["key"], command.args["value"]))
+    key, value = command.args["key"], command.args["value"]
+    if key == "launchAtLogin":
+        value = login_item.set_enabled(value)
+    saved = hub_data.save_setting(key, value)
+    hub.on_settings(saved)
+    hub.reply(command.request_id, saved)
 
 
 COMMANDS: dict[str, Callable[[Hub, hub_bridge.Command], None]] = {

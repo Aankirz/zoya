@@ -21,6 +21,7 @@ PERMISSIONS = ("microphone", "accessibility", "screen", "automation")
 SETTINGS_FILE = Path.home() / ".zoya" / "settings.json"
 DEFAULT_SETTINGS: dict[str, Any] = {
     "largerText": False,
+    "easierLetters": False,
     "pillPosition": "bottom",
     "launchAtLogin": False,
 }

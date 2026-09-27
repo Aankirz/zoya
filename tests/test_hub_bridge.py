@@ -16,6 +16,7 @@ GOOD_ID = "0123456789abcdef0123456789abcdef"
         {"cmd": "checkForUpdates", "id": 4, "args": {}},
         {"cmd": "sendProblemReport", "id": 5, "args": {}},
         {"cmd": "setSetting", "id": 6, "args": {"key": "largerText", "value": True}},
+        {"cmd": "setSetting", "id": 8, "args": {"key": "easierLetters", "value": False}},
         {"cmd": "setSetting", "id": 7, "args": {"key": "pillPosition", "value": "left"}},
     ],
 )
