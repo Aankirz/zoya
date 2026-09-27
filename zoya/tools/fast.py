@@ -100,10 +100,11 @@ def normalise_url(url: str) -> str:
 
 @tool
 def open_url(url: str) -> str:
-    """Open a website in the default browser, e.g. "youtube.com"."""
+    """Open a website in Zoya's browser, in her one working tab, e.g. "youtube.com"."""
+    from zoya.tools import browser
+
     address = normalise_url(url)
-    if _run(["open", address]).returncode != 0:
-        raise ToolError("Sorry, I couldn't open that website.")
+    browser.goto(address)
     return f"Opening {urlparse(address).netloc}."
 
 

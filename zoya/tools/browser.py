@@ -42,6 +42,7 @@ import json
 import logging
 import os
 import re
+import signal
 import socket
 import subprocess
 import time
@@ -69,6 +70,7 @@ from zoya.config import (
     CDP_PROBE_TIMEOUT_S,
     CDP_READY_TIMEOUT_S,
     CHROME_BINARY,
+    CHROME_PID_FILE,
     CHROME_SHUTDOWN_TIMEOUT_S,
     ORDER_LIMIT_ENV,
 )
@@ -179,14 +181,60 @@ def _chrome() -> int:
         raise ToolError("Google Chrome isn't installed, so I can't open a page.")
     if "chrome" not in _state:
         atexit.register(close)
+    _reap_orphan()
     port = _free_port()
     process = subprocess.Popen(  # noqa: S603 — fixed binary, no shell
         _chrome_argv(port), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
     )
     _state["chrome"], _state["cdp_port"] = process, port
     _cdp_ready(process, port)
+    CHROME_PID_FILE.parent.mkdir(parents=True, exist_ok=True)
+    CHROME_PID_FILE.write_text(f"{process.pid} {os.getpid()}")
     log.info("Chrome pid %d on CDP port %d", process.pid, port)
     return port
+
+
+def _alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _is_zoya_chrome(pid: int) -> bool:
+    done = subprocess.run(  # noqa: S603 — fixed binary, no shell
+        ["ps", "-p", str(pid), "-o", "command="], capture_output=True, text=True, check=False
+    )
+    return f"--user-data-dir={BROWSER_PROFILE_DIR}" in done.stdout
+
+
+def _stop(pid: int) -> None:
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        with contextlib.suppress(ProcessLookupError):
+            os.kill(pid, sig)
+        deadline = time.monotonic() + CHROME_SHUTDOWN_TIMEOUT_S
+        while _alive(pid) and time.monotonic() < deadline:
+            time.sleep(CDP_POLL_S)
+        if not _alive(pid):
+            return
+
+
+def _reap_orphan() -> None:
+    """A Chrome left by a Zoya that died without closing it keeps its window on the user's screen
+    and holds the profile, so every later Zoya said her browser was "already in use". A Chrome
+    whose Zoya is still alive is left alone."""
+    try:
+        chrome_pid, owner_pid = (int(part) for part in CHROME_PID_FILE.read_text().split())
+    except (OSError, ValueError):
+        return
+    if _alive(chrome_pid) and _is_zoya_chrome(chrome_pid) and not _alive(owner_pid):
+        log.info("closing Zoya's Chrome left by an earlier run (pid %d)", chrome_pid)
+        _stop(chrome_pid)
+    if not _alive(chrome_pid):
+        CHROME_PID_FILE.unlink(missing_ok=True)
 
 
 def is_ours(pid: int) -> bool:
@@ -198,7 +246,7 @@ def is_ours(pid: int) -> bool:
 def close() -> None:
     """Shutdown: Chrome is Zoya's child process now, so end it by PID (never by name pattern)."""
     process = _state.pop("chrome", None)
-    for key in ("cdp_port", "page", "browser"):
+    for key in ("cdp_port", "page", "browser", "target"):
         _state.pop(key, None)
     if process is None or process.poll() is not None:
         return
@@ -207,6 +255,7 @@ def close() -> None:
         process.wait(timeout=CHROME_SHUTDOWN_TIMEOUT_S)
     except subprocess.TimeoutExpired:
         process.kill()
+    CHROME_PID_FILE.unlink(missing_ok=True)
 
 
 def _attach(port: int) -> Any:
@@ -234,7 +283,73 @@ def _page() -> Any:
     page = usable[0] if usable else (context.pages[0] if context.pages else context.new_page())
     page.bring_to_front()
     _state["page"] = page
+    _state["target"] = target_id(page)
     return page
+
+
+def running() -> bool:
+    process = _state.get("chrome")
+    return process is not None and process.poll() is None
+
+
+def _page_targets() -> list[dict[str, Any]]:
+    session = _attach(int(_state["cdp_port"])).new_browser_cdp_session()
+    try:
+        infos = session.send("Target.getTargets")["targetInfos"]
+    finally:
+        session.detach()
+    return [info for info in infos if info.get("type") == "page"]
+
+
+def task_tabs() -> frozenset[str]:
+    """The tabs open as a task starts, by CDP target id. Never launches Chrome."""
+    if not running():
+        return frozenset()
+    return _on_browser(lambda: frozenset(info["targetId"] for info in _page_targets()))
+
+
+def opened_by_zoya(targets: list[dict[str, Any]], before: frozenset[str], working: str) -> set[str]:
+    """Tabs a page opened from Zoya's working tab during the task, directly or through another such
+    tab. A tab the user opened has no opener in that chain, and a tab open before the task is never
+    counted, so neither is ever closed."""
+    ours = {working}
+    while True:
+        new = {
+            info["targetId"]
+            for info in targets
+            if info["targetId"] not in before and info.get("openerId") in ours
+        } - ours
+        if not new:
+            return ours - {working}
+        ours |= new
+
+
+def close_task_tabs(before: frozenset[str]) -> list[str]:
+    """At the end of a task: close the tabs Zoya's work opened, by target id; keep the working
+    tab for the next task."""
+    working = _state.get("target")
+    if not running() or not working:
+        return []
+
+    def close_them() -> list[str]:
+        closing = sorted(opened_by_zoya(_page_targets(), before, working))
+        session = _attach(int(_state["cdp_port"])).new_browser_cdp_session()
+        try:
+            for target in closing:
+                session.send("Target.closeTarget", {"targetId": target})
+        finally:
+            session.detach()
+        return closing
+
+    return _on_browser(close_them)
+
+
+def target_id(page: Any) -> str:
+    session = page.context.new_cdp_session(page)
+    try:
+        return str(session.send("Target.getTargetInfo")["targetInfo"]["targetId"])
+    finally:
+        session.detach()
 
 
 def on_page[T](work: Callable[[Any], T]) -> T:

@@ -49,7 +49,7 @@ from zoya.config import (
 )
 from zoya.prompts import ORCHESTRATOR_PROMPT
 from zoya.router import RouteDecision, clean_command, route
-from zoya.tools import ToolError, collect_tools
+from zoya.tools import ToolError, browser, collect_tools
 from zoya.tools.memory import recent_corrections
 
 log = logging.getLogger(__name__)
@@ -471,6 +471,7 @@ def handle_command(text: str, pre_timings: dict[str, int] | None = None) -> Comm
     if task is None:
         _cancel.clear()
     safety.begin_task(task_id)
+    tabs_before = browser.task_tabs()
     with trace.get_tracer("zoya").start_as_current_span("zoya.command") as span:
         decision = speculate.commit(text) or route(text)
         timings = {**(pre_timings or {}), **decision.timings_ms}
@@ -496,9 +497,21 @@ def handle_command(text: str, pre_timings: dict[str, int] | None = None) -> Comm
     if decision.route in ("fast", "skill") and not streamed:
         remember_turn(text, spoken)
     result = CommandResult(task_id, decision, spoken, ok, timings)
+    _close_task_tabs(tabs_before)
     _log_timing(text, result)
     events.emit(events.TaskEvent(task_id, "done" if ok else "failed", text, decision.route, spoken))
     return result
+
+
+def _close_task_tabs(before: frozenset[str]) -> None:
+    """Tabs a site opened during this task close with it; another running task keeps its own."""
+    if len(tasks.running()) > 1:
+        return
+    try:
+        if closed := browser.close_task_tabs(before):
+            log.info("closed %d tab(s) this task opened", len(closed))
+    except ToolError as error:
+        log.warning("could not close this task's tabs (%s)", error)
 
 
 # --- Voice-loop task functions (§9.2, §9.13: several tasks through zoya/tasks.py) ------------

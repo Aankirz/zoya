@@ -180,15 +180,16 @@ def test_non_web_urls_are_refused(url):
 
 
 def test_web_services_open_in_the_browser_unless_the_app_was_asked_for(monkeypatch):
-    from zoya.tools import fast
+    from zoya.tools import browser, fast
 
     opened = []
     monkeypatch.setattr(
         fast, "_run", lambda argv, **_: opened.append(argv) or type("R", (), {"returncode": 0})()
     )
+    monkeypatch.setattr(browser, "goto", lambda url: opened.append(["zoya-browser", url]))
 
     assert fast.open_app(app_name="Spotify") == "Spotify is open in your browser."
-    assert opened[-1] == ["open", "https://open.spotify.com"]
+    assert opened[-1] == ["zoya-browser", "https://open.spotify.com"]
     fast.open_app(app_name="Spotify", prefer_web=False)
     assert opened[-1] == ["open", "-a", "Spotify"]
 

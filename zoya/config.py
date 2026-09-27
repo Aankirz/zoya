@@ -365,6 +365,7 @@ COMPUTER_TRANSIENT_RETRIES = 2
 # --remote-debugging-port on the default profile dir, so BROWSER_PROFILE_DIR stays dedicated.
 # https://developer.chrome.com/blog/remote-debugging-port
 CHROME_BINARY = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
+CHROME_PID_FILE = Path.home() / ".zoya" / "chrome.pid"
 CDP_HOST = "127.0.0.1"
 CDP_READY_TIMEOUT_S = 20.0  # bound on waiting for /json/version after launching Chrome
 CDP_POLL_S = 0.1
