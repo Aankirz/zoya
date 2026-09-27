@@ -200,6 +200,20 @@ def today() -> list[dict[str, Any]]:
     return [e for e in history() if datetime.fromisoformat(e["at"]).date() == day]
 
 
+def done_count(entries: list[dict[str, Any]]) -> int:
+    return sum(int(e.get("times", 1)) for e in entries if not e.get("failed"))
+
+
+def counts() -> dict[str, str]:
+    granted = sum(setup()["permissions"].values())
+    return {
+        "today": str(done_count(today()) or ""),
+        "history": str(done_count(history(limit=READ_LINES)) or ""),
+        "memory": str(len(memories()) or ""),
+        "setup": f"{granted}/{len(PERMISSIONS)}",
+    }
+
+
 def parse_plan(body: object) -> dict[str, Any] | None:
     if not isinstance(body, dict):
         return None

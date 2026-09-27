@@ -71,7 +71,7 @@ def test_malformed_commands_are_refused(body) -> None:  # noqa: ANN001
     [
         {"cmd": "prepareClearHistory", "id": 1, "args": {}},
         {"cmd": "clearHistory", "id": 2, "args": {"token": GOOD_ID}},
-        {"cmd": "pageState", "id": 3, "args": {"page": "history", "headerVisible": False}},
+        {"cmd": "pageState", "id": 3, "args": {"page": "history"}},
     ],
 )
 def test_history_and_page_commands_pass(body) -> None:  # noqa: ANN001
@@ -84,8 +84,8 @@ def test_history_and_page_commands_pass(body) -> None:  # noqa: ANN001
         {"cmd": "clearHistory", "id": 1, "args": {}},
         {"cmd": "clearHistory", "id": 1, "args": {"token": "yes"}},
         {"cmd": "clearHistory", "id": 1, "args": {"token": True}},
-        {"cmd": "pageState", "id": 1, "args": {"page": "history"}},
-        {"cmd": "pageState", "id": 1, "args": {"page": "nope", "headerVisible": True}},
+        {"cmd": "pageState", "id": 1, "args": {"page": "history", "headerVisible": True}},
+        {"cmd": "pageState", "id": 1, "args": {"page": "nope"}},
     ],
 )
 def test_malformed_history_and_page_commands_are_refused(body) -> None:  # noqa: ANN001

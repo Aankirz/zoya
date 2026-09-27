@@ -139,6 +139,7 @@ class Hub:
         self.window: Any = None
         self.view: Any = None
         self.sidebar: Any = None
+        self.state = "idle"
         self.keep: list[Any] = []
         self.clear_guard = hub_bridge.ClearGuard()
 
@@ -180,17 +181,14 @@ class Hub:
         split.addSplitViewItem_(side_item)
         split.addSplitViewItem_(AppKit.NSSplitViewItem.splitViewItemWithViewController_(content))
         window.setContentViewController_(split)
-        bar, self.chrome = hub_chrome.toolbar(self.toolbar_action)
-        window.setToolbar_(bar)
-        window.setToolbarStyle_(AppKit.NSWindowToolbarStyleUnified)
         window.setTitlebarAppearsTransparent_(True)
         window.setTitlebarSeparatorStyle_(AppKit.NSTitlebarSeparatorStyleNone)
         window.setContentSize_(WINDOW_SIZE)
         window.setFrameAutosaveName_("ZoyaHub")
         window.center()
-        self.keep += [events, content, split, bar]
+        self.keep += [events, content, split]
         self.sidebar.select("today")
-        self.chrome.show("today", True)
+        self.refresh_chrome()
         store = WebKit.WKContentRuleListStore.defaultStore()
         store.compileContentRuleListForIdentifier_encodedContentRuleList_completionHandler_(
             RULES_ID, RULES, self._load
@@ -198,18 +196,26 @@ class Hub:
         return window
 
     def set_status(self, state: str) -> None:
-        if self.sidebar is not None:
-            self.sidebar.set_status(state)
+        self.state = state
+        self.run_js(f"window.zoyaState && window.zoyaState({json.dumps(state)})")
 
     def go(self, page: str) -> None:
         self.run_js(f"location.hash = {json.dumps(page)}")
 
-    def toolbar_action(self, action: str) -> None:
-        self.run_js(f"window.zoyaToolbar({json.dumps(action)})")
-
-    def page_state(self, page: str, header_visible: bool) -> None:
+    def page_state(self, page: str) -> None:
         self.sidebar.select(page)
-        self.chrome.show(page, header_visible)
+        self.refresh_chrome()
+
+    def refresh_chrome(self) -> None:
+        def work() -> None:
+            counts, plan = hub_data.counts(), hub_data.plan()
+            AppHelper.callAfter(self._apply_chrome, counts, plan)
+
+        threading.Thread(target=work, name="zoya-hub-chrome", daemon=True).start()
+
+    def _apply_chrome(self, counts: dict[str, str], plan: dict[str, Any] | None) -> None:
+        self.sidebar.set_counts(counts)
+        self.sidebar.set_plan(plan)
 
     def run_js(self, code: str) -> None:
         if self.view is not None:
@@ -266,7 +272,11 @@ PAGES: dict[str, Callable[[], object]] = {
 
 
 def _get_page(hub: Hub, command: hub_bridge.Command) -> None:
-    hub.reply_later(command.request_id, PAGES[command.args["page"]])
+    page = command.args["page"]
+    if page == "today":
+        hub.reply_later(command.request_id, lambda: PAGES[page]() | {"state": hub.state})
+        return
+    hub.reply_later(command.request_id, PAGES[page])
 
 
 def _delete_memory(hub: Hub, command: hub_bridge.Command) -> None:
@@ -316,7 +326,7 @@ def _clear_history(hub: Hub, command: hub_bridge.Command) -> None:
 
 
 def _page_state(hub: Hub, command: hub_bridge.Command) -> None:
-    hub.page_state(command.args["page"], command.args["headerVisible"])
+    hub.page_state(command.args["page"])
     hub.reply(command.request_id, True)
 
 

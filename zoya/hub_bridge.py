@@ -61,7 +61,7 @@ ARGUMENTS: dict[str, dict[str, Callable[[object], bool]]] = {
     "setSetting": {"key": lambda _key: True, "value": lambda _value: True},
     "prepareClearHistory": {},
     "clearHistory": {"token": _memory_id},
-    "pageState": {"page": _one_of(PAGES), "headerVisible": _boolean},
+    "pageState": {"page": _one_of(PAGES)},
     "ask": {"text": lambda value: ask_text(value) is not None},
 }
 WHOLE_CHECKS: dict[str, Callable[[dict[str, Any]], bool]] = {"setSetting": _setting}

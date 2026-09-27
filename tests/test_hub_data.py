@@ -163,3 +163,15 @@ def test_each_request_names_its_app_safely(logs, command, tool, app) -> None:  #
     _write(logs / "timing.log", [_timing(command, tool=tool)])
     [entry] = hub_data.history()
     assert entry.get("app") == app
+
+
+def test_the_sidebar_counts_things_done_with_repeats_and_without_failures(
+    logs,
+) -> None:  # noqa: ANN001
+    rows = [
+        _timing("open notes", task_id="a", tool="open_app"),
+        _timing("open notes", task_id="b", tool="open_app"),
+        _timing("book a table", task_id="c", ok=False),
+    ]
+    _write(logs / "timing.log", rows)
+    assert hub_data.done_count(hub_data.today()) == 2
