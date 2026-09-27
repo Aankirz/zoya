@@ -152,8 +152,8 @@ export const APP_WINDOWS = {
 // Each phrase checked against zoya/router.py, the skill triggers and zoya/shutdown.py.
 export const TALK = {
   label: "talk to zoya",
-  title: "say “hey zoya”. then say what you want.",
-  line: "or hold fn and shift while you talk.",
+  title: "hold fn and shift. say what you want.",
+  line: "or start with “hey zoya”. or press ⌘k in zoya's window and type.",
   phrases: [
     { say: "hey zoya, open youtube", result: "opens it in your browser." },
     { say: "hey zoya, what's the weather in bangalore?", result: "tells you, out loud." },
