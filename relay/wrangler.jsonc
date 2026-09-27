@@ -8,6 +8,7 @@
   "vars": {
     "OPENAI_BASE_URL": "https://api.openai.com/v1",
     "AI_GATEWAY_BASE_URL": "https://ai-gateway.vercel.sh/v1",
-    "POLLY_REGION": "ap-south-1"
+    "POLLY_REGION": "ap-south-1",
+    "DODO_API_BASE_URL": "https://test.dodopayments.com"
   }
 }

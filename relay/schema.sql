@@ -15,3 +15,17 @@ create table if not exists usage (
   calls integer not null default 0,
   primary key (license_id, month)
 );
+
+alter table licenses alter column email drop not null;
+
+alter table licenses add column if not exists dodo_grant_id text;
+
+alter table licenses add column if not exists dodo_customer_id text;
+
+alter table licenses add column if not exists dodo_event_at timestamptz;
+
+create table if not exists dodo_events (
+  webhook_id text primary key,
+  type text not null,
+  received timestamptz not null default now()
+);
