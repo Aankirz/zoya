@@ -1137,7 +1137,7 @@ def test_typing_into_a_password_field_is_refused(monkeypatch):
 
     monkeypatch.setattr(browser_tools, "_on_browser", lambda call: call())
     monkeypatch.setattr(browser_tools, "_page", lambda: None)
-    monkeypatch.setattr(browser_tools, "_locate", lambda page, text: Field())
+    monkeypatch.setattr(browser_tools, "_locate_field", lambda page, text: Field())
 
     with pytest.raises(ToolError):
         browser_tools.browser_type(field="Password", text="hunter2")

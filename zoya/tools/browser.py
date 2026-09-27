@@ -478,14 +478,34 @@ def _locate(page: Any, text: str) -> Any:
     placeholder a rich editor is unreachable — every site that composes in a
     `div[contenteditable][role=textbox]` rather than a <textarea>.
     """
-    ways = (
-        page.get_by_role("button", name=text),
-        page.get_by_role("link", name=text),
-        page.get_by_role("textbox", name=text),
-        page.get_by_placeholder(text),
-        page.get_by_label(text),
-        page.get_by_text(text),
+    return _first_visible(
+        page,
+        text,
+        (
+            page.get_by_role("button", name=text),
+            page.get_by_role("link", name=text),
+            page.get_by_role("textbox", name=text),
+            page.get_by_placeholder(text),
+            page.get_by_label(text),
+            page.get_by_text(text),
+        ),
     )
+
+
+def _locate_field(page: Any, text: str) -> Any:
+    """The visible field named `text`, for typing: a same-named button or link never wins."""
+    return _first_visible(
+        page,
+        text,
+        (
+            *(page.get_by_role(role, name=text) for role in ("searchbox", "textbox", "combobox")),
+            page.get_by_placeholder(text),
+            page.get_by_label(text),
+        ),
+    )
+
+
+def _first_visible(page: Any, text: str, ways: tuple[Any, ...]) -> Any:
     any_way = ways[0]
     for other in ways[1:]:
         any_way = any_way.or_(other)
@@ -951,7 +971,7 @@ def browser_type(field: str, text: str) -> str:
         field: The field's label or placeholder, e.g. "Search".
         text: What to type.
     """
-    on_page(lambda page: fill_checked(_locate(page, field), text, field))
+    on_page(lambda page: fill_checked(_locate_field(page, field), text, field))
     return f"Typed into {field}."
 
 
