@@ -73,10 +73,22 @@ def ask_jev(text: str) -> tuple[str, float, int]:
     return pick.name, pick.confidence, answers.latency_ms
 
 
+def owner_of(tool: str | None) -> str:
+    for name, skill in harness.catalog().items():
+        if tool in (skill.metadata.get("tools") or []):
+            return name
+    return NONE
+
+
 def ask_model(text: str) -> tuple[str, int]:
     started = time.monotonic()
     choice = router.ask_router_model(text)
-    skill = choice.skill if choice.route == "skill" and choice.skill else NONE
+    if choice.route == "skill" and choice.skill:
+        skill = choice.skill
+    elif choice.route == "fast":
+        skill = owner_of(choice.tool)
+    else:
+        skill = NONE
     return skill, round((time.monotonic() - started) * 1000)
 
 
