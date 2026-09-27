@@ -35,6 +35,7 @@ APP_BUNDLE = (
 )
 LOG_DIR = Path.home() / "Library" / "Logs" / "Zoya" if APP_BUNDLE else REPO_ROOT / "logs"
 TIMING_LOG = LOG_DIR / "timing.log"
+SAID_LOG = LOG_DIR / "said.log"
 
 DEFAULT_AWS_REGION = "ap-south-1"  # D30
 

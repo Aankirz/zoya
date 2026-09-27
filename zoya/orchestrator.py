@@ -37,7 +37,7 @@ from strands.models.openai_responses import OpenAIResponsesModel
 from strands.tools.executors import SequentialToolExecutor
 from strands.types.exceptions import EventLoopException
 
-from zoya import aws, events, harness, safety, speculate, speech, tasks
+from zoya import aws, events, harness, hub_data, safety, speculate, speech, tasks
 from zoya.config import (
     BRAIN_STEP_REASONING_EFFORT,
     LOG_DIR,
@@ -571,6 +571,7 @@ def _log_timing(text: str, result: CommandResult) -> None:
     LOG_DIR.mkdir(exist_ok=True)
     with TIMING_LOG.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+    hub_data.record_said(result.task_id, result.spoken)
     history = {k: str(v) for k, v in record.items() if v is not None}
     aws.record_task(history)
 
