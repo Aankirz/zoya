@@ -3,21 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
-<title>Zoya</title>
+<title>zoya</title>
+<link rel="stylesheet" href="tokens.css">
 <link rel="stylesheet" href="hub.css">
 <script src="hub.js" defer></script>
 </head>
 <body>
-<nav aria-label="Zoya">
-  <ul>
-    <li><a href="#today" data-page="today">Today</a></li>
-    <li><a href="#history" data-page="history">History</a></li>
-    <li><a href="#memory" data-page="memory">Memory</a></li>
-    <li><a href="#plan" data-page="plan">Plan</a></li>
-    <li><a href="#setup" data-page="setup">Setup</a></li>
-    <li><a href="#voice" data-page="voice">Voice and settings</a></li>
-  </ul>
-</nav>
-<main id="page" tabindex="-1" aria-live="polite"></main>
+<header class="toolbar">
+  <form class="ask" id="ask" role="search">
+    <span class="icon" data-icon="search" aria-hidden="true"></span>
+    <input id="ask-input" name="ask" type="text" maxlength="500" autocomplete="off" spellcheck="false" placeholder="ask zoya anything…" aria-label="Ask Zoya anything" aria-keyshortcuts="Meta+K">
+    <kbd aria-hidden="true">⌘</kbd><kbd aria-hidden="true">K</kbd>
+  </form>
+</header>
+<main id="page" class="desktop-dots" tabindex="-1"><div class="page" id="column"></div></main>
+<p class="sr-only" id="announce" role="status" aria-live="polite"></p>
 </body>
 </html>

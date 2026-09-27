@@ -1,0 +1,109 @@
+@font-face {
+  font-family: "Inter";
+  src: url("fonts/InterVariable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Atkinson Hyperlegible Next";
+  src: url("fonts/AtkinsonHyperlegibleNext.ttf") format("truetype");
+  font-weight: 200 800;
+  font-display: block;
+}
+
+:root {
+  --bg: oklch(96.9% 0.002 260);
+  --card: oklch(99.6% 0.002 260);
+  --text: oklch(15% 0.005 260);
+  --muted: oklch(40% 0.006 260);
+  --rule: oklch(86% 0.004 260);
+  --field: oklch(60% 0.006 260);
+  --link: oklch(43% 0.16 258);
+  --focus: oklch(45% 0.17 258);
+  --danger: oklch(41% 0.15 27);
+  --success: oklch(40% 0.1 150);
+  --warn: oklch(62% 0.15 70);
+  --warn-halo: oklch(62% 0.15 70 / 0.15);
+
+  --gloss-top: oklch(91% 0.05 245);
+  --gloss-mid: oklch(81% 0.095 250);
+  --gloss-bottom: oklch(75% 0.12 253);
+  --gloss-edge: oklch(56% 0.13 255);
+  --gloss-shine: oklch(99% 0.01 240 / 0.9);
+  --gloss-inner: oklch(58% 0.13 255 / 0.3);
+  --gloss-shadow: oklch(45% 0.08 255 / 0.2);
+
+  --strip: oklch(93.5% 0.004 260);
+  --strip-rule: oklch(87% 0.004 260);
+  --window-rule: oklch(83% 0.004 260);
+  --row-rule: oklch(93% 0.003 260);
+  --toolbar: oklch(99% 0.002 260 / 0.8);
+  --window-shadow: 0 1px 2px oklch(20% 0 0 / 0.06), 0 14px 34px oklch(25% 0.01 260 / 0.1);
+  --icon-outline: oklch(0% 0 0 / 0.08);
+  --live: oklch(30% 0.09 258 / 0.92);
+  --live-glow: oklch(45% 0.17 258 / 0.55);
+  --on-live: oklch(99.6% 0.002 260);
+  --toast: oklch(20% 0.005 260 / 0.86);
+  --dots: url("icons/desktop-dot.svg");
+
+  --font: "Inter", -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif;
+  --text-small: 13px;
+  --text-detail: 14px;
+  --text-body: 15px;
+  --text-sub: 17px;
+  --text-title: 48px;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: oklch(19% 0.004 260);
+    --card: oklch(23.5% 0.005 260);
+    --text: oklch(96.5% 0.003 260);
+    --muted: oklch(76% 0.006 260);
+    --rule: oklch(34% 0.005 260);
+    --field: oklch(64% 0.006 260);
+    --link: oklch(78% 0.11 252);
+    --focus: oklch(72% 0.14 252);
+    --warn: oklch(80% 0.14 75);
+    --warn-halo: oklch(80% 0.14 75 / 0.18);
+    --gloss-top: oklch(62% 0.13 250);
+    --gloss-mid: oklch(52% 0.15 254);
+    --gloss-bottom: oklch(46% 0.16 256);
+    --gloss-edge: oklch(70% 0.12 250);
+    --gloss-shine: oklch(90% 0.05 245 / 0.55);
+    --gloss-inner: oklch(30% 0.12 258 / 0.4);
+    --gloss-shadow: oklch(0% 0 0 / 0.35);
+    --strip: oklch(27% 0.005 260);
+    --strip-rule: oklch(32% 0.005 260);
+    --window-rule: oklch(34% 0.005 260);
+    --row-rule: oklch(29% 0.005 260);
+    --toolbar: oklch(21% 0.004 260 / 0.8);
+    --window-shadow: 0 1px 2px oklch(0% 0 0 / 0.3), 0 14px 34px oklch(0% 0 0 / 0.3);
+    --icon-outline: oklch(100% 0 0 / 0.1);
+    --toast: oklch(30% 0.005 260 / 0.9);
+    --dots: url("icons/desktop-dot-dark.svg");
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --muted: var(--text);
+    --rule: var(--muted);
+    --field: var(--text);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --toolbar: var(--card);
+    --toast: var(--text);
+  }
+}
+
+html.is-legible {
+  --font: "Atkinson Hyperlegible Next", -apple-system, sans-serif;
+}
