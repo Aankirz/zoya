@@ -1,27 +1,14 @@
-"""The overlay child process (Phase 7): AppKit panel + ring. Started by zoya.overlay.start; reads
-JSON lines on stdin and exits when Zoya closes the pipe. Display only: it never becomes key or
-main, ignores the mouse, never activates, and draws nothing Zoya's model can see (screen.py
-excludes this pid from every capture). API references: zoya/overlay.py docstring, plus
-- https://developer.apple.com/documentation/quartzcore/calayer/presentation()
-- https://developer.apple.com/documentation/quartzcore/camediatimingfunction/init(controlpoints::::)
-- https://developer.apple.com/documentation/appkit/nstextfieldcell (cellSizeForBounds, fitting)
-- https://developer.apple.com/documentation/appkit/nsfont/monospaceddigitsystemfont(ofsize:weight:)
-
-Layout: Zoya's character (zoya/overlay_pet.py) sits in the bottom-right corner; a caption bubble
-fitted to its text sits beside it, bottom-aligned, showing a short state label and the latest words.
-When nothing is happening only the character remains. Every state reads without motion: colour,
-eye shape and the label. Reduce Motion: no loops, fades only. Reduce Transparency: opaque bubble.
-"""
+"""The overlay child: the pill, the Hub, the menu-bar item and the action ring."""
 
 from __future__ import annotations
 
 import json
-import math
 import os
 import statistics
 import sys
 import threading
 import time
+from collections.abc import Callable
 from typing import Any
 
 import AppKit
@@ -30,53 +17,38 @@ import Foundation
 import Quartz
 from PyObjCTools import AppHelper
 
-from zoya import sparkle
+from zoya import hub_data, sparkle
 from zoya.hub import Hub
 from zoya.hub_bridge import OPEN_HUB_NOTICE
-from zoya.overlay_pet import PET_PT, ZOYA_BLUE, Pet
+from zoya.overlay_pill import BLUE, Pill
 
-WINDOW_W_PT = 520.0
-WINDOW_H_PT = 190.0
-SCREEN_INSET_PT = 16.0  # window edge to the visible screen edge
-SHADOW_ROOM_PT = 10.0  # window edge to the pet, so its shadow isn't clipped
-BUBBLE_GAP_PT = 12.0
-BUBBLE_MAX_W_PT = 360.0
-BUBBLE_PAD_X_PT = 16.0
-BUBBLE_PAD_Y_PT = 12.0
-BUBBLE_RADIUS_PT = 22.0  # matches the pet's corner
-LABEL_GAP_PT = 3.0
-LABEL_PT = 13.0
-CAPTION_PT = 18.0  # readable on a projector from the back of a room
-CAPTION_LINES = 3
-IDLE_HIDE_S = 5.0  # the bubble lingers this long after a task ends, then only the pet remains
-FADE_S = 0.15
+IDLE_HIDE_S = 5.0
 RING_LINE_PT = 4.0
-RING_RGB = ZOYA_BLUE[1]
+RING_RGB = BLUE
 RING_SHOW_S = 1.4
 RING_ENTER_SCALE = 1.08
 RING_ENTER_S = 0.2
-EXIT_S = 0.15  # exits are shorter and softer than enters
-EASE = (0.22, 1.0, 0.36, 1.0)  # ease-out quint
-GLASS_TINT_ALPHA = 0.5  # tinted glass keeps captions legible over video and bright pages
-SPEED_ENV = "ZOYA_OVERLAY_SPEED"
+EXIT_S = 0.15
+EASE = (0.22, 1.0, 0.36, 1.0)
+THEME_CHANGED = "AppleInterfaceThemeChangedNotification"
+CONFIRM_HOW = "Say “confirm”, or “stop”"
+CONFIRM_FALLBACK = "Waiting for you to say confirm"
 
 LABELS = {
-    "idle": "Zoya",
+    "idle": "",
     "listening": "Listening",
     "thinking": "Thinking",
     "acting": "Working",
     "speaking": "Speaking",
-    "waiting": "Waiting for your yes",
     "stopped": "Stopped",
-    "error": "Something went wrong",
+    "error": "Couldn’t finish that",
 }
 
 
-QUIT_KEY_CODE = 53  # Esc
+QUIT_KEY_CODE = 53
 QUIT_FLAGS = AppKit.NSEventModifierFlagControl | AppKit.NSEventModifierFlagShift
 CHORD_FLAGS = QUIT_FLAGS | AppKit.NSEventModifierFlagOption | AppKit.NSEventModifierFlagCommand
-HIT_ALPHA = 0.01  # fully clear pixels pass clicks through; this keeps the pet's square clickable
-FOLLOW_POINTER_S = 1.0  # the overlay moves to the display the pointer is on
+FOLLOW_POINTER_S = 1.0
 STATUS_SYMBOL = "circle.fill"
 
 
@@ -179,33 +151,6 @@ class Controls(AppKit.NSObject):
         return AppKit.NSTerminateCancel
 
 
-class PetButton(AppKit.NSView):
-    """An invisible, clickable square over the pet: a click (or VoiceOver press) opens the Stop /
-    Quit menu without activating the app. Its panel turns click-through while Zoya acts."""
-
-    def acceptsFirstMouse_(self, _event: Any) -> bool:  # noqa: N802 — AppKit override
-        return True
-
-    def mouseDown_(self, event: Any) -> None:  # noqa: N802
-        self.open_menu(self.convertPoint_fromView_(event.locationInWindow(), None))
-
-    def open_menu(self, point: Any) -> None:
-        self.zoya_menu.popUpMenuPositioningItem_atLocation_inView_(None, point, self)
-
-    def isAccessibilityElement(self) -> bool:  # noqa: N802
-        return True
-
-    def accessibilityRole(self) -> str:  # noqa: N802
-        return AppKit.NSAccessibilityButtonRole
-
-    def accessibilityLabel(self) -> str:  # noqa: N802
-        return "Zoya. Stop or quit"
-
-    def accessibilityPerformPress(self) -> bool:  # noqa: N802
-        self.open_menu((PET_PT / 2, PET_PT / 2))
-        return True
-
-
 def _pointer_screen() -> Any:
     point = AppKit.NSEvent.mouseLocation()
     for screen in AppKit.NSScreen.screens():
@@ -293,126 +238,75 @@ def _animate(
     layer.addAnimation_forKey_(anim, key_path)
 
 
-class Presence:
-    """The pet, its caption bubble and the action ring. All methods run on the main thread."""
+class Observer(AppKit.NSObject):
+    def changed_(self, _notification: Any) -> None:
+        self.callback()
 
-    def __init__(self, menu: Any) -> None:
-        self.reduce_motion, self.reduce_transparency, self.contrast = _accessibility()
-        self.panel = _panel(((0, 0), (WINDOW_W_PT, WINDOW_H_PT)))
-        self.hit = self._pet_button(menu)
-        self.screen_name = ""
-        self.follow_pointer()
-        root = AppKit.NSView.alloc().initWithFrame_(((0, 0), (WINDOW_W_PT, WINDOW_H_PT)))
-        root.setWantsLayer_(True)
-        # Review aid: ZOYA_OVERLAY_SPEED=0.1 replays every animation at 10 % speed.
-        root.layer().setSpeed_(float(os.environ.get(SPEED_ENV, "1")))
-        self.panel.setContentView_(root)
-        self.pet = Pet(self.reduce_motion, self.contrast)
-        self.pet.layer.setPosition_(
-            (WINDOW_W_PT - SHADOW_ROOM_PT - PET_PT / 2, SHADOW_ROOM_PT + PET_PT / 2)
-        )
-        root.layer().addSublayer_(self.pet.layer)
-        self.bubble, self.bubble_content = self._bubble()
-        root.addSubview_(self.bubble)
-        self.label = _label(LABEL_PT, AppKit.NSFontWeightSemibold, self._secondary())
-        self.caption = _label(
-            CAPTION_PT, AppKit.NSFontWeightMedium, AppKit.NSColor.labelColor(), CAPTION_LINES
-        )
-        for view in (self.label, self.caption):
-            self.bubble_content.addSubview_(view)
-        self.base = ("idle", "", "")  # state, step, task: what shows when Zoya isn't talking
+
+def _observe(callback: Callable[[], None]) -> Any:
+    observer = Observer.alloc().init()
+    observer.callback = callback
+    AppKit.NSWorkspace.sharedWorkspace().notificationCenter().addObserver_selector_name_object_(
+        observer,
+        "changed:",
+        AppKit.NSWorkspaceAccessibilityDisplayOptionsDidChangeNotification,
+        None,
+    )
+    Foundation.NSDistributedNotificationCenter.defaultCenter().addObserver_selector_name_object_(
+        observer, "changed:", THEME_CHANGED, None
+    )
+    return observer
+
+
+class Presence:
+    def __init__(self, menu: Any, open_hub: Callable[[], None]) -> None:
+        self.pill = Pill(menu, on_stop=lambda: send_command("stop"), on_open=open_hub)
+        self.observer = _observe(self.pill.environment_changed)
+        self.base = ("idle", "", "")
+        self.stake = ""
+        self.on_status: Callable[[str], None] = lambda _state: None
         self.speaking = False
         self.rings: list[Any] = []
         self.latencies_ms: list[float] = []
-        self.bubble.setAlphaValue_(0.0)
-        self.show()  # first show: no animation
-        self.panel.orderFrontRegardless()  # visible without activating Zoya
-        self.hit.orderFrontRegardless()
+        self.screen_name = ""
+        self.settings(hub_data.settings())
+        self.follow_pointer()
+        self.show()
 
-    def _pet_button(self, menu: Any) -> Any:
-        panel = _panel(((0, 0), (PET_PT, PET_PT)))
-        panel.setBackgroundColor_(AppKit.NSColor.whiteColor().colorWithAlphaComponent_(HIT_ALPHA))
-        button = PetButton.alloc().initWithFrame_(((0, 0), (PET_PT, PET_PT)))
-        button.zoya_menu = menu
-        panel.setContentView_(button)
-        return panel
+    def settings(self, chosen: dict[str, Any]) -> None:
+        self.pill.configure(
+            chosen.get("largerText") is True,
+            chosen.get("easierLetters") is True,
+            str(chosen.get("pillPosition", "bottom")),
+        )
 
     def _update_hit(self) -> None:
-        """Click-through whenever the agent may click: while acting and while a ring is up."""
-        self.hit.setIgnoresMouseEvents_(self.base[0] == "acting" or bool(self.rings))
+        self.pill.click_through(bool(self.rings))
 
     def follow_pointer(self) -> None:
-        """Sit in the bottom-right corner of the display the pointer is on (the one in use). It
-        used to stay on the launch-time main screen, out of sight on a second display."""
         screen = _pointer_screen()
-        visible = screen.visibleFrame()
-        origin = (
-            visible.origin.x + visible.size.width - WINDOW_W_PT - SCREEN_INSET_PT,
-            visible.origin.y + SCREEN_INSET_PT,
-        )
-        current = self.panel.frame().origin
-        if (current.x, current.y) != origin:
-            self.panel.setFrameOrigin_(origin)
-            self.hit.setFrameOrigin_(
-                (origin[0] + WINDOW_W_PT - SHADOW_ROOM_PT - PET_PT, origin[1] + SHADOW_ROOM_PT)
-            )
+        self.pill.place(screen.visibleFrame())
         if screen.localizedName() != self.screen_name:
             self.screen_name = screen.localizedName()
-            print(f"overlay: on {self.screen_name} at {tuple(origin)}", file=sys.stderr, flush=True)
+            print(f"overlay: on {self.screen_name}", file=sys.stderr, flush=True)
         AppHelper.callLater(FOLLOW_POINTER_S, self.follow_pointer)
-
-    def _secondary(self) -> Any:
-        return (
-            AppKit.NSColor.labelColor() if self.contrast else AppKit.NSColor.secondaryLabelColor()
-        )
-
-    def _bubble(self) -> tuple[Any, Any]:
-        frame = ((0, 0), (BUBBLE_MAX_W_PT, 60))
-        if self.reduce_transparency:  # opaque surface
-            view = AppKit.NSView.alloc().initWithFrame_(frame)
-            view.setWantsLayer_(True)
-            view.layer().setBackgroundColor_(AppKit.NSColor.windowBackgroundColor().CGColor())
-            content = view
-        elif hasattr(AppKit, "NSGlassEffectView"):  # Liquid Glass, macOS 26: the one glass surface
-            view = AppKit.NSGlassEffectView.alloc().initWithFrame_(frame)
-            view.setStyle_(AppKit.NSGlassEffectViewStyleRegular)
-            view.setTintColor_(
-                AppKit.NSColor.windowBackgroundColor().colorWithAlphaComponent_(GLASS_TINT_ALPHA)
-            )
-            content = AppKit.NSView.alloc().initWithFrame_(frame)
-            view.setContentView_(content)
-        else:
-            view = AppKit.NSVisualEffectView.alloc().initWithFrame_(frame)
-            view.setMaterial_(AppKit.NSVisualEffectMaterialHUDWindow)
-            view.setBlendingMode_(AppKit.NSVisualEffectBlendingModeBehindWindow)
-            view.setState_(AppKit.NSVisualEffectStateActive)
-            content = view
-        view.setWantsLayer_(True)
-        if hasattr(view, "setCornerRadius_"):
-            view.setCornerRadius_(BUBBLE_RADIUS_PT)
-        view.layer().setCornerRadius_(BUBBLE_RADIUS_PT)
-        view.layer().setCornerCurve_(Quartz.kCACornerCurveContinuous)
-        if not hasattr(view, "setContentView_"):
-            view.layer().setMasksToBounds_(True)
-        if self.contrast:  # a structural edge, only for Increase Contrast
-            view.layer().setBorderWidth_(1.5)
-            view.layer().setBorderColor_(AppKit.NSColor.labelColor().CGColor())
-        return view, content
-
-    # --- updates ------------------------------------------------------------------------------
 
     def apply(self, message: dict[str, Any]) -> None:
         kind = message.get("k")
+        if kind == "level":
+            self.pill.set_level(float(message.get("v", 0.0)))
+            return
         if kind == "state":
             self.speaking = False
             self.base = (message["state"], message.get("step", ""), message.get("task", ""))
+            self.stake = message.get("stake", "")
             if message["state"] == "listening":
-                self._set_caption("", user=False)  # a new turn starts clean
+                self.pill.set_caption("", heard=False)
         elif kind == "zoya":
             self.speaking = True
-            self._set_caption(message["text"], user=False)
+            self.pill.set_caption(message["text"], heard=False)
         elif kind == "user":
-            self._set_caption(message["text"], user=True)
+            self.pill.set_caption(message["text"], heard=True)
         elif kind == "speech_done":
             self.speaking = False
         elif kind == "ring":
@@ -421,67 +315,24 @@ class Presence:
         if "t" in message:
             self.latencies_ms.append((time.time() - message["t"]) * 1000)
 
-    def _set_caption(self, text: str, user: bool) -> None:
-        self.caption.setStringValue_(f"“{text}”" if user and text else text)  # never animated
-        weight = AppKit.NSFontWeightRegular if user else AppKit.NSFontWeightMedium
-        self.caption.setFont_(
-            AppKit.NSFont.monospacedDigitSystemFontOfSize_weight_(CAPTION_PT, weight)
-        )
-
     def show(self) -> None:
-        state, step, task = ("speaking", "", self.base[2]) if self.speaking else self.base
-        label = LABELS.get(state, LABELS["idle"])
+        state, step, task = self.base
+        if self.speaking and state not in ("waiting", "error", "stopped"):
+            state = "speaking"
+        words = LABELS.get(state, "")
         if step and state in ("thinking", "acting"):
-            label = step  # already a plain verb ("Clicking", "Recalling")
-        self.label.setStringValue_(f"{task} · {label}" if task else label)
-        self.pet.set_state(state)
+            words = step
+        if task and words:
+            words = f"{task} · {words}"
+        self.pill.show(state, words, self.stake or CONFIRM_FALLBACK, CONFIRM_HOW)
+        self.on_status(state)
         self._update_hit()
-        self._layout_bubble()
-        visible = state != "idle"
-        if visible:
-            self._fade_bubble(1.0)
-        else:
+        if state == "idle":
             AppHelper.callLater(IDLE_HIDE_S, self._hide_if_idle)
 
     def _hide_if_idle(self) -> None:
         if not self.speaking and self.base[0] == "idle":
-            self._fade_bubble(0.0)
-
-    def _fade_bubble(self, alpha: float) -> None:
-        if self.bubble.alphaValue() == alpha:
-            return
-        AppKit.NSAnimationContext.beginGrouping()
-        AppKit.NSAnimationContext.currentContext().setDuration_(FADE_S)
-        self.bubble.animator().setAlphaValue_(alpha)
-        AppKit.NSAnimationContext.endGrouping()
-
-    def _layout_bubble(self) -> None:
-        """Fit the bubble to its text, bottom-aligned with the pet and right next to it."""
-        text_max = BUBBLE_MAX_W_PT - 2 * BUBBLE_PAD_X_PT
-        label_size = self.label.cell().cellSizeForBounds_(((0, 0), (text_max, 1000)))
-        has_caption = bool(self.caption.stringValue())
-        caption_size = (
-            self.caption.cell().cellSizeForBounds_(((0, 0), (text_max, 1000)))
-            if has_caption
-            else AppKit.NSMakeSize(0, 0)
-        )
-        # Whole points: fractional frames blur text.
-        text_w = math.ceil(min(text_max, max(label_size.width, caption_size.width)))
-        width = text_w + 2 * BUBBLE_PAD_X_PT
-        gap = LABEL_GAP_PT if has_caption else 0.0
-        height = math.ceil(label_size.height + gap + caption_size.height + 2 * BUBBLE_PAD_Y_PT)
-        right = WINDOW_W_PT - SHADOW_ROOM_PT - PET_PT - BUBBLE_GAP_PT
-        # Shorter than the pet: centred on it. Taller: bottom-aligned with it.
-        bottom = SHADOW_ROOM_PT + max(0.0, math.floor((PET_PT - height) / 2))
-        self.bubble.setFrame_(((right - width, bottom), (width, height)))
-        self.bubble_content.setFrame_(((0, 0), (width, height)))
-        self.caption.setFrame_(((BUBBLE_PAD_X_PT, BUBBLE_PAD_Y_PT), (text_w, caption_size.height)))
-        self.label.setFrame_(
-            (
-                (BUBBLE_PAD_X_PT, height - BUBBLE_PAD_Y_PT - label_size.height),
-                (text_w, label_size.height),
-            )
-        )
+            self.pill.set_caption("", heard=False)
 
     def ring(self, rect: list[float]) -> None:
         """Ring a global top-left-origin rect (AppKit's origin: the main screen's bottom-left)."""
@@ -509,7 +360,7 @@ class Presence:
         panel.setContentView_(view)
         panel.orderFrontRegardless()
         _animate(layer, "opacity", 1.0, RING_ENTER_S, start=0.0)
-        if not self.reduce_motion:
+        if not self.pill.reduce_motion:
             _animate(layer, "transform.scale", 1.0, RING_ENTER_S, start=RING_ENTER_SCALE)
         self.rings.append(panel)
         self._update_hit()
@@ -573,14 +424,17 @@ def run(controls_only: bool = False) -> int:
         target=_exit_when_orphaned, args=(os.getppid(),), name="overlay-parent", daemon=True
     ).start()
     app = AppKit.NSApplication.sharedApplication()
-    app.setActivationPolicy_(AppKit.NSApplicationActivationPolicyAccessory)  # no Dock, no focus
+    app.setActivationPolicy_(AppKit.NSApplicationActivationPolicyAccessory)
     controls = Controls.alloc().init()
     controls.hub = Hub(send_message)
     _hub.append(controls.hub)
     controls.install()
     app.setDelegate_(controls)
     print(f"updates: {sparkle.start(lambda _version: send_command('update'))}", file=sys.stderr)
-    presence = None if controls_only else Presence(controls.item.menu())
+    presence = None if controls_only else Presence(controls.item.menu(), controls.hub.show)
+    if presence is not None:
+        controls.hub.on_settings = presence.settings
+        presence.on_status = controls.hub.set_status
     threading.Thread(
         target=_read_stdin, args=(presence,), name="overlay-stdin", daemon=True
     ).start()
