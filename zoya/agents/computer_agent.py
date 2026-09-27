@@ -44,7 +44,7 @@ from strands.tools.executors import SequentialToolExecutor
 from strands.types.exceptions import EventLoopException
 
 from zoya import safety, screen, tasks
-from zoya.agents import step_loop
+from zoya.agents import step_loop, web_loop
 from zoya.config import (
     COMPUTER_FLOW_TTL_S,
     COMPUTER_FLOWS_FILE,
@@ -64,6 +64,7 @@ RESUMED = (
 LOCK_POLL_S = 0.2
 PRUNED_SCREENSHOT = {"text": "[older screenshot removed]"}
 REPLAYED = "Done, the same way as last time."
+ALREADY_DONE = "That was already done."
 MS_PER_S = 1000
 SPENT_KEY = "computer_spent_usd"  # on the brain agent's state: earlier computer_task calls
 
@@ -310,6 +311,8 @@ def _run_step_loop(goal: str, key: str, cancel: Any, started: float) -> str | No
 
     None means it could not finish and the language-model agent takes over on the same screen.
     """
+    if (said := _run_web_loop(goal, cancel, started)) is not None:
+        return said
     outcome = step_loop.run(goal, [], cancel)
     computer.log_stage(
         "computer_step_loop",
@@ -326,6 +329,28 @@ def _run_step_loop(goal: str, key: str, cancel: Any, started: float) -> str | No
     if outcome.recorded and not computer.session.asked:
         save_flow(key, outcome.recorded)
     return _spoken(outcome.pressed)
+
+
+def _run_web_loop(goal: str, cancel: Any, started: float) -> str | None:
+    """A web page in Zoya's own Chrome in front: the Jev web loop first (D126). None hands on."""
+    from zoya.tools import browser
+
+    if not browser.is_ours(ax.frontmost_regular_app().processIdentifier()):
+        return None
+    outcome = web_loop.run(goal, cancel)
+    computer.log_stage(
+        "computer_web_loop",
+        outcome="done" if outcome.done else "escalated",
+        reason=outcome.reason[:80],
+        steps=outcome.steps,
+        jev_calls=outcome.jev_calls,
+        text_calls=outcome.text_calls,
+        jev_ms=outcome.jev_ms,
+        computer_ms=round((time.monotonic() - started) * MS_PER_S),
+    )
+    if not outcome.done:
+        return None
+    return f"Done — {outcome.history[-1]['action']}." if outcome.history else ALREADY_DONE
 
 
 def _spoken(pressed: list[str]) -> str:

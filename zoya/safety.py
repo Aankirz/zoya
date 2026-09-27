@@ -128,6 +128,7 @@ TOOL_RISK: dict[str, RiskClass] = {
     "browser_results": "free",
     "browser_click": "guarded",
     "browser_type": "guarded",
+    "browser_task": "guarded",
     # Computer use (Phase 5): seeing and reading are free; every input to the Mac checks its target.
     "screenshot": "free",
     "scroll": "free",

@@ -387,13 +387,14 @@ GUARD_CALLS = re.compile(
 )
 # These run their own Strands Agent with ConfirmationGate on every inner tool call.
 SUB_AGENT_GUARDED = {"computer_task", "document_agent"}
+LOOP_GUARDED = {"browser_task"}
 
 
 def test_every_guarded_tool_actually_calls_a_guard():
     import inspect
 
     for name, tool in harness.all_tools().items():
-        if safety.risk_of(name) != "guarded" or name in SUB_AGENT_GUARDED:
+        if safety.risk_of(name) != "guarded" or name in SUB_AGENT_GUARDED | LOOP_GUARDED:
             continue
         source = inspect.getsource(tool._tool_func)
         assert GUARD_CALLS.search(source), f"{name} is registered guarded but never guards"
@@ -426,3 +427,13 @@ def test_pick_latest_skips_live_shorts_and_clips():
 
 def test_pick_latest_without_a_full_episode_is_none():
     assert youtube.pick_latest(LEX_VIDEOS_TAB[:3]) is None
+
+
+def test_the_web_loop_clicks_and_types_only_through_the_guards():
+    import inspect
+
+    from zoya.agents import web_loop
+
+    assert "browser.click_checked(" in inspect.getsource(web_loop._click)
+    assert "browser.fill_checked(" in inspect.getsource(web_loop._type)
+    assert ".click(" not in inspect.getsource(web_loop).replace("click_checked(", "")

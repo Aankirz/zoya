@@ -1,0 +1,22 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Stay search</title>
+<style>
+#veil { position: fixed; left: 0; top: 260px; width: 400px; height: 60px; background: #fff; opacity: .99; }
+</style></head>
+<body>
+<h1>Find a stay</h1>
+<form id="search" onsubmit="event.preventDefault(); document.getElementById('results').textContent = 'Results for ' + document.getElementById('where').value + ', ' + document.getElementById('guests').value;">
+  <label for="where">Destination</label> <input id="where" type="text">
+  <label for="guests">Guests</label>
+  <select id="guests"><option value="1">1 adult</option><option value="2">2 adults</option></select>
+  <button type="submit">Search</button>
+</form>
+<p id="results"></p>
+<div style="position:absolute; top:270px; left:20px"><button id="covered" onclick="document.title='covered clicked'">Hidden deal</button></div>
+<div id="veil"></div>
+<div style="position:absolute; top:360px; left:20px">
+  <p>Cart total ₹1,249</p>
+  <button onclick="document.getElementById('results').textContent='Thank you for your order'">Place order</button>
+  <button onclick="document.getElementById('results').textContent='Subscribed'">Subscribe to our newsletter</button>
+</div>
+</body></html>

@@ -536,6 +536,13 @@ def _probe(text: str) -> Target:
     return _probe_locator(page, _locate(page, text))
 
 
+def use_test_id_attribute(name: str) -> None:
+    """On the browser thread: which attribute `get_by_test_id` reads (the web loop's own tag)."""
+    if _state.get("test_id") != name:
+        _driver().selectors.set_test_id_attribute(name)
+        _state["test_id"] = name
+
+
 def probe_with(find: Callable[[Any], Any]) -> Callable[[], Target]:
     """A probe for recipes: `find(page)` returns the Playwright locator of the button."""
     return lambda: _probe_locator(_page(), find(_page()))
