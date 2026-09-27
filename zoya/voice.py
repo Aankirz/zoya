@@ -38,6 +38,7 @@ from zoya import (
     decisions,
     diagnostics,
     events,
+    hotkey,
     orchestrator,
     overlay,
     safety,
@@ -90,6 +91,8 @@ MS_PER_S = 1000
 BLOCK_S = VAD_BLOCK / MIC_SAMPLE_RATE_HZ
 VAD_CONTEXT = 64
 VAD_STATE_SHAPE = (1, 1, 128)
+PTT_WAKE_FRESH_S = 1.0
+NS_PER_MS = 1_000_000
 STOP_WINDOW_S = 2.0  # spot "stop" in the last 2 s of mic audio, across utterance boundaries
 WARM_UP_S = 1.0
 TURN_NORM_EPS = 1e-7
@@ -448,21 +451,11 @@ def push_to_talk_label() -> str:
     return " + ".join(key.capitalize() if key != "fn" else "fn" for key in PUSH_TO_TALK_KEYS)
 
 
-def push_to_talk_held() -> bool:
-    import Quartz
+_hotkeys: list[hotkey.Watcher] = []
 
-    masks = {
-        "fn": Quartz.kCGEventFlagMaskSecondaryFn,
-        "shift": Quartz.kCGEventFlagMaskShift,
-        "control": Quartz.kCGEventFlagMaskControl,
-        "option": Quartz.kCGEventFlagMaskAlternate,
-        "command": Quartz.kCGEventFlagMaskCommand,
-    }
-    wanted = 0
-    for key in PUSH_TO_TALK_KEYS:
-        wanted |= masks[key]
-    flags = Quartz.CGEventSourceFlagsState(Quartz.kCGEventSourceStateHIDSystemState)
-    return flags & wanted == wanted
+
+def push_to_talk_held() -> bool:
+    return _hotkeys[0].is_held() if _hotkeys else hotkey.held_now(PUSH_TO_TALK_KEYS)
 
 
 # --- Listener ---------------------------------------------------------------------------
@@ -496,6 +489,8 @@ class Segment:
 
 
 class VoiceLoop:
+    ptt_woke_at = 0.0
+
     def __init__(
         self, wake_enabled: bool = True, test_wake: bool = False, record_clips: bool = False
     ) -> None:
@@ -525,6 +520,7 @@ class VoiceLoop:
         self.segment: Segment | None = None
         self.awaiting_command_until = 0.0  # "Hey Zoya" … pause … command
         self.ptt: Segment | None = None
+        self.ptt_woke_at = 0.0
         self.task: threading.Thread | None = None
         self.confirmations = safety.claim_voice_channel()  # Phase 3: only this loop mints tokens
         tasks.user_speaking = self._user_speaking  # Phase 6: announcements wait for the user
@@ -557,6 +553,11 @@ class VoiceLoop:
         def on_audio(indata: np.ndarray, _frames, _time, _status) -> None:  # noqa: ANN001
             counts = far_end.counts() if far_end else None
             self.mic.put((time.monotonic(), indata[:, 0].copy(), counts))
+
+        if not _hotkeys:
+            watcher = hotkey.Watcher(PUSH_TO_TALK_KEYS, self._ptt_wake)
+            watcher.start()
+            _hotkeys.append(watcher)
 
         with sd.InputStream(
             samplerate=MIC_SAMPLE_RATE_HZ,
@@ -895,6 +896,12 @@ class VoiceLoop:
 
     # --- push-to-talk ----------------------------------------------------------------------
 
+    def _ptt_wake(self, event_ns: int) -> None:
+        self.ptt_woke_at = time.monotonic()
+        audio.earcon("listening")
+        latency_ms = (time.monotonic_ns() - event_ns) / NS_PER_MS
+        log.info("push-to-talk: earcon %.1f ms after key-down", latency_ms)
+
     def _push_to_talk(self, arrival: float, block: np.ndarray) -> bool:
         held = push_to_talk_held()
         if self.ptt is None and not held:
@@ -908,7 +915,8 @@ class VoiceLoop:
                 audio.engine().silence_all()
             self.ptt = Segment([*self.pre_roll, block], arrival, woke_at=time.monotonic())
             self.segment = None
-            audio.earcon("listening")
+            if time.monotonic() - self.ptt_woke_at > PTT_WAKE_FRESH_S:
+                audio.earcon("listening")
             audio.duck()
             print("PUSH-TO-TALK down")
             return True

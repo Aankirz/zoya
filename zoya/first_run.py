@@ -117,7 +117,7 @@ KEYCHAIN_PROMPT = (
 )
 KEYCHAIN_ADOPTED = "Thank you. Your key is working in the app."
 KEYCHAIN_REFUSED = "I couldn't read your saved key, so let's set it up again."
-DONE = "That's everything. I'm ready. Say Hey Zoya whenever you need me."
+DONE = "That's everything. I'm ready. Hold fn and Shift and talk to me, or just say Hey Zoya."
 GOODBYE = "Goodbye. I'll pick up setup where we left off next time."
 
 
