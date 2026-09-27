@@ -701,10 +701,16 @@ UNCHANGED_SAY = "Clicked {what}, but nothing on the page changed."
 UNDONE_SAY = "Clicked {what}. To undo, say {undo}."
 SHOWN_SAY = "Clicked {what} and {shown}. To undo, say {undo}."
 UNSHOWN_SAY = "Clicked {what}, but I can't see anything on the page that says it worked."
+ORDER_CONFIRMATION_PHRASES: dict[str, tuple[str, ...]] = {
+    "en": (
+        r"thank you for (?:your )?(?:order|purchase|booking)",
+        r"your (?:order|booking|reservation) (?:has been |is |was )?(?:placed|confirmed|received)",
+        r"order (?:placed|confirmed) successfully",
+        r"payment (?:was )?successful",
+    ),
+}
 ORDER_DONE = re.compile(
-    r"thank you for (?:your )?(?:order|purchase|booking)"
-    r"|your (?:order|booking|reservation) (?:has been |is |was )?(?:placed|confirmed|received)"
-    r"|order (?:placed|confirmed) successfully|payment (?:was )?successful",
+    "|".join(phrase for phrases in ORDER_CONFIRMATION_PHRASES.values() for phrase in phrases),
     re.I,
 )
 ORDER_TEXT_MAX_CHARS = 20_000
