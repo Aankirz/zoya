@@ -43,11 +43,11 @@ OWN_UI = {"hub": "Zoya's own bundled Hub pages: their anchors and ids are hers, 
 SCRIPT_SUFFIXES = {".js", ".html", ".css"}
 QUOTED = re.compile(r"'[^'\n]*'|\"[^\"\n]*\"|`[^`\n]*`")
 KEPT_SKILLS = {
-    "shopping": "Phase H: read-back and checkout need Jev (D123); general path 0/3 without it",
-    "hotels_web": "Phase H: Guard 2 reads a Check-out date field as a checkout; 0/2",
-    "youtube": "Phase H: the brain drives Chrome's own window through computer_task; 0/3",
-    "x_web": "Phase H: the composer is not reachable by browser_click; 0/1",
-    "spotify_web": "Phase H: a named song routes to the media skill, which cannot pick one; 0/1",
+    "shopping": "round 1: 2/3 without it; buy asks the cable type instead of picking one",
+    "hotels_web": "round 1: 0/2; a text click on an FAQ about check-out times asks, as it should",
+    "youtube": "round 1: 2/3; subscribe names the host, not the channel, until Jev (D101, D123)",
+    "x_web": "round 1: 0/1; the composer is not reachable by the browser tools",
+    "spotify_web": "round 1: 0/1; Spotify's search did not respond to the browser tools",
 }
 
 

@@ -229,7 +229,10 @@
     "said": "kesariya"
    },
    {
-    "not_said": "couldn't|can't|could not|cannot|unable"
+    "said": "now playing|playing kesariya|pressed play|started playing"
+   },
+   {
+    "not_said": "please|couldn['’]t|can['’]t|aren['’]t|isn['’]t|could not|cannot|unable"
    }
   ]
  },
