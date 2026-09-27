@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import tempfile
 import tomllib
 import urllib.request
 from pathlib import Path
@@ -49,6 +50,10 @@ SPARKLE_SHA256 = "c2bf58aa8387266ac179357b1415d6f2635f044da8be41042af32425dae6da
 SPARKLE_PUBLIC_ED_KEY = "8vpkcJictd2mTgJ6p923Z0Z8cB5HCYeYa9BptkN2bUE="
 FEED_URL = "https://zoya.app/appcast.xml"
 UPDATE_CHECK_INTERVAL_S = 86400
+ICON_LARGE = REPO / "packaging/icon/zoya.svg"
+ICON_SMALL = REPO / "packaging/icon/zoya-small.svg"
+ICON_POINTS = (16, 32, 128, 256, 512)
+ICON_SMALL_MAX_PT = 32
 
 MICROPHONE_USAGE = (
     "Zoya listens for your voice, so you can ask for anything without touching the Mac. "
@@ -190,12 +195,44 @@ def add_sparkle(contents: Path) -> None:
     run("ditto", unpacked / "Sparkle.framework", frameworks / "Sparkle.framework")
 
 
+def render_png(svg: Path, pixels: int, target: Path) -> None:
+    import AppKit
+
+    image = AppKit.NSImage.alloc().initWithContentsOfFile_(str(svg))
+    rep = AppKit.NSBitmapImageRep.alloc().initWithBitmapDataPlanes_pixelsWide_pixelsHigh_bitsPerSample_samplesPerPixel_hasAlpha_isPlanar_colorSpaceName_bytesPerRow_bitsPerPixel_(  # noqa: E501
+        None, pixels, pixels, 8, 4, True, False, AppKit.NSDeviceRGBColorSpace, 0, 0
+    )
+    AppKit.NSGraphicsContext.saveGraphicsState()
+    AppKit.NSGraphicsContext.setCurrentContext_(
+        AppKit.NSGraphicsContext.graphicsContextWithBitmapImageRep_(rep)
+    )
+    image.drawInRect_fromRect_operation_fraction_(
+        ((0, 0), (pixels, pixels)), AppKit.NSZeroRect, AppKit.NSCompositingOperationCopy, 1.0
+    )
+    AppKit.NSGraphicsContext.restoreGraphicsState()
+    png = rep.representationUsingType_properties_(AppKit.NSBitmapImageFileTypePNG, None)
+    png.writeToFile_atomically_(str(target), True)
+
+
+def add_icon(resources: Path) -> None:
+    with tempfile.TemporaryDirectory() as scratch:
+        iconset = Path(scratch) / f"{APP_NAME}.iconset"
+        iconset.mkdir()
+        for points in ICON_POINTS:
+            source = ICON_SMALL if points <= ICON_SMALL_MAX_PT else ICON_LARGE
+            for scale, suffix in ((1, ""), (2, "@2x")):
+                name = f"icon_{points}x{points}{suffix}.png"
+                render_png(source, points * scale, iconset / name)
+        run("iconutil", "-c", "icns", iconset, "-o", resources / f"{APP_NAME}.icns")
+
+
 def write_info_plist(contents: Path, app_version: str) -> None:
     info = {
         "CFBundleName": APP_NAME,
         "CFBundleDisplayName": APP_NAME,
         "CFBundleIdentifier": BUNDLE_ID,
         "CFBundleExecutable": APP_NAME,
+        "CFBundleIconFile": APP_NAME,
         "CFBundlePackageType": "APPL",
         "CFBundleShortVersionString": app_version,
         "CFBundleVersion": app_version,
@@ -356,6 +393,7 @@ def build() -> Path:
     copy_app_sources(contents / "Resources")
     add_helpers(macos)
     add_sparkle(contents)
+    add_icon(contents / "Resources")
     write_info_plist(contents, app_version)
     compile_launcher(source, python_home, macos)
     precompile(source, contents)
