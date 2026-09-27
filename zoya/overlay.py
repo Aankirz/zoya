@@ -83,9 +83,13 @@ TOOL_VERBS = {
     "youtube search": "Searching YouTube",
 }
 ERROR_KINDS = {"error", "blocked"}
+STAKE_PREFIX = "I'm about to "
+LEVEL_EVERY_S = 0.08
+LEVEL_GAIN = 12.0
 STOP_KINDS = {"stop", "cancel"}
 
 _child: subprocess.Popen | None = None
+_last_level = 0.0
 _presence = False
 CONTROLS_ONLY_ARG = "--controls-only"
 _queue: queue.Queue[str] = queue.Queue(QUEUE_MAX)
@@ -157,11 +161,35 @@ def to_message(event: events.Event) -> dict[str, Any] | None:
         return {"k": "state", "state": state[event.status]} if event.status in state else None
     if isinstance(event, events.ConfirmationEvent):
         if event.decision == "pending":
-            return {"k": "state", "state": "waiting", "task": _task_name(event.task_id)}
+            stake = caption_text(stake_line(event.summary))
+            return {
+                "k": "state",
+                "state": "waiting",
+                "task": _task_name(event.task_id),
+                "stake": stake,
+            }
         return {"k": "state", "state": "thinking"}
     if isinstance(event, events.OverlayEvent):
         return _overlay_message(event)
     return None
+
+
+def stake_line(summary: str) -> str:
+    text = " ".join(summary.split()).removesuffix(".")
+    if not text.startswith(STAKE_PREFIX):
+        return text
+    text = text.removeprefix(STAKE_PREFIX).replace(" total ", ", ")
+    return text[:1].upper() + text[1:]
+
+
+def level(block: Any) -> None:
+    global _last_level
+    now = time.monotonic()
+    if not running() or now - _last_level < LEVEL_EVERY_S:
+        return
+    _last_level = now
+    rms = float((block * block).mean()) ** 0.5
+    _send({"k": "level", "v": round(min(rms * LEVEL_GAIN, 1.0), 3)})
 
 
 def _overlay_message(event: events.OverlayEvent) -> dict[str, Any] | None:

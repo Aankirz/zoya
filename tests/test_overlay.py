@@ -4,6 +4,7 @@ overlay out. No UI tests: the look is checked on the demo Mac."""
 from __future__ import annotations
 
 import ast
+import json
 import os
 import sys
 import types
@@ -100,3 +101,27 @@ def test_every_capture_filter_goes_through_display_filter() -> None:
     assert calls, "screen.display_filter must build the display filter"
     offenders = [c for c in calls if not any(c[0] == p and c[1] in r for p, r in allowed)]
     assert offenders == []
+
+
+@pytest.mark.parametrize(
+    ("summary", "stake"),
+    [
+        (
+            "I'm about to place the order for boAt earphones total ₹1,249.",
+            "Place the order for boAt earphones, ₹1,249",
+        ),
+        ("I'm about to send the email to Priya.", "Send the email to Priya"),
+        ("I'm about to delete the file report.pdf.", "Delete the file report.pdf"),
+        ("Pay now?", "Pay now?"),
+        ("", ""),
+    ],
+)
+def test_confirm_pill_states_the_stake(summary: str, stake: str) -> None:
+    assert overlay.stake_line(summary) == stake
+
+
+def test_confirm_pill_hides_a_secret_in_the_stake() -> None:
+    message = overlay.to_message(
+        events.ConfirmationEvent("t1", "I'm about to type the OTP 482913.")
+    )
+    assert "482913" not in json.dumps(message)

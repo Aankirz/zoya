@@ -39,6 +39,7 @@ from zoya import (
     diagnostics,
     events,
     orchestrator,
+    overlay,
     safety,
     shutdown,
     speculate,
@@ -572,6 +573,7 @@ class VoiceLoop:
                 if self.canceller:
                     self._listen_for_barge_in(arrival, block, counts)
                 self._on_block(arrival, block)  # Whisper always hears the raw mic
+                overlay.level(block)
 
     # --- barge-in (D62): echo-cancelled onset → Zoya and other apps get quiet ---------------
 
