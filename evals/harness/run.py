@@ -295,6 +295,28 @@ def table(label: str, runs: list[Run]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def regrade(label: str, saved: str) -> int:
+    """Checks that read the transcript (said, asked, url) graded again; shell checks keep their
+    recorded result."""
+    tasks = {t["id"]: t for t in json.loads(TASKS_FILE.read_text(encoding="utf-8"))}
+    runs = []
+    for raw in json.loads((OUT_DIR / f"{saved}.json").read_text(encoding="utf-8")):
+        run = Run(**raw)
+        task = tasks[run.id]
+        replayable = {**task, "checks": [c for c in task["checks"] if "shell" not in c]}
+        kept_shell = [c for c in run.failed_checks if '"shell"' in c]
+        run.failed_checks = failed_checks(replayable, run, "") + kept_shell
+        run.success = not run.failed_checks and not run.error
+        runs.append(run)
+    report = table(label, runs)
+    (OUT_DIR / f"{label}.md").write_text(report, encoding="utf-8")
+    (OUT_DIR / f"{label}.json").write_text(
+        json.dumps([asdict(r) for r in runs], indent=1, ensure_ascii=False), encoding="utf-8"
+    )
+    print(report)
+    return 0
+
+
 def select(tasks: list[dict[str, Any]], only: str, group: str) -> list[dict[str, Any]]:
     wanted = {name.strip() for name in only.split(",") if name.strip()}
     return [
@@ -310,7 +332,10 @@ def main() -> int:
     parser.add_argument("label")
     parser.add_argument("--only", default="")
     parser.add_argument("--group", default="")
+    parser.add_argument("--regrade", default="", help="grade a saved LABEL.json again, offline")
     args = parser.parse_args()
+    if args.regrade:
+        return regrade(args.label, args.regrade)
     load_env()
     from zoya import aws
 
@@ -337,8 +362,11 @@ def main() -> int:
     )
     report = table(args.label, runs)
     (OUT_DIR / f"{args.label}.md").write_text(report, encoding="utf-8")
-    print(report)
-    return 0
+    print(report, flush=True)
+    from zoya.tools import browser
+
+    browser.close()
+    os._exit(0)
 
 
 if __name__ == "__main__":

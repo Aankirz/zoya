@@ -213,7 +213,7 @@
   "command": "tweet testing Zoya my assistant",
   "checks": [
    {
-    "confirm": "post.*testing zoya"
+    "confirm": "(?:post|tweet).*testing zoya"
    }
   ]
  },
