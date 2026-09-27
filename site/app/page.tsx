@@ -10,7 +10,7 @@ import { TypingBubble } from "./components/TypingBubble";
 import { VisitorCount } from "./components/VisitorCount";
 import { WaitlistForm } from "./components/WaitlistForm";
 import { AppKind } from "./components/AppWindows";
-import { ABILITIES, CHARGE, CONTACT_EMAIL, DEMO, FAQ, FOOTER, GET_ZOYA, HERO, SKIP_LINK, TALK, WHY } from "./copy";
+import { ABILITIES, CHARGE, CONTACT_EMAIL, DEMO, FAQ, FOOTER, GET_ZOYA, HERO, HOW, SKIP_LINK, TALK, WHY } from "./copy";
 import { OutlinePlus } from "./icons/rune";
 import { getVisitorCount } from "@/lib/visitors";
 
@@ -60,6 +60,24 @@ export default async function Home() {
 
         <section className="hello-section">
           <HelloWindow />
+        </section>
+
+        <section className="abilities install" id="how">
+          <p className="capsule" aria-hidden="true">
+            {HOW.label}
+          </p>
+          <h2 className="section-title">{HOW.title}</h2>
+          <ol className="ability-list install-steps">
+            {HOW.steps.map((step, index) => (
+              <li className="ability install-step" key={step.title}>
+                <span className="capsule" aria-hidden="true">
+                  {HOW.stepLabel} {index + 1}
+                </span>
+                <h3 className="ability-title">{step.title}</h3>
+                <p className="ability-line">{step.line}</p>
+              </li>
+            ))}
+          </ol>
         </section>
 
         <section className="why" id="why">

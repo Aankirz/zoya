@@ -30,6 +30,20 @@ export const HERO = {
   subline: "your mac, by voice. hold fn and shift, say what you want, and it's done.",
 };
 
+// Push-to-talk as shipped: hold fn + Shift, speak, release (zoya/voice.py module docstring, PUSH_TO_TALK_KEYS).
+// The confirm gate is the same one CHARGE shows.
+export const HOW = {
+  label: "how it works",
+  title: "hold. say it. let go.",
+  stepLabel: "step",
+  steps: [
+    { title: "hold fn and shift.", line: "in any app, on any website. zoya is listening." },
+    { title: "say it.", line: "in your own words, the way you'd ask a friend." },
+    { title: "let go.", line: "zoya takes it from there, across your apps and the web." },
+    { title: "done.", line: "and anything that pays, sends or deletes still waits for your “confirm”." },
+  ],
+};
+
 export const WHY = {
   label: "why zoya",
   title: "your mac should do what you mean.",
