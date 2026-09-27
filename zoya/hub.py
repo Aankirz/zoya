@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 import sys
 import threading
+import urllib.parse
 from collections.abc import Callable
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -15,7 +17,7 @@ import objc
 import WebKit
 from PyObjCTools import AppHelper
 
-from zoya import hub_bridge, hub_data, login_item
+from zoya import hub_bridge, hub_chrome, hub_data, login_item
 
 HUB_DIR = Path(__file__).parent / "hub"
 SCHEME = "zoya"
@@ -24,7 +26,7 @@ HANDLER = "zoya"
 
 MAX_MESSAGE_CHARS = 16_384
 WINDOW_SIZE = (1080.0, 720.0)
-DRAG_HEIGHT = 28.0
+WINDOW_TITLE = "Zoya"
 MIN_SIZE = (820.0, 560.0)
 TYPES = {
     ".html": "text/html",
@@ -51,6 +53,8 @@ RULES = json.dumps(
 )
 NOT_FOUND = 404
 OK = 200
+APP_ICON_PREFIX = "/appicon/"
+APP_ICON_PX = 128
 
 
 def bundled_file(url_path: str) -> Path | None:
@@ -60,16 +64,43 @@ def bundled_file(url_path: str) -> Path | None:
     return candidate if inside and candidate.is_file() and candidate.suffix in TYPES else None
 
 
+@lru_cache(maxsize=64)
+def app_icon(name: str) -> bytes | None:
+    if not hub_data.APP_NAME.fullmatch(name):
+        return None
+    workspace = AppKit.NSWorkspace.sharedWorkspace()
+    path = workspace.fullPathForApplication_(name)
+    if not path:
+        return None
+    bitmap = AppKit.NSBitmapImageRep.alloc().initWithBitmapDataPlanes_pixelsWide_pixelsHigh_bitsPerSample_samplesPerPixel_hasAlpha_isPlanar_colorSpaceName_bytesPerRow_bitsPerPixel_(  # noqa: E501
+        None, APP_ICON_PX, APP_ICON_PX, 8, 4, True, False, AppKit.NSDeviceRGBColorSpace, 0, 0
+    )
+    AppKit.NSGraphicsContext.saveGraphicsState()
+    AppKit.NSGraphicsContext.setCurrentContext_(
+        AppKit.NSGraphicsContext.graphicsContextWithBitmapImageRep_(bitmap)
+    )
+    workspace.iconForFile_(path).drawInRect_(((0, 0), (APP_ICON_PX, APP_ICON_PX)))
+    AppKit.NSGraphicsContext.restoreGraphicsState()
+    return bytes(bitmap.representationUsingType_properties_(AppKit.NSBitmapImageFileTypePNG, {}))
+
+
+def _resource(url_path: str) -> tuple[bytes, str] | None:
+    if url_path.startswith(APP_ICON_PREFIX):
+        icon = app_icon(urllib.parse.unquote(url_path.removeprefix(APP_ICON_PREFIX)))
+        return (icon, TYPES[".png"]) if icon else None
+    path = bundled_file(url_path)
+    return (path.read_bytes(), TYPES[path.suffix]) if path else None
+
+
 class SchemeHandler(AppKit.NSObject, protocols=[objc.protocolNamed("WKURLSchemeHandler")]):
     def webView_startURLSchemeTask_(self, _view: Any, task: Any) -> None:  # noqa: N802
         url = task.request().URL()
-        path = bundled_file(str(url.path() or "")) if url.host() == "hub" else None
-        body = path.read_bytes() if path else b""
-        headers = {"Content-Type": TYPES[path.suffix] if path else "text/plain"}
-        headers["Content-Security-Policy"] = CSP
+        found = _resource(str(url.path() or "")) if url.host() == "hub" else None
+        body, kind = found or (b"", "text/plain")
+        headers = {"Content-Type": kind, "Content-Security-Policy": CSP}
         response = (
             Foundation.NSHTTPURLResponse.alloc().initWithURL_statusCode_HTTPVersion_headerFields_(
-                url, OK if path else NOT_FOUND, "HTTP/1.1", headers
+                url, OK if found else NOT_FOUND, "HTTP/1.1", headers
             )
         )
         task.didReceiveResponse_(response)
@@ -78,14 +109,6 @@ class SchemeHandler(AppKit.NSObject, protocols=[objc.protocolNamed("WKURLSchemeH
 
     def webView_stopURLSchemeTask_(self, _view: Any, _task: Any) -> None:  # noqa: N802
         return
-
-
-class DragStrip(AppKit.NSView):
-    def mouseDownCanMoveWindow(self) -> bool:  # noqa: N802
-        return True
-
-    def mouseDown_(self, event: Any) -> None:  # noqa: N802
-        self.window().performWindowDragWithEvent_(event)
 
 
 class Messages(AppKit.NSObject, protocols=[objc.protocolNamed("WKScriptMessageHandler")]):
@@ -115,7 +138,9 @@ class Hub:
         self.on_settings: Callable[[dict[str, Any]], None] = lambda _settings: None
         self.window: Any = None
         self.view: Any = None
+        self.sidebar: Any = None
         self.keep: list[Any] = []
+        self.clear_guard = hub_bridge.ClearGuard()
 
     def _web_view(self) -> Any:
         config = WebKit.WKWebViewConfiguration.alloc().init()
@@ -138,32 +163,57 @@ class Hub:
         window = AppKit.NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
             ((0, 0), WINDOW_SIZE), style, AppKit.NSBackingStoreBuffered, False
         )
-        window.setTitle_("Zoya")
+        window.setTitle_(WINDOW_TITLE)
         window.setTitleVisibility_(AppKit.NSWindowTitleHidden)
-        window.setTitlebarAppearsTransparent_(True)
         window.setReleasedWhenClosed_(False)
         window.setContentMinSize_(MIN_SIZE)
-        window.setFrameAutosaveName_("ZoyaHub")
         events = WindowEvents.alloc().init()
         window.setDelegate_(events)
-        self.keep.append(events)
         self.view = self._web_view()
-        root = AppKit.NSView.alloc().initWithFrame_(((0, 0), WINDOW_SIZE))
-        self.view.setFrame_(((0, 0), WINDOW_SIZE))
-        self.view.setAutoresizingMask_(AppKit.NSViewWidthSizable | AppKit.NSViewHeightSizable)
-        strip = DragStrip.alloc().initWithFrame_(
-            ((0, WINDOW_SIZE[1] - DRAG_HEIGHT), (WINDOW_SIZE[0], DRAG_HEIGHT))
-        )
-        strip.setAutoresizingMask_(AppKit.NSViewWidthSizable | AppKit.NSViewMinYMargin)
-        root.addSubview_(self.view)
-        root.addSubview_(strip)
-        window.setContentView_(root)
+        content = AppKit.NSViewController.alloc().init()
+        content.setView_(self.view)
+        self.sidebar = hub_chrome.sidebar(self.go)
+        split = AppKit.NSSplitViewController.alloc().init()
+        side_item = AppKit.NSSplitViewItem.sidebarWithViewController_(self.sidebar)
+        side_item.setMinimumThickness_(hub_chrome.SIDEBAR_MIN)
+        side_item.setMaximumThickness_(hub_chrome.SIDEBAR_MAX)
+        split.addSplitViewItem_(side_item)
+        split.addSplitViewItem_(AppKit.NSSplitViewItem.splitViewItemWithViewController_(content))
+        window.setContentViewController_(split)
+        bar, self.chrome = hub_chrome.toolbar(self.toolbar_action)
+        window.setToolbar_(bar)
+        window.setToolbarStyle_(AppKit.NSWindowToolbarStyleUnified)
+        window.setTitlebarAppearsTransparent_(True)
+        window.setTitlebarSeparatorStyle_(AppKit.NSTitlebarSeparatorStyleNone)
+        window.setContentSize_(WINDOW_SIZE)
+        window.setFrameAutosaveName_("ZoyaHub")
         window.center()
+        self.keep += [events, content, split, bar]
+        self.sidebar.select("today")
+        self.chrome.show("today", True)
         store = WebKit.WKContentRuleListStore.defaultStore()
         store.compileContentRuleListForIdentifier_encodedContentRuleList_completionHandler_(
             RULES_ID, RULES, self._load
         )
         return window
+
+    def set_status(self, state: str) -> None:
+        if self.sidebar is not None:
+            self.sidebar.set_status(state)
+
+    def go(self, page: str) -> None:
+        self.run_js(f"location.hash = {json.dumps(page)}")
+
+    def toolbar_action(self, action: str) -> None:
+        self.run_js(f"window.zoyaToolbar({json.dumps(action)})")
+
+    def page_state(self, page: str, header_visible: bool) -> None:
+        self.sidebar.select(page)
+        self.chrome.show(page, header_visible)
+
+    def run_js(self, code: str) -> None:
+        if self.view is not None:
+            self.view.evaluateJavaScript_completionHandler_(code, None)
 
     def _load(self, rules: Any, error: Any) -> None:
         if rules is None:
@@ -192,8 +242,7 @@ class Hub:
 
     def reply(self, request_id: int, result: object) -> None:
         payload = json.dumps({"id": request_id, "result": result}, ensure_ascii=True)
-        if self.view is not None:
-            self.view.evaluateJavaScript_completionHandler_(f"window.zoyaReceive({payload})", None)
+        self.run_js(f"window.zoyaReceive({payload})")
 
     def reply_later(self, request_id: int, work: Callable[[], object]) -> None:
         def run() -> None:
@@ -203,7 +252,11 @@ class Hub:
 
 
 PAGES: dict[str, Callable[[], object]] = {
-    "today": lambda: {"entries": hub_data.today(), "setup": hub_data.setup()},
+    "today": lambda: {
+        "entries": hub_data.today(),
+        "setup": hub_data.setup(),
+        "name": AppKit.NSFullUserName().split(" ")[0],
+    },
     "history": lambda: {"entries": hub_data.history()},
     "memory": lambda: {"items": hub_data.memories()},
     "plan": lambda: {"plan": hub_data.plan()},
@@ -249,6 +302,24 @@ def _set_setting(hub: Hub, command: hub_bridge.Command) -> None:
     hub.reply(command.request_id, saved)
 
 
+def _prepare_clear(hub: Hub, command: hub_bridge.Command) -> None:
+    count = len(hub_data.history(limit=hub_data.READ_LINES))
+    hub.reply(command.request_id, {"token": hub.clear_guard.issue(), "count": count})
+
+
+def _clear_history(hub: Hub, command: hub_bridge.Command) -> None:
+    if not hub.clear_guard.redeem(command.args["token"]):
+        print("hub: refused to clear history without the confirm step", file=sys.stderr, flush=True)
+        hub.reply(command.request_id, {"cleared": None})
+        return
+    hub.reply(command.request_id, {"cleared": hub_data.clear_history()})
+
+
+def _page_state(hub: Hub, command: hub_bridge.Command) -> None:
+    hub.page_state(command.args["page"], command.args["headerVisible"])
+    hub.reply(command.request_id, True)
+
+
 COMMANDS: dict[str, Callable[[Hub, hub_bridge.Command], None]] = {
     "getPage": _get_page,
     "deleteMemory": _delete_memory,
@@ -256,4 +327,7 @@ COMMANDS: dict[str, Callable[[Hub, hub_bridge.Command], None]] = {
     "checkForUpdates": _check_updates,
     "sendProblemReport": _problem_report,
     "setSetting": _set_setting,
+    "prepareClearHistory": _prepare_clear,
+    "clearHistory": _clear_history,
+    "pageState": _page_state,
 }

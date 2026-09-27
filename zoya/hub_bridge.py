@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import re
+import secrets
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -13,6 +15,8 @@ PILL_POSITIONS = frozenset({"bottom", "left", "right"})
 MEMORY_ID = re.compile(r"[0-9a-f]{32}")
 MESSAGE_KEYS = frozenset({"cmd", "id", "args"})
 OPEN_HUB_NOTICE = "app.zoya.Zoya.openHub"
+CLEAR_TOKEN_TTL_S = 120.0
+TOKEN_BYTES = 16
 
 
 def _one_of(allowed: frozenset[str]) -> Callable[[object], bool]:
@@ -47,6 +51,9 @@ ARGUMENTS: dict[str, dict[str, Callable[[object], bool]]] = {
     "checkForUpdates": {},
     "sendProblemReport": {},
     "setSetting": {"key": lambda _key: True, "value": lambda _value: True},
+    "prepareClearHistory": {},
+    "clearHistory": {"token": _memory_id},
+    "pageState": {"page": _one_of(PAGES), "headerVisible": _boolean},
 }
 WHOLE_CHECKS: dict[str, Callable[[dict[str, Any]], bool]] = {"setSetting": _setting}
 
@@ -75,3 +82,20 @@ def parse(body: object) -> Command | None:
     if whole is not None and not whole(args):
         return None
     return Command(name, body["id"], dict(args))
+
+
+class ClearGuard:
+    def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
+        self.clock = clock
+        self.token = ""
+        self.issued_at = 0.0
+
+    def issue(self) -> str:
+        self.token, self.issued_at = secrets.token_hex(TOKEN_BYTES), self.clock()
+        return self.token
+
+    def redeem(self, token: str) -> bool:
+        fresh = self.clock() - self.issued_at <= CLEAR_TOKEN_TTL_S
+        valid = bool(self.token) and fresh and secrets.compare_digest(token, self.token)
+        self.token = "" if valid else self.token
+        return valid

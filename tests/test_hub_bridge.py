@@ -64,3 +64,46 @@ def test_unknown_commands_are_refused(body) -> None:  # noqa: ANN001
 )
 def test_malformed_commands_are_refused(body) -> None:  # noqa: ANN001
     assert hub_bridge.parse(body) is None
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"cmd": "prepareClearHistory", "id": 1, "args": {}},
+        {"cmd": "clearHistory", "id": 2, "args": {"token": GOOD_ID}},
+        {"cmd": "pageState", "id": 3, "args": {"page": "history", "headerVisible": False}},
+    ],
+)
+def test_history_and_page_commands_pass(body) -> None:  # noqa: ANN001
+    assert hub_bridge.parse(body) is not None
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"cmd": "clearHistory", "id": 1, "args": {}},
+        {"cmd": "clearHistory", "id": 1, "args": {"token": "yes"}},
+        {"cmd": "clearHistory", "id": 1, "args": {"token": True}},
+        {"cmd": "pageState", "id": 1, "args": {"page": "history"}},
+        {"cmd": "pageState", "id": 1, "args": {"page": "nope", "headerVisible": True}},
+    ],
+)
+def test_malformed_history_and_page_commands_are_refused(body) -> None:  # noqa: ANN001
+    assert hub_bridge.parse(body) is None
+
+
+def test_clearing_history_needs_the_confirm_steps_token() -> None:
+    guard = hub_bridge.ClearGuard()
+    assert guard.redeem(GOOD_ID) is False
+    token = guard.issue()
+    assert guard.redeem(GOOD_ID) is False
+    assert guard.redeem(token) is True
+    assert guard.redeem(token) is False
+
+
+def test_a_confirm_token_expires() -> None:
+    now = [100.0]
+    guard = hub_bridge.ClearGuard(clock=lambda: now[0])
+    token = guard.issue()
+    now[0] += hub_bridge.CLEAR_TOKEN_TTL_S + 1
+    assert guard.redeem(token) is False
