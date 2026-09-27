@@ -9,7 +9,7 @@
     "min": 2
    },
    {
-    "said": "mouse"
+    "said": "mouse|mice"
    }
   ]
  },
@@ -121,7 +121,7 @@
     "min": 2
    },
    {
-    "said": "mouse"
+    "said": "mouse|mice"
    }
   ]
  },
