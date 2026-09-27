@@ -39,6 +39,8 @@ from zoya.config import (
     WEB_HISTORY_STEPS,
     WEB_MAX_STEPS,
     WEB_NO_PROGRESS_STEPS,
+    WEB_RENDER_POLL_S,
+    WEB_RENDER_WAIT_S,
     WEB_SCROLL_PX,
     WEB_STALE_RETRIES,
     WEB_TEXT_MAX_CHARS,
@@ -88,8 +90,10 @@ satisfied steps. Fill required fields before submitting. A typed query still nee
 suggestion selected. For date pickers, CLICK the field, the date, then the confirmation. Submit a \
 filled search before opening a result. If Search or Submit is visible and the fields are ready, \
 CLICK it. WAIT only when the control needed is absent or disabled, or results are still loading. \
-DONE needs visible evidence that ALL requirements are met; a matching link is not an opened \
-result. BLOCKED means no offered operation can make progress."""
+Recent WAIT actions are not evidence of loading. Prefer a useful visible element over WAIT. The \
+elements listed in the state are the ones you can act on. DONE needs visible evidence that ALL \
+requirements are met; a matching link is not an opened result. BLOCKED means no offered operation \
+can make progress."""
 TARGET = """\
 Choose the best observed element if the next operation is {operation}. Another question decides \
 the operation; this one only picks its target. Do not choose a field that already holds the \
@@ -196,7 +200,22 @@ def questions(table: Table, page: dict[str, Any]) -> dict[str, Choice]:
     return asked
 
 
-def state_text(goal: str, page: dict[str, Any], history: list[dict[str, Any]]) -> str:
+def element_lines(table: Table) -> str:
+    """The element table as Jev reads it: index, role, label, value and the operations offered."""
+    lines: dict[str, tuple[str, list[str]]] = {}
+    for operation, candidates in table.targets.items():
+        for key, action in candidates.items():
+            index = key.split(":")[0]
+            described, operations = lines.setdefault(index, (describe({**action, "kind": ""}), []))
+            if operation not in operations:
+                operations.append(operation)
+    return "\n".join(
+        f"[{index}] {described} ({', '.join(operations)})"
+        for index, (described, operations) in sorted(lines.items(), key=lambda item: int(item[0]))
+    )
+
+
+def state_text(goal: str, page: dict[str, Any], history: list[dict[str, Any]], table: Table) -> str:
     recent = [
         {k: h.get(k) for k in ("action", "operation", "text", "page_changed")}
         for h in history[-WEB_HISTORY_STEPS:]
@@ -205,7 +224,9 @@ def state_text(goal: str, page: dict[str, Any], history: list[dict[str, Any]]) -
         f"The user's goal: {goal}\n"
         f"Page: {clean(page.get('title', ''))} ({page.get('url', '')})\n"
         f"Recent actions: {json.dumps(recent, ensure_ascii=False)}\n"
-        f"{safety.wrap_untrusted(page.get('text', ''))}"
+        + safety.wrap_untrusted(
+            f"Elements:\n{element_lines(table)}\n\nPage text:\n{page.get('text', '')}"
+        )
     )
 
 
@@ -278,6 +299,16 @@ def observe() -> dict[str, Any]:
             return state
         time.sleep(WEB_WAIT_S)
     raise StalePage("the page did not settle")
+
+
+def observe_rendered() -> dict[str, Any]:
+    """A page an app is still drawing reads as blank; Jev is asked once it has something."""
+    deadline = time.monotonic() + WEB_RENDER_WAIT_S
+    observed = observe()
+    while not (observed["actions"] or observed.get("text")) and time.monotonic() < deadline:
+        time.sleep(WEB_RENDER_POLL_S)
+        observed = observe()
+    return observed
 
 
 _tag_lock = threading.Lock()
@@ -371,10 +402,12 @@ def _stuck(history: list[dict[str, Any]]) -> bool:
 
 def step(goal: str, outcome: Outcome) -> bool:
     """One observe → decide → act. True to keep going; False with outcome.reason set to stop."""
-    observed = observe()
+    observed = observe_rendered()
     table = element_table(observed["actions"])
     offered = operations_offered(table, observed)
-    answers = decisions.ask(state_text(goal, observed, outcome.history), questions(table, observed))
+    answers = decisions.ask(
+        state_text(goal, observed, outcome.history, table), questions(table, observed)
+    )
     outcome.jev_calls += 1
     outcome.jev_ms += answers.latency_ms
     if not answers:

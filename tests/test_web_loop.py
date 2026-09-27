@@ -58,7 +58,7 @@ def test_one_request_carries_the_operation_and_every_target_head(path):
     asked = web_loop.questions(table, page)
     assert set(asked) == {"operation", *(f"{op.lower()}_target" for op in table.targets)}
     assert set(web_loop.operations_offered(table, page)) == set(asked["operation"].criteria)
-    state = web_loop.state_text("goal", page, [])
+    state = web_loop.state_text("goal", page, [], table)
     assert state.count("<untrusted_content>") == 1 and state.count("</untrusted_content>") == 1
 
 
@@ -174,3 +174,41 @@ def test_jev_unavailable_hands_back_without_acting(monkeypatch):
 
     outcome = web_loop.run("goal", threading.Event())
     assert not outcome.done and outcome.reason.startswith("Jev unavailable") and acted == []
+
+
+def test_a_page_still_rendering_is_read_again_before_jev_is_asked(monkeypatch):
+    page = recorded(RECORDED[0])
+    blank = {**page, "actions": [], "text": ""}
+    snapshots = iter([blank, blank, page])
+    asked: list[str] = []
+    monkeypatch.setattr(web_loop, "observe", lambda: next(snapshots))
+    monkeypatch.setattr(web_loop.time, "sleep", lambda _s: None)
+
+    def ask(state: str, questions: Any, *_a: Any, **_k: Any) -> decisions.Answers:
+        asked.append(state)
+        return decisions.unavailable("stop here")
+
+    monkeypatch.setattr(decisions, "ask", ask)
+    web_loop.step("goal", web_loop.Outcome())
+    assert len(asked) == 1 and page["text"][:40] in asked[0]
+
+
+def test_a_page_that_never_renders_is_asked_about_once_the_wait_runs_out(monkeypatch):
+    blank = {**recorded(RECORDED[0]), "actions": [], "text": ""}
+    clock = iter(range(100))
+    monkeypatch.setattr(web_loop, "observe", lambda: blank)
+    monkeypatch.setattr(web_loop.time, "sleep", lambda _s: None)
+    monkeypatch.setattr(web_loop.time, "monotonic", lambda: next(clock))
+    monkeypatch.setattr(decisions, "ask", lambda *_a, **_k: decisions.unavailable("stop here"))
+    outcome = web_loop.Outcome()
+    assert web_loop.step("goal", outcome) is False and outcome.reason.startswith("Jev unavailable")
+
+
+@pytest.mark.parametrize("path", RECORDED, ids=lambda p: p.stem)
+def test_the_state_lists_every_offered_element_as_untrusted_page_data(path):
+    page = recorded(path)
+    table = web_loop.element_table(page["actions"])
+    state = web_loop.state_text("goal", page, [], table)
+    untrusted = state[state.index("<untrusted_content>") :]
+    for element in table.elements:
+        assert f"[{element['index']}] " in untrusted
