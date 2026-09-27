@@ -65,6 +65,14 @@ LOCK_POLL_S = 0.2
 PRUNED_SCREENSHOT = {"text": "[older screenshot removed]"}
 REPLAYED = "Done, the same way as last time."
 ALREADY_DONE = "That was already done."
+WEB_PAGE_SAY = (
+    "That's a web page, so computer_task won't drive it ({reason}). Use browser_task, or "
+    "browser_read and browser_click, in Zoya's browser."
+)
+OTHER_BROWSER_SAY = (
+    "That's a web page in a browser Zoya can't read. Open it in Zoya's browser with browser_open, "
+    "then use browser_task."
+)
 MS_PER_S = 1000
 SPENT_KEY = "computer_spent_usd"  # on the brain agent's state: earlier computer_task calls
 
@@ -289,6 +297,8 @@ def run_computer_task(
     started = time.monotonic()
     try:
         computer.begin_session()
+        if front_is_web_page():
+            return web_page_task(goal, _cancel, started)
         key = flow_key(goal, ax.front_app()[0])
         try:
             if replay_flow(key, _cancel):
@@ -311,8 +321,6 @@ def _run_step_loop(goal: str, key: str, cancel: Any, started: float) -> str | No
 
     None means it could not finish and the language-model agent takes over on the same screen.
     """
-    if (said := _run_web_loop(goal, cancel, started)) is not None:
-        return said
     outcome = step_loop.run(goal, [], cancel)
     computer.log_stage(
         "computer_step_loop",
@@ -331,12 +339,17 @@ def _run_step_loop(goal: str, key: str, cancel: Any, started: float) -> str | No
     return _spoken(outcome.pressed)
 
 
-def _run_web_loop(goal: str, cancel: Any, started: float) -> str | None:
-    """A web page in Zoya's own Chrome in front: the Jev web loop first (D126). None hands on."""
+def front_is_web_page() -> bool:
+    return ax.read_controls(ax.front_app()[1])[1]
+
+
+def web_page_task(goal: str, cancel: Any, started: float) -> str:
+    """A web page is never driven by pixels or the accessibility tree (Phase H): the Jev web loop
+    in Zoya's own Chrome (D126), else the browser tools, which the brain holds."""
     from zoya.tools import browser
 
     if not browser.is_ours(ax.frontmost_regular_app().processIdentifier()):
-        return None
+        return OTHER_BROWSER_SAY
     outcome = web_loop.run(goal, cancel)
     computer.log_stage(
         "computer_web_loop",
@@ -349,7 +362,7 @@ def _run_web_loop(goal: str, cancel: Any, started: float) -> str | None:
         computer_ms=round((time.monotonic() - started) * MS_PER_S),
     )
     if not outcome.done:
-        return None
+        return WEB_PAGE_SAY.format(reason=outcome.reason)
     return f"Done — {outcome.history[-1]['action']}." if outcome.history else ALREADY_DONE
 
 
@@ -405,7 +418,8 @@ def _account(agent: Agent, parent: Any, outcome: str, started: float) -> None:
 @tool(context=True)
 def computer_task(goal: str, tool_context: ToolContext) -> str:
     """Operate a Mac app with the mouse and keyboard: System Settings, Finder, Preview, any app
-    without a direct tool or website. Slower than direct tools: use only when they can't do it.
+    without a direct tool or website. Never for a web page: use browser_task and the browser tools.
+    Slower than direct tools: use only when they can't do it.
 
     Args:
         goal: The complete goal in plain words, e.g. "Turn on dark mode in System Settings".
