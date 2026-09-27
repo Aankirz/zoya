@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zoya · Glass Daylight</title>
+<link rel="stylesheet" href="glass.css">
+</head>
+<body>
+<main class="sheet">
+  <header class="sheet-head">
+    <h1>Glass Daylight</h1>
+    <p>One reference per layer: native Liquid Glass for the chrome, calm paper for the content, and a few typesafe details for character. A static approximation of glass; the build uses the real NSGlassEffectView. Open in Safari.</p>
+  </header>
+
+  <div class="layers" role="list" aria-label="The three layers">
+    <div><b>chrome</b><span>Liquid Glass</span><p>The pill, the Hub sidebar, the toolbar, the Undo toast.</p></div>
+    <div><b>content</b><span>Notion paper</span><p>Opaque pages, one centred column, quiet rows, toggles, callouts.</p></div>
+    <div><b>character</b><span>typesafe details</span><p>One huge greeting, monospaced micro-labels, dot leaders, one retro window.</p></div>
+  </div>
+
+  <section class="part" aria-labelledby="pill">
+    <h2 id="pill">The pill, over the three worst wallpapers</h2>
+    <p>Real size. Glass stays glass; the tint carries meaning, with the eyes and a word, so no state depends on colour alone. Words never sit on untinted glass. Confirm is near-opaque: money never sits on see-through glass. Example words only.</p>
+    <div class="walls" id="walls"></div>
+    <p class="note ratio-note">Contrast of the words against the tinted glass, measured on this page's rendered pixels over pure white, pure black and the photo, is under each pill. The native build re-measures on real glass.</p>
+    <h3 class="sub">Larger text</h3>
+    <div class="walls scenes-large" id="walls-large"></div>
+  </section>
+
+  <section class="part" aria-labelledby="merge">
+    <h2 id="merge">The signature moment: the caption grows out of the pill</h2>
+    <p>Both shapes live in one NSGlassEffectContainerView. When Zoya starts listening, the caption buds from the pill, separates as the words arrive, and merges back when she finishes. With Reduce Motion it simply fades in and out.</p>
+    <div class="merge" id="merge-frames"></div>
+  </section>
+
+  <section class="part" aria-labelledby="hub">
+    <h2 id="hub">The Hub: a glass sidebar beside paper pages</h2>
+    <p>The sidebar and toolbar are native (NSSplitViewController; macOS draws them in glass). The paper page is the existing WKWebView. Shown at 1:1 CSS pixels inside a busy desktop. Example content, labelled; the built Hub shows only this Mac's real data.</p>
+    <div class="windows">
+      <figure class="desk">
+        <div class="win" inert aria-label="Today">
+          <nav class="side" aria-label="Zoya">
+            <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
+            <ul>
+              <li aria-current="page"><span class="icon" data-i="sun"></span>Today</li>
+              <li><span class="icon" data-i="history"></span>History</li>
+              <li><span class="icon" data-i="brain"></span>Memory</li>
+              <li><span class="icon" data-i="gauge"></span>Plan</li>
+              <li><span class="icon" data-i="list-checks"></span>Setup</li>
+              <li><span class="icon" data-i="sliders"></span>Voice and settings</li>
+            </ul>
+            <p class="side-foot"><span class="mini-pill" aria-hidden="true"><i></i><i></i></span>Zoya is on</p>
+          </nav>
+          <div class="content">
+            <div class="toolbar"><span></span></div>
+            <div class="column">
+              <h3 class="greeting">Good evening.</h3>
+              <p class="status">Everything is working.</p>
+              <ul class="rows">
+                <li class="row"><span>Ordered earphones, after you said confirm.</span><span class="meta">8:42 PM · amazon.in</span></li>
+                <li class="row is-hover"><span>Played Tum Hi Ho by Arijit Singh.</span><span class="meta">7:15 PM · Spotify</span></li>
+                <li class="row"><span>Wrote a note: call Mom at six.</span><span class="meta">5:30 PM · Notes</span></li>
+                <li class="row"><span>Read you the top story on Hacker News.</span><span class="meta">4:02 PM · web</span></li>
+              </ul>
+              <p class="section-label">Talk to me</p>
+              <ul class="rows is-tight">
+                <li class="row"><span>Say “Hey Zoya”, then say what you want.</span></li>
+                <li class="row"><span>Or hold Control and Option while you talk.</span></li>
+                <li class="row"><span>Say “Stop”, and I stop, right away.</span></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <figcaption class="note desk-note">Today. The only big type in the app.</figcaption>
+      </figure>
+
+      <figure class="desk">
+        <div class="win" inert aria-label="History, one toggle open">
+          <nav class="side" aria-label="Zoya">
+            <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
+            <ul>
+              <li><span class="icon" data-i="sun"></span>Today</li>
+              <li aria-current="page"><span class="icon" data-i="history"></span>History</li>
+              <li><span class="icon" data-i="brain"></span>Memory</li>
+              <li><span class="icon" data-i="gauge"></span>Plan</li>
+              <li><span class="icon" data-i="list-checks"></span>Setup</li>
+              <li><span class="icon" data-i="sliders"></span>Voice and settings</li>
+            </ul>
+            <p class="side-foot"><span class="mini-pill" aria-hidden="true"><i></i><i></i></span>Zoya is on</p>
+          </nav>
+          <div class="content">
+            <div class="toolbar"><span>History</span><button class="tool-button" type="button">Clear history</button></div>
+            <div class="column is-page">
+              <span class="page-icon"><span class="icon" data-i="history"></span></span>
+              <h3 class="page-title">History</h3>
+              <p class="page-lead">Every request, and what came of it. It stays on this Mac.</p>
+              <p class="section-label">Today</p>
+              <details class="toggle" open>
+                <summary><span>Ordered the boAt earphones.</span><span class="meta">8:42 PM · confirmed</span></summary>
+                <div class="toggle-body">
+                  <div class="kv"><b>heard</b><span>“Buy the boAt earphones in my cart”</span></div>
+                  <div class="kv"><b>did</b><span>Found them, added them to the cart and opened checkout.</span></div>
+                  <div class="kv"><b>asked</b><span class="confirm-block"><b>I asked you to confirm</b>Place the order: one pair of earphones, ₹1,249.</span></div>
+                  <div class="kv"><b>outcome</b><span class="outcome">You said confirm. Ordered, ₹1,249.</span></div>
+                </div>
+              </details>
+              <details class="toggle"><summary><span>Played Tum Hi Ho on Spotify.</span><span class="meta">7:15 PM · done</span></summary></details>
+              <details class="toggle"><summary><span>Wrote an email to Priya, and stopped before sending.</span><span class="meta">6:03 PM · stopped</span></summary></details>
+              <details class="toggle"><summary><span>Saved a note: call Mom at six.</span><span class="meta">5:30 PM · done</span></summary></details>
+            </div>
+          </div>
+        </div>
+        <figcaption class="note desk-note">History. Each request is a toggle: one plain sentence, open for the details.</figcaption>
+      </figure>
+
+      <figure class="desk">
+        <div class="win" inert aria-label="Memory, with the Undo toast">
+          <nav class="side" aria-label="Zoya">
+            <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
+            <ul>
+              <li><span class="icon" data-i="sun"></span>Today</li>
+              <li><span class="icon" data-i="history"></span>History</li>
+              <li aria-current="page"><span class="icon" data-i="brain"></span>Memory</li>
+              <li><span class="icon" data-i="gauge"></span>Plan</li>
+              <li><span class="icon" data-i="list-checks"></span>Setup</li>
+              <li><span class="icon" data-i="sliders"></span>Voice and settings</li>
+            </ul>
+            <p class="side-foot"><span class="mini-pill" aria-hidden="true"><i></i><i></i></span>Zoya is on</p>
+          </nav>
+          <div class="content memory">
+            <div class="toolbar"><span>Memory</span><span></span></div>
+            <div class="column is-page">
+              <span class="page-icon"><span class="icon" data-i="brain"></span></span>
+              <h3 class="page-title">Memory</h3>
+              <p class="page-lead">What I remember about you. Delete anything, and I forget it for good.</p>
+              <ul class="rows is-list">
+                <li class="row"><span>You like Arijit Singh.</span><span class="meta">sep 12</span><button class="row-action" type="button"><span class="icon" data-i="trash"></span>Delete</button></li>
+                <li class="row is-hover"><span>Your mother’s name is Asha.</span><span class="meta">sep 03</span><button class="row-action" type="button"><span class="icon" data-i="trash"></span>Delete</button></li>
+                <li class="row"><span>You shop on Amazon India.</span><span class="meta">aug 28</span><button class="row-action" type="button"><span class="icon" data-i="trash"></span>Delete</button></li>
+              </ul>
+            </div>
+            <div class="toast glass" role="status"><span>Deleted “Your doctor’s appointments are on Tuesdays.”</span><button type="button"><span class="icon" data-i="undo"></span>Undo</button></div>
+          </div>
+        </div>
+        <figcaption class="note desk-note">Memory. Delete appears on hover and focus; Undo floats as the only glass inside the page.</figcaption>
+      </figure>
+
+      <figure class="desk">
+        <div class="win" inert aria-label="Setup, with the retro About window">
+          <nav class="side" aria-label="Zoya">
+            <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
+            <ul>
+              <li><span class="icon" data-i="sun"></span>Today</li>
+              <li><span class="icon" data-i="history"></span>History</li>
+              <li><span class="icon" data-i="brain"></span>Memory</li>
+              <li><span class="icon" data-i="gauge"></span>Plan</li>
+              <li aria-current="page"><span class="icon" data-i="list-checks"></span>Setup</li>
+              <li><span class="icon" data-i="sliders"></span>Voice and settings</li>
+            </ul>
+            <p class="side-foot"><span class="mini-pill" aria-hidden="true"><i></i><i></i></span>Zoya is on</p>
+          </nav>
+          <div class="content">
+            <div class="toolbar"><span>Setup</span><button class="tool-button" type="button">Check for updates</button></div>
+            <div class="column is-page">
+              <span class="page-icon"><span class="icon" data-i="list-checks"></span></span>
+              <h3 class="page-title">Setup</h3>
+              <p class="page-lead">Everything I need, and whether it’s on.</p>
+              <div class="callout"><span class="icon" data-i="alert"></span><p>Microphone is off. I can’t hear you until it’s on.</p><button type="button">Turn on</button></div>
+              <div class="leaders">
+                <p class="leader"><span>Microphone</span><span></span><span class="is-off">off</span></p>
+                <p class="leader"><span>Accessibility</span><span></span><span>on</span></p>
+                <p class="leader"><span>Screen Recording</span><span></span><span>on</span></p>
+                <p class="leader"><span>Automation</span><span></span><span>on</span></p>
+                <p class="leader"><span>Zoya key</span><span></span><span>saved</span></p>
+              </div>
+              <div class="retro" aria-label="About Zoya">
+                <div class="retro-title">ZOYA 0.0.3</div>
+                <div class="retro-body"><p>Your Mac, by voice.</p><p>Made for people who</p><p>can’t see the screen.</p><p>© 2026 Zoya</p></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption class="note desk-note">Setup. A callout with its fix, dot leaders, and the one retro window.</figcaption>
+      </figure>
+
+      <figure class="desk is-dark">
+        <div class="win is-dark" inert aria-label="Today in dark mode">
+          <nav class="side" aria-label="Zoya">
+            <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
+            <ul>
+              <li aria-current="page"><span class="icon" data-i="sun"></span>Today</li>
+              <li><span class="icon" data-i="history"></span>History</li>
+              <li><span class="icon" data-i="brain"></span>Memory</li>
+              <li><span class="icon" data-i="gauge"></span>Plan</li>
+              <li><span class="icon" data-i="list-checks"></span>Setup</li>
+              <li><span class="icon" data-i="sliders"></span>Voice and settings</li>
+            </ul>
+            <p class="side-foot"><span class="mini-pill" aria-hidden="true"><i></i><i></i></span>Zoya is on</p>
+          </nav>
+          <div class="content">
+            <div class="toolbar"><span></span></div>
+            <div class="column">
+              <h3 class="greeting">Good evening.</h3>
+              <p class="status">Everything is working.</p>
+              <ul class="rows">
+                <li class="row"><span>Played Tum Hi Ho by Arijit Singh.</span><span class="meta">7:15 PM · Spotify</span></li>
+                <li class="row"><span>Wrote a note: call Mom at six.</span><span class="meta">5:30 PM · Notes</span></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <figcaption class="note desk-note">Dark mode follows the system: glass adapts on its own; paper becomes deep graphite, never black.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="part" aria-labelledby="icon">
+    <h2 id="icon">The icon: the braille z on Zoya blue</h2>
+    <p>Rendered by this Mac from Zoya.icns: macOS 27 masks the square art and adds its glass edge. Without Xcode there is no Icon Composer here, so layered glass on the dots waits for a Mac with Xcode; the .icns is the shipped fallback. The tinted Dock is an approximation.</p>
+    <div class="icon-row">
+      <figure><img src="../final/icon-macos-1024.png" width="256" height="256" alt="Zoya icon, from the 1024 px art"><figcaption class="note">1024, shown at 256</figcaption></figure>
+      <figure><img src="../final/icon-macos-128.png" width="128" height="128" alt=""><figcaption class="note">128</figcaption></figure>
+      <figure><img src="../final/icon-macos-32@2x.png" width="32" height="32" alt=""><figcaption class="note">32</figcaption></figure>
+      <figure><img src="../final/icon-macos-16@2x.png" width="16" height="16" alt=""><figcaption class="note">16</figcaption></figure>
+    </div>
+    <div class="docks">
+      <div class="dock-scene"><div class="dock"><img src="../assets/macos/finder-128.png" alt=""><img src="../assets/macos/notes-128.png" alt=""><img class="is-zoya" src="../final/icon-macos-128@2x.png" alt="Zoya"><img src="../assets/macos/music-128.png" alt=""><img src="../assets/macos/settings-128.png" alt=""></div><span class="note">light Dock</span></div>
+      <div class="dock-scene is-dark"><div class="dock"><img src="../assets/macos/finder-128.png" alt=""><img src="../assets/macos/notes-128.png" alt=""><img class="is-zoya" src="../final/icon-macos-128@2x.png" alt="Zoya"><img src="../assets/macos/music-128.png" alt=""><img src="../assets/macos/settings-128.png" alt=""></div><span class="note">dark Dock</span></div>
+      <div class="dock-scene is-tinted"><div class="dock"><img src="../assets/macos/finder-128.png" alt=""><img src="../assets/macos/notes-128.png" alt=""><img class="is-zoya" src="../final/icon-macos-128@2x.png" alt="Zoya"><img src="../assets/macos/music-128.png" alt=""><img src="../assets/macos/settings-128.png" alt=""></div><span class="note">tinted Dock (approximation)</span></div>
+    </div>
+  </section>
+
+  <section class="part" aria-labelledby="audits">
+    <h2 id="audits">What the audits flagged</h2>
+    <div class="findings" id="findings"></div>
+  </section>
+</main>
+<script src="ratios.js"></script>
+<script src="findings.js"></script>
+<script src="mockup.js"></script>
+</body>
+</html>
