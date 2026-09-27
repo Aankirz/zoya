@@ -149,46 +149,6 @@ export const APP_WINDOWS = {
   password: { title: "sign in", waiting: "zoya is waiting" },
 };
 
-const DAILY_COMMAND = "cd zoya && ./start.sh";
-
-// The real install flow is ../start.sh. Every command here must work on a fresh Apple Silicon Mac.
-export const GET_ZOYA = {
-  label: "get zoya",
-  title: "one command. then just talk.",
-  needs: "you need a mac with apple silicon, google chrome, and an openai api key.",
-  windowTitle: "terminal",
-  command: "git clone https://github.com/Aankirz/zoya.git && cd zoya && ./start.sh",
-  // Where the URL may wrap on a narrow screen (rendered as <wbr>), so it never splits mid-word.
-  commandBreakAfter: "https://github.com/",
-  copyLabel: "copy install command",
-  copy: "copy",
-  copied: "copied",
-  stepLabel: "step",
-  steps: [
-    {
-      title: "open terminal and paste this.",
-      line: "if your mac offers to install developer tools, say yes, then paste it again.",
-      showCommand: true,
-      command: "",
-    },
-    {
-      title: "paste your keys when asked.",
-      line: "only the openai key is required. your keys stay in a file on your mac.",
-      showCommand: false,
-      command: "",
-    },
-    {
-      title: "let zoya hear, see and click.",
-      // A reopened terminal starts in the home folder, so the rerun needs `cd zoya` too.
-      line: "in system settings, privacy & security, allow terminal for microphone, accessibility and screen recording. quit terminal, open it again, and type",
-      command: DAILY_COMMAND,
-      showCommand: false,
-    },
-  ],
-  after: "every day after: open terminal, type",
-  afterCommand: DAILY_COMMAND,
-};
-
 // Each phrase checked against zoya/router.py, the skill triggers and zoya/shutdown.py.
 export const TALK = {
   label: "talk to zoya",
@@ -238,7 +198,7 @@ export const FAQ = {
     { q: "which mac do i need?", a: "a mac with apple silicon and an internet connection." },
     {
       q: "when can i get it?",
-      a: "today. it's open source. follow the steps in get zoya, or join the waitlist to hear when installing gets even easier.",
+      a: "soon. join the waitlist, and we'll email you when zoya is ready.",
     },
   ],
 };
