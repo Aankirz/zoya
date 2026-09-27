@@ -49,7 +49,7 @@ from zoya.config import (
 )
 from zoya.prompts import ORCHESTRATOR_PROMPT
 from zoya.router import RouteDecision, clean_command, route
-from zoya.tools import ToolError, browser, collect_tools
+from zoya.tools import ToolError, browser, collect_tools, memory
 from zoya.tools.memory import recent_corrections
 
 log = logging.getLogger(__name__)
@@ -214,14 +214,24 @@ def brain_inputs(skill: str = "") -> tuple[str, list[Any], list[Any]]:
     if skill:
         names = harness.skill_tool_names(skill)
         return (
-            harness.skill_prompt(ORCHESTRATOR_PROMPT, skill),
+            with_profile(harness.skill_prompt(ORCHESTRATOR_PROMPT, skill)),
             [tools[name] for name in names if name in tools],
             [],
         )
     from strands.vended_plugins.skills import AgentSkills
 
     ordered = [tools[name] for name in sorted(tools)]
-    return ORCHESTRATOR_PROMPT, ordered, [AgentSkills(skills=list(harness.catalog().values()))]
+    return (
+        with_profile(ORCHESTRATOR_PROMPT),
+        ordered,
+        [AgentSkills(skills=list(harness.catalog().values()))],
+    )
+
+
+def with_profile(prompt: str) -> str:
+    """The user's profile goes last, so the static prefix before it stays cached."""
+    block = memory.user_profile()
+    return f"{prompt}\n\n{block}" if block else prompt
 
 
 def build_orchestrator(
@@ -498,9 +508,25 @@ def handle_command(text: str, pre_timings: dict[str, int] | None = None) -> Comm
         remember_turn(text, spoken)
     result = CommandResult(task_id, decision, spoken, ok, timings)
     _close_task_tabs(tabs_before)
+    if ok and outcome == "success" and not declined and worth_capturing(decision):
+        threading.Thread(
+            target=memory.capture_outcome, args=(clean_command(text),), daemon=True
+        ).start()
     _log_timing(text, result)
     events.emit(events.TaskEvent(task_id, "done" if ok else "failed", text, decision.route, spoken))
     return result
+
+
+MEMORY_TOOLS = {"memory_add", "memory_search"}
+
+
+def worth_capturing(decision: RouteDecision) -> bool:
+    """A remembered fact is already stored, and stopping is not an outcome."""
+    return (
+        decision.route != "stop"
+        and decision.skill != "memory"
+        and (decision.tool not in MEMORY_TOOLS)
+    )
 
 
 def _close_task_tabs(before: frozenset[str]) -> None:

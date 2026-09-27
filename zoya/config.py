@@ -186,6 +186,12 @@ MEMORY_TABLE = "zoya-memory"  # DynamoDB pk (S) + sk (S): "memory#<user>" / "ord
 MEMORY_LOCAL_FILE = Path.home() / ".zoya" / "memory.json"  # fallback copy, never secrets
 MEMORY_TIMEOUT_S = 6.0
 MEMORY_SEARCH_LIMIT = 5
+MEMORY_PROFILE_MAX_TOKENS = 250
+MEMORY_PROFILE_TIMEOUT_S = (
+    30.0  # the cloud answered /v4/profile in 13.7 s; it runs in the background
+)
+MEMORY_PROFILE_TTL_S = 15 * 60
+MEMORY_PROFILE_SETTLE_S = 10.0
 ALERTS_TOPIC_ARN = "arn:aws:sns:ap-south-1:567487920371:zoya-alerts"  # trusted contact (Flow 10)
 PLACES_MAX_RESULTS = 3
 LOGIN_SITES = (

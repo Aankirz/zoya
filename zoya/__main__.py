@@ -17,9 +17,10 @@ def _warm_up() -> None:
     """Load everything once so the first command is as fast as the rest (§13.3 #3)."""
     from zoya import aws, memory_server
     from zoya.router import _router_model
-    from zoya.tools import collect_tools
+    from zoya.tools import collect_tools, memory
 
     print(f"memory server: {memory_server.start()}")
+    memory.refresh_profile()
     collect_tools("zoya.tools", "zoya.agents")
     _router_model()
     aws.client("polly")

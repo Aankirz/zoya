@@ -30,8 +30,13 @@ from strands import tool
 
 from zoya import aws, events, memory_server
 from zoya.config import (
+    JEV_STEP_CONFIDENCE,
     MEMORY_LOCAL_FILE,
     MEMORY_LOCAL_SEARCH_THRESHOLD,
+    MEMORY_PROFILE_MAX_TOKENS,
+    MEMORY_PROFILE_SETTLE_S,
+    MEMORY_PROFILE_TIMEOUT_S,
+    MEMORY_PROFILE_TTL_S,
     MEMORY_SEARCH_LIMIT,
     MEMORY_SERVER_LOCAL_KEY,
     MEMORY_TABLE,
@@ -42,7 +47,15 @@ from zoya.tools import ToolError
 
 log = logging.getLogger(__name__)
 
-CATEGORIES = {"preference", "contact", "address", "order_history", "routine", "correction"}
+CATEGORIES = {
+    "preference",
+    "contact",
+    "address",
+    "order_history",
+    "routine",
+    "correction",
+    "activity",
+}
 MAX_MEMORY_CHARS = 1000
 LOCAL_MAX_ITEMS = 500
 MIN_WORD_CHARS = 3
@@ -262,6 +275,7 @@ def forget(item_id: str) -> bool:
         kept = [i for i in _read_local() if i.get("id") != item_id]
         MEMORY_LOCAL_FILE.write_text(json.dumps(kept, ensure_ascii=False), encoding="utf-8")
     log.info("memory deleted from every copy")
+    refresh_profile()
     return True
 
 
@@ -311,7 +325,7 @@ def remember(content: str, category: str = "preference") -> str:
     except Exception as error:  # noqa: BLE001 — the local and DynamoDB copies still hold it
         log.warning("Supermemory add failed (%s)", type(error).__name__)
     log.info("memory_add %s in %d ms", where, round((time.monotonic() - started) * 1000))
-    events.emit(events.EarconEvent("checkpoint"))
+    refresh_profile(MEMORY_PROFILE_SETTLE_S)
     return f"Saved {where}: {text}"
 
 
@@ -324,7 +338,9 @@ def memory_add(content: str, category: str = "preference") -> str:
         content: The fact in one sentence, e.g. "Usual groceries: 2 L Amul milk, 12 eggs".
         category: preference | contact | address | order_history | routine | correction.
     """
-    return remember(content, category)
+    said = remember(content, category)
+    events.emit(events.EarconEvent("checkpoint"))
+    return said
 
 
 @tool
@@ -369,6 +385,105 @@ def home_address() -> str:
     return next(
         (i["content"] for i in reversed(_read_local()) if i.get("category") == "address"), ""
     )
+
+
+# --- The user's profile in the brain's prompt (Phase H) ------------------------------------------
+
+CHARS_PER_TOKEN = 4
+PROFILE_HEADING = (
+    "About the user (from Zoya's memory; answer from it without memory_search when it is enough):"
+)
+_profile: dict[str, Any] = {"block": "", "at": 0.0, "fetching": False}
+_profile_lock = threading.Lock()
+
+
+def profile_block(lines: list[str], max_tokens: int = MEMORY_PROFILE_MAX_TOKENS) -> str:
+    """The profile as a short prompt block: secrets dropped, duplicates folded, capped."""
+    budget = max_tokens * CHARS_PER_TOKEN - len(PROFILE_HEADING)
+    kept: list[str] = []
+    for line in dict.fromkeys(" ".join(line.split()) for line in lines):
+        if not line or secret_reason(line):
+            continue
+        cost = len(line) + len("\n- ")
+        if cost > budget:
+            break
+        kept.append(line)
+        budget -= cost
+    return "\n".join([PROFILE_HEADING, *(f"- {line}" for line in kept)]) if kept else ""
+
+
+def _fetch_profile(delay_s: float) -> None:
+    time.sleep(delay_s)
+    try:
+        client = _supermemory()
+        if client is None:
+            return
+        response = client.profile(container_tag=MEMORY_USER_TAG, timeout=MEMORY_PROFILE_TIMEOUT_S)
+        lines = [*(response.profile.static or []), *(response.profile.dynamic or [])]
+        with _profile_lock:
+            _profile["block"], _profile["at"] = profile_block(lines), time.monotonic()
+        log.info("profile: %d lines", len(lines))
+    except Exception as error:  # noqa: BLE001 — the brain still has memory_search
+        log.warning("Supermemory profile failed (%s)", type(error).__name__)
+    finally:
+        with _profile_lock:
+            _profile["fetching"] = False
+
+
+def refresh_profile(delay_s: float = 0.0) -> None:
+    """Fetch the profile in the background: at session start and after every memory write."""
+    with _profile_lock:
+        if _profile["fetching"] and not delay_s:
+            return
+        _profile["fetching"] = True
+    threading.Thread(
+        target=_fetch_profile, args=(delay_s,), name="zoya-profile", daemon=True
+    ).start()
+
+
+def user_profile() -> str:
+    """The cached "About the user" block, never waited on; a stale one is refreshed behind."""
+    with _profile_lock:
+        block, age = _profile["block"], time.monotonic() - _profile["at"]
+    if not _profile["at"] or age > MEMORY_PROFILE_TTL_S:
+        refresh_profile()
+    return block
+
+
+# --- Learning from what Zoya does (Phase H) -------------------------------------------------------
+
+WORTH_REMEMBERING = (
+    "Does this request reveal something lasting about the user worth remembering, such as a "
+    "preference, a habit, a person they deal with or a place they care about, rather than a "
+    "routine one-off command?"
+)
+OUTCOME_STATE = "The user asked their voice assistant, and it was done: {command!r}"
+OUTCOME_LINE = "Asked Zoya: {command}"
+
+
+def capture_outcome(command: str) -> bool:
+    """After a task completes: keep one line about it when Jev says it's worth remembering.
+
+    A secret-shaped command never leaves the Mac, not even to Jev. Jev unavailable or unsure means
+    nothing is kept. Returns whether a line was saved.
+    """
+    from typesafe_sdk import Noul
+
+    from zoya import decisions
+
+    command = " ".join(command.split())[:MAX_MEMORY_CHARS]
+    if not command or secret_reason(command):
+        return False
+    answers = decisions.ask(
+        OUTCOME_STATE.format(command=command), {"worth": Noul(instructions=WORTH_REMEMBERING)}
+    )
+    if not answers or answers.noul("worth") < JEV_STEP_CONFIDENCE:
+        return False
+    try:
+        remember(OUTCOME_LINE.format(command=command), "activity")
+    except ToolError:
+        return False
+    return True
 
 
 TOOLS = [memory_add, memory_search]
