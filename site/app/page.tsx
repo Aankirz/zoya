@@ -10,7 +10,7 @@ import { TypingBubble } from "./components/TypingBubble";
 import { VisitorCount } from "./components/VisitorCount";
 import { WaitlistForm } from "./components/WaitlistForm";
 import { AppKind } from "./components/AppWindows";
-import { ABILITIES, CHARGE, CONTACT_EMAIL, DEMO, FAQ, FOOTER, GET_ZOYA, HERO, HOW, SKIP_LINK, TALK, WHY } from "./copy";
+import { ABILITIES, CHARGE, CONTACT_EMAIL, DEMO, FAQ, FOOTER, GET_ZOYA, HERO, HOW, PRICING, SKIP_LINK, TALK, WHY } from "./copy";
 import { OutlinePlus } from "./icons/rune";
 import { getVisitorCount } from "@/lib/visitors";
 
@@ -18,6 +18,7 @@ import { getVisitorCount } from "@/lib/visitors";
 export const revalidate = 60;
 
 const HERO_FORM = "hero";
+const PRICING_FORM = "pricing";
 
 type Row = { readonly say: string; readonly title: string; readonly line: string; readonly window: AppKind };
 
@@ -156,6 +157,26 @@ export default async function Home() {
               </li>
             ))}
           </ul>
+        </section>
+
+        <section className="abilities install" id="pricing">
+          <p className="capsule" aria-hidden="true">
+            {PRICING.label}
+          </p>
+          <h2 className="section-title">{PRICING.title}</h2>
+          <p className="install-needs">{PRICING.line}</p>
+          <ul className="ability-list install-steps">
+            {PRICING.items.map((item) => (
+              <li className="ability install-step" key={item.title}>
+                <h3 className="ability-title">{item.title}</h3>
+                <p className="ability-line">{item.line}</p>
+              </li>
+            ))}
+          </ul>
+          {/* The step row's centred grid, so the form sits centred like it does in the hero. */}
+          <div className="ability install-step">
+            <WaitlistForm idPrefix={PRICING_FORM} />
+          </div>
         </section>
 
         <section className="faq" id="faq">

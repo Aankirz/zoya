@@ -19,7 +19,7 @@ export const MENU = {
   links: [
     { href: "#demo", label: "watch" },
     { href: "#abilities", label: "what zoya does" },
-    { href: "#get-zoya", label: "get zoya" },
+    { href: "#pricing", label: "pricing" },
     { href: "#faq", label: "faq" },
   ],
   cta: "join the waitlist",
@@ -202,6 +202,20 @@ export const TALK = {
     { say: "hey zoya, play tum hi ho by arijit singh on spotify", result: "starts the song." },
     { say: "zoya, stop", result: "stops what it's doing." },
     { say: "zoya, quit", result: "closes zoya. so does control, shift and escape." },
+  ],
+};
+
+// One plan, and the waitlist is the only way in: no checkout on the site yet.
+// Local transcription: STT_MODEL_REPO in zoya/config.py (mlx whisper). ⌘K: aria-keyshortcuts="Meta+K" in zoya/hub/index.html.
+export const PRICING = {
+  label: "pricing",
+  title: "one plan. $20 a month.",
+  line: "everything zoya does, for one price.",
+  items: [
+    { title: "everything included.", line: "shopping, music, slides and the rest. no tiers, no add-ons." },
+    { title: "no api keys.", line: "nothing to find, copy or paste." },
+    { title: "runs on your mac.", line: "hold fn and shift, say “hey zoya”, or press ⌘k in zoya's window and type." },
+    { title: "private.", line: "what you say is transcribed right on your mac." },
   ],
 };
 
