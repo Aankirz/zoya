@@ -4,11 +4,12 @@
 export const CONTACT_EMAIL = "sahuankit453@gmail.com";
 
 export const META = {
-  title: "zoya · your mac, by voice, for people who can't see the screen",
+  title: "zoya · your mac, by voice",
   ogTitle: "zoya · your mac, by voice",
+  // Describes public/og.jpg as it is: the image still shows the pre-launch subline until it is re-shot.
   ogImageAlt: "zoya: your mac, by voice. made for people who can't see the screen.",
   description:
-    "zoya lets people who can't see the screen use their mac by voice: say what you want done, and zoya does it.",
+    "zoya is a voice assistant for the mac. hold fn and shift, say what you want, let go, and zoya does it across your apps and websites.",
 };
 
 export const SKIP_LINK = "skip to the waitlist";
@@ -26,14 +27,14 @@ export const MENU = {
 
 export const HERO = {
   title: "zoya",
-  subline: "your mac, by voice. made for people who can't see the screen.",
+  subline: "your mac, by voice. hold fn and shift, say what you want, and it's done.",
 };
 
 export const WHY = {
   label: "why zoya",
-  title: "the computer was built for people who can see.",
-  body: "apps, the internet, and now ai agents. all of it assumes you can see the screen. zoya hands that power to people who can't. say what you want, and zoya does it for you.",
-  closer: "a screen reader tells you what's there. zoya does what you meant.",
+  title: "your mac should do what you mean.",
+  body: "every app and every website asks you to find the right button. zoya doesn't. say what you want in your own words, and zoya does it for you, across your apps and the web.",
+  closer: "built first for people who can't see the screen. made for everyone.",
 };
 
 // The owner's own demo (youtube oEmbed: "Zoya Demo", Ankit Kiran). The thumbnail is served from
