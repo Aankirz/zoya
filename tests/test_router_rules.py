@@ -265,3 +265,29 @@ def test_go_back_is_a_browser_task_never_media(command, monkeypatch):
 
 def test_previous_song_is_still_media():
     assert match_rules("previous song").tool == "media_control"
+
+
+# Phase H round 1: media keeps transport; a named song reaches something that can pick a track.
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "play Kesariya on spotify",
+        "play Tum Hi Ho by Arijit Singh",
+        "play my workout playlist",
+        "put on some Coldplay",
+    ],
+)
+def test_a_named_song_never_stays_in_media(text):
+    choice = RouteChoice(route="skill", skill="media", skill_action="media_control", action="play")
+    assert decision_from_choice(choice, text).route == "orchestrator"
+
+
+@pytest.mark.parametrize(
+    "text", ["pause the music", "next song", "play", "turn the volume up", "set volume to 30"]
+)
+def test_transport_stays_in_media(text):
+    choice = RouteChoice(route="skill", skill="media")
+    decision = decision_from_choice(choice, text)
+    assert decision.route == "skill" and decision.skill == "media"

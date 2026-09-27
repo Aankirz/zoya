@@ -397,9 +397,25 @@ def ask_router_model(text: str) -> RouteChoice:
     return result.structured_output
 
 
-def skill_decision(choice: RouteChoice) -> RouteDecision:
-    """A skill pick: its action when the args are complete, else the brain with that skill only."""
+TRANSPORT_SKILL = "media"
+TRANSPORT_TOOLS = {"media_control", "set_volume", "volume_up", "volume_down", "mute"}
+
+
+def is_transport(text: str) -> bool:
+    """Play, pause, next, previous or volume for what is already loaded, and nothing named."""
+    decision = match_rules(text)
+    return decision is not None and decision.tool in TRANSPORT_TOOLS
+
+
+def skill_decision(choice: RouteChoice, text: str = "") -> RouteDecision:
+    """A skill pick: its action when the args are complete, else the brain with that skill only.
+
+    `media` keeps transport only: a named song, artist or playlist goes to the whole brain, whose
+    browser path can pick a track (Phase H).
+    """
     if choice.skill not in harness.catalog():
+        return RouteDecision("orchestrator", source="model")
+    if choice.skill == TRANSPORT_SKILL and not is_transport(text):
         return RouteDecision("orchestrator", source="model")
     action = choice.skill_action or ""
     if action not in harness.skill_tool_names(choice.skill) or action not in harness.all_tools():
@@ -410,10 +426,10 @@ def skill_decision(choice: RouteChoice) -> RouteDecision:
     return RouteDecision("skill", action, args, source="model", skill=choice.skill)
 
 
-def decision_from_choice(choice: RouteChoice) -> RouteDecision:
+def decision_from_choice(choice: RouteChoice, text: str = "") -> RouteDecision:
     """Turn the model's answer into a decision; incomplete fast answers go to the orchestrator."""
     if choice.route == "skill":
-        return skill_decision(choice)
+        return skill_decision(choice, text)
     if choice.route != "fast" or choice.tool not in FAST_TOOL_ARGS:
         return RouteDecision("orchestrator", source="model")
     args = {
@@ -463,7 +479,7 @@ def route(text: str, use_rules: bool = True) -> RouteDecision:
 
     started = time.monotonic()
     try:
-        decision = decision_from_choice(ask_router_model(routed_text))
+        decision = decision_from_choice(ask_router_model(routed_text), routed_text)
     except Exception as error:  # noqa: BLE001 — the orchestrator can still handle it
         log.warning("router model failed (%s) — sending to orchestrator", type(error).__name__)
         decision = RouteDecision("orchestrator", source="fallback")
