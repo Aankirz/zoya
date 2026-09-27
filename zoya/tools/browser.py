@@ -518,6 +518,7 @@ def _probe_locator(page: Any, locator: Any) -> Target:
     clickable = locator.locator(CLICKABLE)
     surroundings = locator.locator(NEARBY)
     url = urlparse(page.url)
+    shape = (clickable if clickable.count() else locator).first.evaluate(ELEMENT_SHAPE_JS)
     facts = safety.ClickFacts(
         labels=_labels(locator),
         is_submit=bool(clickable.count() and clickable.locator(SUBMIT_CONTROL).count()),
@@ -527,6 +528,9 @@ def _probe_locator(page: Any, locator: Any) -> Target:
         ),
         host=url.netloc,
         is_link=bool(clickable.count() and clickable.locator(HYPERLINK).count()),
+        role=shape["role"],
+        input_type=shape["type"],
+        opens_popup=shape["popup"],
     )
     return Target(locator.element_handle(), facts, page.title(), url.netloc)
 
@@ -962,6 +966,11 @@ SECRET_FIELD_SAY = "That's a password or code field. Please type it yourself; I'
 # The focused element's own facts, mirroring the Playwright probe: its submit-ness, its name
 # attribute (KNOWN_SAFE_CLICKS), the text of its form or third ancestor (NEARBY), and its box in
 # global screen points (SCREEN_RECT_JS) for the stage ring.
+ELEMENT_SHAPE_JS = """e => ({
+  role: e.getAttribute('role') || e.tagName.toLowerCase(),
+  type: e.tagName === 'INPUT' ? (e.getAttribute('type') || 'text') : '',
+  popup: e.hasAttribute('aria-haspopup') || e.hasAttribute('aria-expanded'),
+})"""
 FOCUS_FACTS_JS = """(() => {
   const e = document.activeElement;
   if (!e || e === document.body || e === document.documentElement) return JSON.stringify({});
@@ -976,6 +985,7 @@ FOCUS_FACTS_JS = """(() => {
     submit: !!(e.form && (e.type === 'submit' || e.type === 'image'
       || (e.tagName === 'BUTTON' && !e.getAttribute('type')))),
     link: e.tagName === 'A' && e.hasAttribute('href'),
+    popup: e.hasAttribute('aria-haspopup') || e.hasAttribute('aria-expanded'),
     near: (near.innerText || '').slice(0, NEARBY_LIMIT),
     rect: [screenX + r.left, screenY + (outerHeight - innerHeight) + r.top, r.width, r.height]
   });
@@ -1137,6 +1147,9 @@ def _ref_probe(ref: str, approved: str) -> Target:
         nearby_text=focused.get("near") or _nearby_text(lines, index),
         host=address.netloc,
         is_link=bool(focused.get("link")),
+        role=node.role,
+        input_type=str(focused.get("type") or ""),
+        opens_popup=bool(focused.get("popup")),
     )
     title = _batch_value(answers[1], "title") or ""
     return Target(focused.get("rect"), facts, title, address.netloc)

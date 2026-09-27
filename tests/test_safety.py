@@ -1569,3 +1569,34 @@ def test_a_typed_request_never_answers_a_waiting_confirmation(loop, monkeypatch,
     instance.ask(typed)
 
     assert answered == [] and started == []
+
+
+# --- Phase H round 1: a check-out date field is not a checkout (both directions) --------------
+
+DATE_FIELDS = [
+    safety.ClickFacts(
+        ["Select dates Check-in date — Check-out date"], role="button", opens_popup=True
+    ),
+    safety.ClickFacts(["Check-out date"], role="combobox"),
+    safety.ClickFacts(["Check out"], role="input", input_type="date"),
+    safety.ClickFacts(["Check-out date"], role="textbox", input_type="text"),
+]
+CHECKOUT_BUTTONS = [
+    safety.ClickFacts(["Check out"], role="button"),
+    safety.ClickFacts(["Proceed to checkout"], role="button", opens_popup=True),
+    safety.ClickFacts(["Check out now"], role="a", is_link=True),
+    safety.ClickFacts(["Checkout"], role="input", input_type="submit", is_submit=True),
+    safety.ClickFacts(["Check-out date"], role="button", opens_popup=True, is_submit=True),
+    safety.ClickFacts(["Check out"], role="textbox"),
+    safety.ClickFacts(["Place order"], role="button", opens_popup=True),
+]
+
+
+@pytest.mark.parametrize("facts", DATE_FIELDS, ids=lambda f: f.labels[0])
+def test_a_check_out_date_field_is_not_a_checkout(facts):
+    assert safety.click_risk(facts) is None
+
+
+@pytest.mark.parametrize("facts", CHECKOUT_BUTTONS, ids=lambda f: f.labels[0])
+def test_checkout_and_order_buttons_still_ask(facts):
+    assert safety.click_risk(facts) is not None

@@ -305,6 +305,9 @@ class ClickFacts:
     nearby_text: str = ""  # text around the target (its form or a few ancestors)
     host: str = ""  # page host, for the payment-blocked check only
     is_link: bool = False  # a plain hyperlink: clicking it navigates, and Back undoes it
+    role: str = ""
+    input_type: str = ""
+    opens_popup: bool = False
 
 
 def spoken_name(labels: list[str]) -> str:
@@ -388,6 +391,30 @@ def payment_blocked_host(host: str) -> bool:
     return any(host == h or host.endswith(f".{h}") for h in PAYMENT_BLOCKED_HOSTS)
 
 
+FIELD_ROLES = {"textbox", "searchbox", "combobox", "spinbutton", "input", "textarea"}
+DATE_INPUT_TYPES = {"date", "datetime-local", "month", "week"}
+FIELD_INPUT_TYPES = {"text", "search", "email", "tel", *DATE_INPUT_TYPES}
+DATE_WORDS = re.compile(r"(?:^| )(?:dates?|calendar|check ?in|arrival|departure)(?: |$)")
+
+
+def is_date_field(facts: ClickFacts) -> bool:
+    """A field or picker the user fills with a date ("Check-out date"), never a checkout button.
+
+    Decided by the element's role and type, and its own label naming a date; a real "Check out"
+    button or link has none of those, so it still asks.
+    """
+    field = (
+        facts.role.casefold() in FIELD_ROLES
+        or facts.input_type.casefold() in FIELD_INPUT_TYPES
+        or facts.opens_popup
+    )
+    if not field or facts.is_submit or facts.is_link:
+        return False
+    if facts.input_type.casefold() in DATE_INPUT_TYPES:
+        return True
+    return any(DATE_WORDS.search(normalise(label)) for label in facts.labels)
+
+
 def click_risk(facts: ClickFacts) -> RiskyLabel | None:
     """Guard 2, failing closed: ask unless the click is clearly harmless.
 
@@ -402,6 +429,8 @@ def click_risk(facts: ClickFacts) -> RiskyLabel | None:
     neutral URL still passes.
     """
     hit = risky_label(facts.labels)
+    if hit and hit.kind == "checkout" and is_date_field(facts):
+        hit = None
     if hit and hit.kind == "purchase" and payment_blocked_host(facts.host):
         raise ConfirmationDeclined(PAYMENT_BLOCKED_SAY)
     if hit:
