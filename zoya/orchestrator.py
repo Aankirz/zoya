@@ -22,6 +22,7 @@ import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from functools import cache
 from typing import Any
 
 from opentelemetry import trace
@@ -280,10 +281,24 @@ def _record_usage(agent: Agent, timings: dict[str, int]) -> None:
     timings["brain_calls"] = getattr(agent.event_loop_metrics, "cycle_count", 0)
 
 
+@cache
+def mac_country() -> str:
+    """The Mac's region, as English words ("India"), so "amazon" means the user's own store."""
+    import Foundation
+
+    code = Foundation.NSLocale.currentLocale().countryCode()
+    if not code:
+        return ""
+    english = Foundation.NSLocale.localeWithLocaleIdentifier_("en_US")
+    return str(english.localizedStringForCountryCode_(code) or "")
+
+
 def with_corrections(command: str) -> str:
     """§13.5.6: recent corrections and today's date ride with the request (the dynamic part, last),
     never in the cached prefix. The date lets "the 17th of October" become its next occurrence."""
     context = f"[Today is {datetime.now():%A %d %B %Y}]"
+    if country := mac_country():
+        context += f"\n[The user is in {country}: use that country's site of a shop or service]"
     if corrections := recent_corrections():
         context += f"\n[Recent corrections from the user: {'; '.join(corrections)}]"
     return f"{command}\n{context}"
