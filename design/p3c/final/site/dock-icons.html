@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Dock icon comparison</title>
+<style>
+:root{--bg:oklch(96.9% 0.002 260);--text:oklch(15% 0.005 260);--muted:oklch(40% 0.006 260);--rule:oklch(86% 0.004 260);
+  --dock-light:oklch(97% 0.003 260 / .72);--dock-dark:oklch(24% 0.004 260 / .78);--font:-apple-system,"SF Pro Text",sans-serif}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 var(--font);padding:40px 16px}
+main{max-width:960px;margin:0 auto}
+h1{font-weight:500;letter-spacing:-.03em;font-size:34px;margin:0 0 6px}
+p{color:var(--muted);margin:0 0 28px;text-wrap:pretty}
+h2{font-size:15px;font-weight:600;margin:32px 0 10px}
+.desk{border-radius:12px;padding:40px 24px 14px;display:grid;gap:18px;justify-items:center}
+.desk.light{background:linear-gradient(180deg,oklch(86% 0.05 230),oklch(78% 0.07 250))}
+.desk.dark{background:linear-gradient(180deg,oklch(28% 0.04 260),oklch(18% 0.03 265))}
+.dock{margin-bottom:14px;display:flex;gap:calc(var(--s)*.18);align-items:end;padding:calc(var(--s)*.12);border-radius:calc(var(--s)*.34);
+  backdrop-filter:blur(20px);box-shadow:inset 0 0 0 .5px oklch(100% 0 0 / .35),0 8px 24px oklch(0% 0 0 / .2)}
+.light .dock{background:var(--dock-light)}.dark .dock{background:var(--dock-dark)}
+.dock img{width:var(--s);height:var(--s);display:block}
+.dock .zoya{clip-path:inset(0 round 22.5%);outline:none;transform:scale(.8)}
+.dock figure{margin:0;position:relative}
+figcaption{position:absolute;top:100%;left:50%;translate:-50% 2px;white-space:nowrap;font-size:11px;color:oklch(100% 0 0 / .85)}
+.light figcaption{color:oklch(20% 0 0 / .7)}
+</style>
+</head>
+<body>
+<main>
+<h1>which face goes in the dock?</h1>
+<p>Three drawings of the pill with the eyes, beside Finder, Notes, Mail, Music and System Settings as this Mac renders them. A drawn Dock, not a capture: macOS 27 masks our square art into its rounded shape and adds the glass edge, so the real icon reads a touch softer. Tiles at 64, 48 and 32 pt; 32 pt and below use each variant's small drawing.</p>
+<div id="sheet"></div>
+</main>
+<script>
+const APPLE = ["finder", "notes", "mail", "music", "settings"];
+const VARIANTS = [["a", "a-face", "A · face"], ["b", "b-wave", "B · wave"], ["c", "c-tilt", "C · tilt"]];
+const SIZES = [64, 48, 32];
+const sheet = document.getElementById("sheet");
+for (const theme of ["light", "dark"]) {
+  for (const size of SIZES) {
+    const title = document.createElement("h2");
+    title.textContent = `${theme} dock · ${size} pt`;
+    const desk = document.createElement("div");
+    desk.className = `desk ${theme}`;
+    for (const [, file, label] of VARIANTS) {
+      const dock = document.createElement("div");
+      dock.className = "dock";
+      dock.style.setProperty("--s", `${size}px`);
+      const apple = (name) => { const i = new Image(); i.src = `../../assets/macos/${name}-${size > 32 ? 128 : 32}.png`; i.alt = name; return i; };
+      APPLE.slice(0, 2).forEach((n) => dock.append(apple(n)));
+      const figure = document.createElement("figure");
+      const zoya = new Image();
+      zoya.className = "zoya";
+      zoya.src = `../../../../packaging/icon/variants/${file}${size <= 32 ? "-small" : ""}.svg`;
+      zoya.alt = label;
+      const caption = document.createElement("figcaption");
+      caption.textContent = label;
+      figure.append(zoya, caption);
+      dock.append(figure);
+      APPLE.slice(2).forEach((n) => dock.append(apple(n)));
+      desk.append(dock);
+    }
+    sheet.append(title, desk);
+  }
+}
+</script>
+</body>
+</html>
