@@ -1,0 +1,50 @@
+{
+  "themeSwitch": [
+    {
+      "switch": "light->dark",
+      "frames": 25,
+      "distinct": [
+        "oklch(0.19 0.004 260) / oklch(0.235 0.005 260)"
+      ]
+    },
+    {
+      "switch": "dark->light",
+      "frames": 24,
+      "distinct": [
+        "oklch(0.969 0.002 260) / oklch(0.996 0.002 260)"
+      ]
+    }
+  ],
+  "load": [
+    {
+      "theme": "light",
+      "state": "full",
+      "firstBg": "oklch(0.969 0.002 260)",
+      "layouts": [
+        "",
+        "44,261,399,794",
+        "100,317,455,850"
+      ]
+    },
+    {
+      "theme": "dark",
+      "state": "full",
+      "firstBg": "oklch(0.19 0.004 260)",
+      "layouts": [
+        "",
+        "44,261,399,794",
+        "100,317,455,850"
+      ]
+    },
+    {
+      "theme": "light",
+      "state": "long",
+      "firstBg": "oklch(0.969 0.002 260)",
+      "layouts": [
+        "",
+        "44,334,730,1248",
+        "100,390,786,1304"
+      ]
+    }
+  ]
+}
