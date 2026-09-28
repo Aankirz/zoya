@@ -24,6 +24,7 @@ SITE_SELECTOR = re.compile(
 )
 ALLOWED_HOSTS = {
     "api.openai.com": "the model provider's endpoint",
+    "zoya-relay.zoya-relay.workers.dev": "Zoya's own relay (D133)",
     "api.fireworks.ai": "the model provider's endpoint",
     "api.search.tinyfish.ai": "the web search provider's endpoint",
     "api.fetch.tinyfish.ai": "the web fetch provider's endpoint",

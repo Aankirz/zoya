@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from zoya import decisions
+from zoya import config, decisions
 from zoya.config import BRAIN_PLANNING_REASONING_EFFORT, BRAIN_STEP_REASONING_EFFORT
 from zoya.models import RelayNotConfigured, brain_planning_model, get_model
 from zoya.orchestrator import ReasoningSchedule
@@ -140,6 +140,7 @@ def test_without_a_license_key_bring_your_own_keys_are_unchanged():
 
 def test_a_license_key_without_a_relay_address_is_never_sent_anywhere(licensed, monkeypatch):
     monkeypatch.delenv("ZOYA_RELAY_URL")
+    monkeypatch.setattr(config, "RELAY_URL", "")
 
     with pytest.raises(RelayNotConfigured):
         get_model("brain", provider="openai")
