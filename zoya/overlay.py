@@ -210,7 +210,8 @@ def _overlay_message(event: events.OverlayEvent) -> dict[str, Any] | None:
         return {"k": "speech_done"}
     state = "acting" if extra.get("tool") else "thinking"
     step = caption_text(step_label(extra.get("tool") or event.text))
-    return {"k": "state", "state": state, "step": step, "task": extra.get("task", "")}
+    tool = extra.get("tool", "")
+    return {"k": "state", "state": state, "step": step, "task": extra.get("task", ""), "tool": tool}
 
 
 def intent_chips(decision: Any) -> tuple[str, ...]:

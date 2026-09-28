@@ -20,6 +20,7 @@ from PyObjCTools import AppHelper
 from zoya import config, hotkey, hub_data, sparkle
 from zoya.hub import Hub
 from zoya.hub_bridge import OPEN_HUB_NOTICE
+from zoya.overlay_glow import Glow
 from zoya.overlay_pill import BLUE, Pill
 
 IDLE_HIDE_S = 5.0
@@ -49,6 +50,12 @@ QUIT_KEY_CODE = 53
 QUIT_FLAGS = AppKit.NSEventModifierFlagControl | AppKit.NSEventModifierFlagShift
 CHORD_FLAGS = QUIT_FLAGS | AppKit.NSEventModifierFlagOption | AppKit.NSEventModifierFlagCommand
 FOLLOW_POINTER_S = 1.0
+USER_INPUT = (
+    AppKit.NSEventMaskMouseMoved
+    | AppKit.NSEventMaskLeftMouseDown
+    | AppKit.NSEventMaskKeyDown
+    | AppKit.NSEventMaskScrollWheel
+)
 STATUS_SYMBOL = "circle.fill"
 
 
@@ -267,6 +274,12 @@ class Presence:
         self.on_status: Callable[[str], None] = lambda _state: None
         self.speaking = False
         self.rings: list[Any] = []
+        self.glow = Glow(_panel, lambda: self.pill.reduce_motion)
+        self.glow.own = {os.getpid(), os.getppid()}
+        self.tool = ""
+        self.input_monitor = AppKit.NSEvent.addGlobalMonitorForEventsMatchingMask_handler_(
+            USER_INPUT, lambda _event: self.glow.user_input()
+        )
         self.latencies_ms: list[float] = []
         self.screen_name = ""
         self.settings(hub_data.settings())
@@ -301,6 +314,7 @@ class Presence:
             self.speaking = False
             self.base = (message["state"], message.get("step", ""), message.get("task", ""))
             self.stake = message.get("stake", "")
+            self.tool = message.get("tool", "")
             if message["state"] == "listening":
                 self.pill.set_caption("", heard=False)
         elif kind == "zoya":
@@ -316,6 +330,7 @@ class Presence:
             self.speaking = False
         elif kind == "ring":
             self.ring(message["rect"])
+            self.glow.point_at(message["rect"])
         self.show()
         if "t" in message:
             self.latencies_ms.append((time.time() - message["t"]) * 1000)
@@ -329,6 +344,9 @@ class Presence:
             words = step
         if task and words:
             words = f"{task} · {words}"
+        self.glow.update(state, self.tool)
+        if self.glow.app and state in ("acting", "thinking"):
+            words = f"{words} · using {self.glow.app}"
         self.pill.show(state, words, self.stake or CONFIRM_FALLBACK, CONFIRM_HOW)
         self.on_status(state)
         self._update_hit()

@@ -240,10 +240,55 @@ def shots(child: subprocess.Popen, folder: Path, theme: str) -> None:
         capture(pill_window(child.pid, window), folder / "pill" / f"{name}-{theme}.png")
 
 
+FINDER_BOUNDS = (240, 160, 1040, 660)
+GLOW_ROOM = 16
+
+
+def _finder(home: Path, script: str) -> None:
+    subprocess.run(["osascript", "-e", f'tell application "Finder" to {script}'], check=False)
+
+
+def _finder_rect(home: Path) -> tuple[int, int, int, int]:
+    subprocess.run(["open", str(home)], check=True)
+    time.sleep(SETTLE_S)
+    left, top, right, bottom = FINDER_BOUNDS
+    _finder(home, f"set bounds of front window to {{{left}, {top}, {right}, {bottom}}}")
+    time.sleep(SETTLE_S / 2)
+    return left, top, right - left, bottom - top
+
+
+def _grab(rect: tuple[int, int, int, int], path: Path) -> None:
+    x, y, width, height = rect
+    area = f"{x - GLOW_ROOM},{y - GLOW_ROOM},{width + 2 * GLOW_ROOM},{height + 2 * GLOW_ROOM}"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["screencapture", "-x", f"-R{area}", str(path)], check=True)
+
+
+def glow_shots(child: subprocess.Popen, home: Path, folder: Path, theme: str) -> None:
+    """Zoya acting in a Finder window on the fixture folder: glow, cursor, ripple, wait, stop."""
+    rect = _finder_rect(home)
+    x, y, width, height = rect
+    send(child, {"k": "state", "state": "acting", "step": "Pressing a button", "tool": "ax_press"})
+    time.sleep(SETTLE_S)
+    _grab(rect, folder / f"glow-acting-{theme}.png")
+    send(child, {"k": "ring", "rect": [x + width * 0.7, y + height * 0.6, 120, 28]})
+    time.sleep(0.3)
+    _grab(rect, folder / f"glow-cursor-ripple-{theme}.png")
+    time.sleep(SETTLE_S)
+    send(child, {"k": "state", "state": "waiting", "stake": "Place the order, ₹1,249"})
+    time.sleep(SETTLE_S)
+    _grab(rect, folder / f"glow-waiting-{theme}.png")
+    send(child, {"k": "state", "state": "stopped"})
+    time.sleep(0.4)
+    _grab(rect, folder / f"glow-stopped-{theme}.png")
+    _finder(home, "close front window")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--dark", action="store_true")
     parser.add_argument("--shots", type=Path)
+    parser.add_argument("--glow", type=Path, help="capture the glow and cursor into this folder")
     args = parser.parse_args()
     if subprocess.run(["pgrep", "-x", "Zoya"], capture_output=True).returncode == 0:
         sys.exit("Zoya is running: quit it first, or its Hub opens too.")
@@ -252,6 +297,9 @@ def main() -> int:
     child = launch(home, args.dark)
     send(child, {"k": "state", "state": "idle"})
     try:
+        if args.glow:
+            glow_shots(child, home, args.glow, "dark" if args.dark else "light")
+            return 0
         if args.shots:
             shots(child, args.shots, "dark" if args.dark else "light")
             return 0
