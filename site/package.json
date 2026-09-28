@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test lib/*.test.ts"
+    "test": "node --import ./lib/tsx-register.mjs --test lib/*.test.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
