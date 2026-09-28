@@ -474,7 +474,8 @@ HANDED_BACK = (
 @tool
 def browser_task(goal: str) -> str:
     """Do a whole goal on the page open in Zoya's browser: search a site, fill a form, pick dates,
-    open a result. Fastest for several steps on one site. If it hands back, carry on yourself.
+    compose a post, open a result. Call it first, before browser_click or browser_type, for any
+    goal with more than one step on a site. If it hands back, carry on yourself.
 
     Args:
         goal: The complete goal in the user's words, e.g. "search for hotels in Goa for 17 to 19
