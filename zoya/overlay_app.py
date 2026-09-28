@@ -17,7 +17,7 @@ import Foundation
 import Quartz
 from PyObjCTools import AppHelper
 
-from zoya import hub_data, sparkle
+from zoya import config, hotkey, hub_data, sparkle
 from zoya.hub import Hub
 from zoya.hub_bridge import OPEN_HUB_NOTICE
 from zoya.overlay_pill import BLUE, Pill
@@ -278,6 +278,7 @@ class Presence:
             chosen.get("largerText") is True,
             chosen.get("easierLetters") is True,
             str(chosen.get("pillPosition", "bottom")),
+            hotkey.spoken(config.HOTKEYS.get(str(chosen.get("hotkey")), config.PUSH_TO_TALK_KEYS)),
         )
 
     def _update_hit(self) -> None:

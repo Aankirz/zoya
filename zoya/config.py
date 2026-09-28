@@ -146,6 +146,9 @@ PTT_POLL_S = 0.03
 # Hold to talk; press while Zoya talks to interrupt. Owner's other app uses Control + Option.
 # Names: fn, shift, control, option, command.
 PUSH_TO_TALK_KEYS = ("fn", "shift")
+# D135: Wispr Flow owns fn, so with it installed Zoya's default moves off fn. User-changeable.
+HOTKEYS = {"fn-shift": PUSH_TO_TALK_KEYS, "control-option": ("control", "option")}
+WISPR_FLOW_BUNDLE_ID = "com.electron.wispr-flow"
 TASK_JOIN_TIMEOUT_S = 90.0
 WEATHER_TIMEOUT_S = 3.0  # per Open-Meteo call (D50)
 

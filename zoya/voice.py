@@ -64,7 +64,6 @@ from zoya.config import (
     PARTIAL_EVERY_S,
     PARTIAL_MIN_S,
     PRE_ROLL_S,
-    PUSH_TO_TALK_KEYS,
     SMART_TURN_FILE,
     SMART_TURN_REPO,
     SMART_TURN_SHA256,
@@ -448,14 +447,14 @@ def load_cpu_spotter() -> Callable[[np.ndarray], str]:
 
 
 def push_to_talk_label() -> str:
-    return " + ".join(key.capitalize() if key != "fn" else "fn" for key in PUSH_TO_TALK_KEYS)
+    return hotkey.spoken(hotkey.chosen())
 
 
 _hotkeys: list[hotkey.Watcher] = []
 
 
 def push_to_talk_held() -> bool:
-    return _hotkeys[0].is_held() if _hotkeys else hotkey.held_now(PUSH_TO_TALK_KEYS)
+    return _hotkeys[0].is_held() if _hotkeys else hotkey.held_now(hotkey.chosen())
 
 
 # --- Listener ---------------------------------------------------------------------------
@@ -555,7 +554,7 @@ class VoiceLoop:
             self.mic.put((time.monotonic(), indata[:, 0].copy(), counts))
 
         if not _hotkeys:
-            watcher = hotkey.Watcher(PUSH_TO_TALK_KEYS, self._ptt_wake)
+            watcher = hotkey.Watcher(hotkey.chosen, self._ptt_wake)
             watcher.start()
             _hotkeys.append(watcher)
 

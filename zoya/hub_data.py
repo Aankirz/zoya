@@ -253,6 +253,7 @@ def setup() -> dict[str, Any]:
         "permissions": {name: grants.get(name) is True for name in PERMISSIONS},
         "license": bool(config.license_key()),
         "version": config.app_version(),
+        "hotkey": settings()["hotkey"],
     }
 
 
@@ -262,7 +263,10 @@ def settings() -> dict[str, Any]:
     except (OSError, ValueError):
         saved = {}
     saved = saved if isinstance(saved, dict) else {}
-    return {key: saved.get(key, default) for key, default in DEFAULT_SETTINGS.items()}
+    from zoya import hotkey
+
+    defaults = DEFAULT_SETTINGS | {"hotkey": hotkey.default_choice()}
+    return {key: saved.get(key, default) for key, default in defaults.items()}
 
 
 def save_setting(key: str, value: object) -> dict[str, Any]:

@@ -6,9 +6,12 @@ import logging
 import threading
 import time
 from collections.abc import Callable
+from functools import cache
 from typing import Any
 
 log = logging.getLogger(__name__)
+
+KEY_NAMES = {"fn": "fn", "shift": "Shift", "control": "Control", "option": "Option"}
 
 MASK_NAMES = {
     "fn": "kCGEventFlagMaskSecondaryFn",
@@ -17,6 +20,31 @@ MASK_NAMES = {
     "option": "kCGEventFlagMaskAlternate",
     "command": "kCGEventFlagMaskCommand",
 }
+
+
+def wispr_flow_installed() -> bool:
+    import AppKit
+
+    from zoya.config import WISPR_FLOW_BUNDLE_ID
+
+    workspace = AppKit.NSWorkspace.sharedWorkspace()
+    return workspace.URLForApplicationWithBundleIdentifier_(WISPR_FLOW_BUNDLE_ID) is not None
+
+
+@cache
+def default_choice() -> str:
+    return "control-option" if wispr_flow_installed() else "fn-shift"
+
+
+def chosen() -> tuple[str, ...]:
+    from zoya import hub_data
+    from zoya.config import HOTKEYS
+
+    return HOTKEYS.get(hub_data.settings()["hotkey"], HOTKEYS["fn-shift"])
+
+
+def spoken(keys: tuple[str, ...]) -> str:
+    return " + ".join(KEY_NAMES.get(key, key) for key in keys)
 
 
 def wanted_mask(keys: tuple[str, ...]) -> int:
@@ -38,9 +66,10 @@ def held_now(keys: tuple[str, ...]) -> bool:
 
 
 class Watcher:
-    def __init__(self, keys: tuple[str, ...], on_down: Callable[[int], None]) -> None:
+    """`keys` is asked on every modifier change, so a new choice in the Hub applies at once."""
+
+    def __init__(self, keys: Callable[[], tuple[str, ...]], on_down: Callable[[int], None]) -> None:
         self.keys = keys
-        self.wanted = wanted_mask(keys)
         self.on_down = on_down
         self.held = False
         self.down_at = 0.0
@@ -84,7 +113,8 @@ class Watcher:
         if kind in (Quartz.kCGEventTapDisabledByTimeout, Quartz.kCGEventTapDisabledByUserInput):
             Quartz.CGEventTapEnable(self.tap, True)
             return event
-        held = Quartz.CGEventGetFlags(event) & self.wanted == self.wanted
+        wanted = wanted_mask(self.keys())
+        held = Quartz.CGEventGetFlags(event) & wanted == wanted
         if held and not self.held:
             self.down_at = time.monotonic()
             self.held = True
@@ -94,4 +124,4 @@ class Watcher:
         return event
 
     def is_held(self) -> bool:
-        return self.held if self.live else held_now(self.keys)
+        return self.held if self.live else held_now(self.keys())

@@ -117,7 +117,7 @@ KEYCHAIN_PROMPT = (
 )
 KEYCHAIN_ADOPTED = "Thank you. Your key is working in the app."
 KEYCHAIN_REFUSED = "I couldn't read your saved key, so let's set it up again."
-DONE = "That's everything. I'm ready. Hold fn and Shift and talk to me, or just say Hey Zoya."
+DONE = "That's everything. I'm ready. Hold {keys} and talk to me, or just say Hey Zoya."
 GOODBYE = "Goodbye. I'll pick up setup where we left off next time."
 
 
@@ -434,4 +434,6 @@ def _run() -> None:
         license_step(state)
     finished = {"restarting_for": "", "finished": _now(), "host": permissions.host_app()}
     save_state({**load_state(), **finished})
-    say(DONE)
+    from zoya import hotkey
+
+    say(DONE.format(keys=hotkey.spoken(hotkey.chosen()).replace(" + ", " and ")))

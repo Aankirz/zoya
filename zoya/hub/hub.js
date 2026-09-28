@@ -1,3 +1,10 @@
+const HOTKEYS = {
+  "fn-shift": { caps: ["fn", "⇧"], names: "fn and Shift" },
+  "control-option": { caps: ["⌃", "⌥"], names: "Control and Option" },
+};
+let currentHotkey = "fn-shift";
+const hotkey = () => HOTKEYS[currentHotkey] || HOTKEYS["fn-shift"];
+
 const COPY = {
   morning: "good morning",
   afternoon: "good afternoon",
@@ -26,7 +33,7 @@ const COPY = {
   },
   permissionWhy: {
     microphone: "i can’t hear “hey zoya” until it’s on.",
-    accessibility: "i can’t feel fn ⇧ or press a button for you until it’s on.",
+    accessibility: "i can’t feel your keys or press a button for you until it’s on.",
     screen: "i can’t read your screen until it’s on.",
     automation: "i can’t work inside your apps until it’s on.",
   },
@@ -35,12 +42,16 @@ const COPY = {
   turnOn: "turn it on",
   openPlan: "see plan",
   doneTitle: "done today",
-  doneEmpty: "nothing yet. hold fn ⇧ and ask me anything.",
-  ways: [
-    { keys: ["fn", "⇧"], names: "fn and Shift", title: "hold and talk", hint: "let go, and i act." },
-    { bubble: "hey zoya", title: "just say it", hint: "hands free, eyes free." },
-    { keys: ["⌘", "K"], names: "Command K", title: "or type it", hint: "right here." },
-  ],
+  get doneEmpty() {
+    return `nothing yet. hold ${hotkey().caps.join(" ")} and ask me anything.`;
+  },
+  get ways() {
+    return [
+      { keys: hotkey().caps, names: hotkey().names, title: "hold and talk", hint: "let go, and i act." },
+      { bubble: "hey zoya", title: "just say it", hint: "hands free, eyes free." },
+      { keys: ["⌘", "K"], names: "Command K", title: "or type it", hint: "right here." },
+    ];
+  },
   replied: "answered you",
   failed: "couldn’t finish",
   timesLabel: (n) => `asked ${n} times`,
@@ -81,7 +92,7 @@ const COPY = {
   permissions: { microphone: "microphone", accessibility: "accessibility", screen: "screen recording", automation: "automation" },
   permissionUse: {
     microphone: "to hear you",
-    accessibility: "for fn ⇧ and pressing buttons",
+    accessibility: "for your keys and pressing buttons",
     screen: "to read the screen",
     automation: "to work inside your apps",
   },
@@ -97,7 +108,9 @@ const COPY = {
   helpLabel: "help",
   report: "send a problem report",
   reportSent: "making the report now. i’ll tell you when it’s on your desktop.",
-  retro: ["your mac, by voice.", "hold fn ⇧,", "and just talk.", "© 2026 zoya"],
+  get retro() {
+    return ["your mac, by voice.", `hold ${hotkey().caps.join(" ")},`, "and just talk.", "© 2026 zoya"];
+  },
   voiceTitle: "voice & keys",
   voiceSub: "how you reach me, and how i look.",
   keysCard: "keys",
@@ -106,6 +119,7 @@ const COPY = {
   pillCard: "the pill",
   pillPosition: "where i sit",
   positions: { bottom: "bottom", notch: "at the notch", left: "left", right: "right" },
+  hotkeys: { "fn-shift": "fn ⇧", "control-option": "⌃ ⌥" },
   readingCard: "reading",
   largerText: "larger captions and text",
   easierLetters: "easier-to-read letters",
@@ -574,18 +588,28 @@ function positions(settings) {
   return line;
 }
 
-function keysRow() {
+function keysRow(settings) {
   const line = node("div", undefined, { class: "row" });
-  const keys = node("span", undefined, { class: "keys inline-keys", role: "img", "aria-label": "fn and Shift" });
-  keys.append(node("kbd", "fn", { "aria-hidden": "true" }), node("kbd", "⇧", { "aria-hidden": "true" }));
-  line.append(textRow(COPY.holdToTalk, COPY.holdHint), keys);
+  const group = node("div", undefined, { class: "segments", role: "radiogroup", "aria-label": COPY.holdToTalk });
+  for (const [value, label] of Object.entries(COPY.hotkeys)) {
+    const choice = node("label", undefined, { "aria-label": HOTKEYS[value].names });
+    const radio = node("input", undefined, { type: "radio", name: "hotkey", value });
+    radio.checked = settings.hotkey === value;
+    radio.addEventListener("change", () => {
+      currentHotkey = value;
+      ask("setSetting", { key: "hotkey", value });
+    });
+    choice.append(radio, label);
+    group.append(choice);
+  }
+  line.append(textRow(COPY.holdToTalk, COPY.holdHint), group);
   return line;
 }
 
 function renderVoice(settings) {
   const [head, title] = heading(COPY.voiceTitle, COPY.voiceTitle, COPY.voiceSub);
   const cards = [
-    card(COPY.keysCard, "keyboard", rows([keysRow()])),
+    card(COPY.keysCard, "keyboard", rows([keysRow(settings)])),
     card(COPY.pillCard, "circle-dot", rows([positions(settings)])),
     card(COPY.readingCard, "type", rows([switchRow("largerText", COPY.largerText, settings), switchRow("easierLetters", COPY.easierLetters, settings)])),
     card(COPY.startCard, "power", rows([switchRow("launchAtLogin", COPY.launchAtLogin, settings)])),
@@ -613,6 +637,7 @@ function stagger(content) {
 
 async function show(page) {
   const data = await ask("getPage", { page });
+  currentHotkey = data?.hotkey || data?.setup?.hotkey || currentHotkey;
   const [content] = RENDER[page](data);
   stagger(content);
   document.getElementById("column").replaceChildren(...content);

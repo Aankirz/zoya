@@ -65,7 +65,7 @@ OFFSET_KEY = "ZoyaPillOffset"
 OPEN_HELP = "Opens Zoya"
 STOP_LABEL = "Stop"
 READY = "Zoya is ready"
-IDLE_TIP = "Hold fn + Shift and talk"
+IDLE_TIP = "Hold {keys} and talk"
 CAPTION_PAD = (18.0, 10.0)
 CAPTION_RADIUS = 20.0
 CHIP_PT = 13.0
@@ -329,6 +329,7 @@ class Pill:
         self.position = "bottom"
         self.anchor = (0.0, 0.0)
         self.hanging = False
+        self.tip = IDLE_TIP.format(keys="fn + Shift")
         self.state, self.words, self.stake, self.how = "", "", "", ""
         self.caption_text, self.caption_heard = "", False
         self.chip_words: tuple[str, ...] = ()
@@ -403,7 +404,8 @@ class Pill:
 
     # --- settings and environment ---------------------------------------------------------
 
-    def configure(self, large: bool, legible: bool, position: str) -> None:
+    def configure(self, large: bool, legible: bool, position: str, keys: str) -> None:
+        self.tip = IDLE_TIP.format(keys=keys)
         if position != self.position:
             Foundation.NSUserDefaults.standardUserDefaults().removeObjectForKey_(OFFSET_KEY)
         self.large, self.legible, self.position = large, legible, position
@@ -489,8 +491,8 @@ class Pill:
         self._paint(look)
         self._pose(look.eyes)
         self.layout()
-        self.spoken_label = f"Zoya: {self.words}" if self.words else f"{READY}. {IDLE_TIP}"
-        self.face.setToolTip_(IDLE_TIP if self.state == "idle" else None)
+        self.spoken_label = f"Zoya: {self.words}" if self.words else f"{READY}. {self.tip}"
+        self.face.setToolTip_(self.tip if self.state == "idle" else None)
         self.panel.orderFrontRegardless()
 
     def _tint(self, tint: tuple[tuple[int, int, int], float]) -> Any:

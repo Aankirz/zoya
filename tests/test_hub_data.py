@@ -175,3 +175,16 @@ def test_the_sidebar_counts_things_done_with_repeats_and_without_failures(
     ]
     _write(logs / "timing.log", rows)
     assert hub_data.done_count(hub_data.today()) == 2
+
+
+def test_with_wispr_flow_installed_the_default_hotkey_stays_off_fn(monkeypatch, tmp_path):
+    from zoya import hotkey
+
+    monkeypatch.setattr(hub_data, "SETTINGS_FILE", tmp_path / "settings.json")
+    monkeypatch.setattr(hotkey, "wispr_flow_installed", lambda: True)
+    hotkey.default_choice.cache_clear()
+    try:
+        assert hub_data.settings()["hotkey"] == "control-option"
+        assert "fn" not in hotkey.chosen()
+    finally:
+        hotkey.default_choice.cache_clear()
