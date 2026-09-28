@@ -18,6 +18,11 @@
 #   --max-budget-usd              print mode only
 #   --output-format stream-json   every tool call, result and permission denial lands in the log
 #   --verbose                     required by stream-json in print mode
+#   --safe-mode                   CLAUDE.md, skills, plugins, hooks, MCP servers, custom commands
+#                                 and agents and auto memory do not load; authentication, built-in
+#                                 tools and permissions work normally. Not --bare: it never reads
+#                                 the subscription login, only ANTHROPIC_API_KEY
+#                                 (https://code.claude.com/docs/en/headless#start-faster-with-bare-mode)
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -105,6 +110,7 @@ claude -p "$prompt" \
   --allowedTools "${allowed[@]}" \
   --append-system-prompt-file "$ROOT/evals/autotune/program.md" \
   --output-format stream-json --verbose \
+  --safe-mode \
   ${budget[@]+"${budget[@]}"} \
   >>"$agent_log" 2>&1 &
 agent=$!
