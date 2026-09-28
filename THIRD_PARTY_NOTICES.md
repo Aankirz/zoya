@@ -34,7 +34,7 @@ The Hub (`zoya/hub/`) and the pill bundle these, each with its full licence besi
 
 - **Lucide icons** (ISC), https://lucide.dev — `zoya/hub/icons/*.svg`, licence in `zoya/hub/icons/LICENSE.txt`.
 - **Inter** (SIL Open Font License 1.1), https://rsms.me/inter — `zoya/hub/fonts/InterVariable.woff2`, licence in `zoya/hub/fonts/Inter-LICENSE.txt`.
-- **Atkinson Hyperlegible Next** (SIL Open Font License 1.1), Braille Institute of America — `zoya/hub/fonts/AtkinsonHyperlegibleNext.ttf`, licence in `zoya/hub/fonts/Atkinson-OFL.txt`.
+- **Atkinson Hyperlegible Next** (SIL Open Font License 1.1), Braille Institute of America — `zoya/hub/fonts/AtkinsonHyperlegibleNext.woff2`, licence in `zoya/hub/fonts/Atkinson-OFL.txt`.
 
 ```
 ISC License

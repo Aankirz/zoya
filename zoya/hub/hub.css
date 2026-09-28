@@ -292,7 +292,7 @@ main {
 
 .card-strip .button {
   position: absolute;
-  right: 8px;
+  inset-inline-end: 8px;
 }
 
 .card-head {
@@ -353,14 +353,14 @@ main {
 .row time,
 .row .trail {
   flex: none;
-  margin-left: auto;
+  margin-inline-start: auto;
   color: var(--quiet);
   font-size: var(--text-small);
   white-space: nowrap;
 }
 
 .times {
-  margin-left: 6px;
+  margin-inline-start: 6px;
   color: var(--quiet);
   font-size: var(--text-small);
   font-weight: 500;
@@ -429,8 +429,10 @@ main {
   transition: transform 120ms var(--ease-out);
 }
 
-.pill-glossy:hover {
-  transform: translateY(-1px);
+@media (hover: hover) {
+  .pill-glossy:hover {
+    transform: translateY(-1px);
+  }
 }
 
 .pill-glossy:active {
@@ -455,8 +457,10 @@ main {
   transition: transform 120ms var(--ease-out);
 }
 
-.button:hover {
-  border-color: var(--field);
+@media (hover: hover) {
+  .button:hover {
+    border-color: var(--field);
+  }
 }
 
 .button:active {
@@ -472,9 +476,14 @@ main {
   opacity: 0;
 }
 
-.row:hover .row-action,
 .row:focus-within .row-action {
   opacity: 1;
+}
+
+@media (hover: hover) {
+  .row:hover .row-action {
+    opacity: 1;
+  }
 }
 
 .ways {
@@ -537,9 +546,14 @@ main {
   display: none;
 }
 
-.entry summary:hover,
 .entry[open] summary {
   background: var(--bg);
+}
+
+@media (hover: hover) {
+  .entry summary:hover {
+    background: var(--bg);
+  }
 }
 
 .facts {
@@ -644,7 +658,7 @@ main {
 .segments {
   display: inline-flex;
   flex: none;
-  margin-left: auto;
+  margin-inline-start: auto;
   padding: 2px;
   border: 1px solid var(--rule);
   border-radius: 999px;

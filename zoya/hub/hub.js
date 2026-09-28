@@ -67,7 +67,7 @@ const COPY = {
   clearHistory: "clear history",
   clearAsk: (n) => `clear all ${n} ${n === 1 ? "request" : "requests"}? this can’t be undone.`,
   clearNothing: "there’s nothing to clear.",
-  clear: "clear",
+  clear: "clear history",
   cancel: "cancel",
   cleared: "history is cleared.",
   clearRefused: "i couldn’t clear it. try again.",

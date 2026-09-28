@@ -16,7 +16,7 @@ import Foundation
 import Quartz
 
 FONT_DIR = Path(__file__).parent / "hub" / "fonts"
-FONT_FILES = ("InterVariable.woff2", "AtkinsonHyperlegibleNext.ttf")
+FONT_FILES = ("InterVariable.woff2", "AtkinsonHyperlegibleNext.woff2")
 FONTS = {
     False: {"semibold": "InterVariable-SemiBold", "bold": "InterVariable-Bold"},
     True: {
