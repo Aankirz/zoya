@@ -58,8 +58,9 @@ const COPY = {
   timesLabel: (n) => `asked ${n} times`,
   historyTitle: "history",
   historyCapsule: "on this mac",
-  historySub: (n) => `${n} ${n === 1 ? "request" : "requests"}. they stay on this mac.`,
-  historyEmpty: "nothing here yet. everything you ask me shows up here, and only on this mac.",
+  historySub: (n) => (n === 0 ? "what you ask stays on this mac." : `${n} ${n === 1 ? "request" : "requests"}. they stay on this mac.`),
+  historyEmpty: "nothing here yet. ask me something, and it shows up here.",
+  historySay: "hey zoya, open notes",
   heard: "heard",
   did: "did",
   said: "said",
@@ -74,9 +75,11 @@ const COPY = {
   clearRefused: "i couldn’t clear it. try again.",
   memoryTitle: "memory",
   memoryCapsule: "only yours",
-  memorySub: (n) => (n === 1 ? "one thing i remember about you." : `${n} things i remember about you.`),
-  memoryCard: "what i remember",
-  memoryEmpty: "nothing yet. tell me something to remember, like “remember that i’m vegetarian.”",
+  memorySub: (n) => (n === 0 ? "i keep what you ask me to." : n === 1 ? "one thing i remember about you." : `${n} things i remember about you.`),
+  memoryEmpty: "nothing yet. tell me something to remember.",
+  memorySay: "remember that i’m vegetarian",
+  thisMonth: "this month",
+  earlier: "earlier",
   delete: "delete",
   deleted: (fact) => `deleted “${fact}”`,
   undo: "undo",
@@ -133,6 +136,15 @@ const COPY = {
   startCard: "start",
   launchAtLogin: "open zoya when you log in",
   sent: (text) => `asked: “${text}”. watch the pill.`,
+  tryAgain: "try again",
+  loadFailed: {
+    today: "i couldn’t load today just now. nothing is lost.",
+    history: "i couldn’t read your history just now. it’s still on this mac.",
+    memory: "i couldn’t read my memory just now. nothing was forgotten.",
+    setup: "i couldn’t check your permissions just now.",
+    voice: "i couldn’t load your settings just now. they haven’t changed.",
+    plan: "i couldn’t reach your plan just now. check your connection.",
+  },
 };
 
 const SPECIFIC = [
@@ -156,9 +168,16 @@ const UNDO_MS = 8000;
 const UNDO_GRACE_MS = 3000;
 const ALLOWANCE_WARN = 0.9;
 const TODAY_ROWS = 6;
+const SKELETON_AFTER_MS = 150;
+const PAGE_WAIT_MS = 8000;
+const PLAN_WAIT_MS = 15000;
+const PLAN_BUDGET_MS = 400;
+const LATE = Symbol("late");
 const pending = new Map();
 let nextId = 1;
-let entered = false;
+let arrived = false;
+let turn = 0;
+let knownPlan = null;
 
 window.zoyaReceive = ({ id, result }) => {
   const resolve = pending.get(id);
@@ -166,10 +185,11 @@ window.zoyaReceive = ({ id, result }) => {
   if (resolve) resolve(result);
 };
 
-function ask(cmd, args = {}) {
+function ask(cmd, args = {}, wait = 0) {
   const id = nextId++;
   return new Promise((resolve) => {
     pending.set(id, resolve);
+    if (wait) setTimeout(() => pending.delete(id) && resolve(LATE), wait);
     window.webkit.messageHandlers.zoya.postMessage(JSON.stringify({ cmd, id, args }));
   });
 }
@@ -355,12 +375,13 @@ function dollars(cents) {
   return new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" }).format(cents / 100);
 }
 
-async function allowanceNeed(list, box) {
-  const { plan } = await ask("getPage", { page: "plan" });
-  if (!plan || !plan.capCents || plan.usedCents / plan.capCents < ALLOWANCE_WARN) return;
+function allowanceLow(plan) {
+  return Boolean(plan && plan.capCents && plan.usedCents / plan.capCents >= ALLOWANCE_WARN);
+}
+
+function allowanceNeed(plan) {
   const left = dollars(Math.max(plan.capCents - plan.usedCents, 0));
-  list.append(needRow(COPY.allowanceLow, COPY.allowanceWhy(left), button(COPY.openPlan, () => (location.hash = "plan"), "pill-glossy")));
-  box.hidden = false;
+  return needRow(COPY.allowanceLow, COPY.allowanceWhy(left), button(COPY.openPlan, () => (location.hash = "plan"), "pill-glossy"));
 }
 
 function waysGrid() {
@@ -381,17 +402,17 @@ function waysGrid() {
   return grid;
 }
 
-function renderToday({ entries, setup, name, state }) {
+function renderToday({ entries, setup, name, state, plan }) {
   const needs = permissionNeeds(setup);
+  if (allowanceLow(plan)) needs.push(allowanceNeed(plan));
   const sub = COPY.doneToday(doneCount(entries)) + COPY.needsCount(needs.length);
   const [head, title] = heading(`${COPY.today} · ${shortDate(new Date())}`, greeting(name), sub, livePill(state));
   const needList = rows(needs);
   const needCard = card(COPY.needsTitle, "circle-alert", needList);
   needCard.hidden = needs.length === 0;
-  allowanceNeed(needList, needCard);
   const done = entries.length
     ? rows(entries.slice(0, TODAY_ROWS).map((entry) => entryRow(entry)))
-    : node("p", COPY.doneEmpty, { class: "row sub" });
+    : node("p", COPY.doneEmpty, { class: "empty" });
   return [[head, needCard, card(COPY.doneTitle, "check", done), waysGrid()], title];
 }
 
@@ -433,11 +454,10 @@ function renderHistory({ entries }) {
     head.append(node("div"), clear);
   }
   page.push(node("div", undefined, { id: "clear-slot" }));
-  if (!entries.length) return [[...page, node("p", COPY.historyEmpty, { class: "empty" })], title];
+  if (!entries.length) return [[...page, emptyCard(COPY.historyEmpty, COPY.historySay)], title];
   for (const [day, group] of Map.groupBy(entries, (e) => dayOf(e.at))) {
     page.push(node("span", day, { class: "capsule day" }));
-    const box = node("section", undefined, { class: "card", "aria-label": day });
-    box.style.marginTop = "14px";
+    const box = node("section", undefined, { class: "card is-close", "aria-label": day });
     box.append(rows(group.map(historyEntry)));
     page.push(box);
   }
@@ -473,9 +493,18 @@ function dateOf(at) {
   return new Date(at).toLocaleDateString("en-GB", { day: "numeric", month: "short" }).toLowerCase();
 }
 
-function memoryRow(item, list) {
-  const line = node("li", undefined, { class: "row" });
-  const remove = button(COPY.delete, () => softDelete(line, item, list), "button row-action");
+function monthOf(at) {
+  const day = new Date(at);
+  if (!at || Number.isNaN(day.getTime())) return COPY.earlier;
+  const now = new Date();
+  if (day.getFullYear() === now.getFullYear() && day.getMonth() === now.getMonth()) return COPY.thisMonth;
+  const year = day.getFullYear() === now.getFullYear() ? {} : { year: "numeric" };
+  return day.toLocaleDateString("en-GB", { month: "long", ...year }).toLowerCase();
+}
+
+function memoryRow(item, list, group) {
+  const line = node("li", undefined, { class: "row is-top" });
+  const remove = button(COPY.delete, () => softDelete(line, item, list, group), "button row-action");
   remove.prepend(icon("trash-2"));
   remove.setAttribute("aria-label", `delete: ${item.content}`);
   const words = textRow(item.content);
@@ -527,12 +556,29 @@ function softDelete(line, item, list) {
   });
 }
 
+function emptyCard(text, say) {
+  const box = node("section", undefined, { class: "card" });
+  const body = node("div", undefined, { class: "empty" });
+  body.append(node("p", text));
+  if (say) body.append(node("span", say, { class: "bubble-glossy" }));
+  box.append(body);
+  return box;
+}
+
 function renderMemory({ items }) {
   const [head, title] = heading(COPY.memoryCapsule, COPY.memoryTitle, COPY.memorySub(items.length));
-  if (!items.length) return [[head, node("p", COPY.memoryEmpty, { class: "empty" })], title];
-  const list = rows([]);
-  for (const item of items) list.append(memoryRow(item, list));
-  return [[head, card(COPY.memoryCard, "brain", list)], title];
+  if (!items.length) return [[head, emptyCard(COPY.memoryEmpty, COPY.memorySay)], title];
+  const page = [head];
+  for (const [month, group] of Map.groupBy(items, (item) => monthOf(item.at))) {
+    const section = node("section", undefined, { class: "group", "aria-label": month });
+    const box = node("div", undefined, { class: "card is-close" });
+    const list = rows([]);
+    for (const item of group) list.append(memoryRow(item, list, section));
+    box.append(list);
+    section.append(node("span", month, { class: "capsule day" }), box);
+    page.push(section);
+  }
+  return [page, title];
 }
 
 function kv(lines) {
@@ -547,8 +593,8 @@ function kv(lines) {
 
 function renderPlan({ plan }) {
   if (!plan) {
-    const [head, title] = heading(COPY.planCapsule, COPY.planTitle, COPY.planMissing);
-    return [[head], title];
+    const [head, title] = heading(COPY.planCapsule, COPY.planTitle);
+    return [[head, emptyCard(COPY.planMissing)], title];
   }
   const month = new Date(`${plan.month}-01T12:00:00`).toLocaleDateString("en-GB", { month: "long" }).toLowerCase();
   const [head, title] = heading(COPY.planCapsule, COPY.planTitle, COPY.planSub(month));
@@ -669,21 +715,107 @@ function announce(text) {
   requestAnimationFrame(() => (live.textContent = text));
 }
 
-function stagger(content) {
-  if (entered) return;
-  entered = true;
-  content.forEach((part, i) => {
-    part.classList.add("enter");
-    part.style.setProperty("--i", String(i));
+function heads(page) {
+  const heads = {
+    today: [`${COPY.today} · ${shortDate(new Date())}`],
+    history: [COPY.historyCapsule, COPY.historyTitle],
+    memory: [COPY.memoryCapsule, COPY.memoryTitle],
+    setup: [COPY.setupCapsule, COPY.setupTitle],
+    voice: [COPY.voiceCapsule, COPY.voiceTitle],
+    plan: [COPY.planCapsule, COPY.planTitle],
+  };
+  return heads[page];
+}
+
+function bone(kind) {
+  return node("span", undefined, { class: `bone is-${kind}`, "aria-hidden": "true" });
+}
+
+function boneHead(page) {
+  const [capsule, title] = heads(page);
+  const head = node("header");
+  head.append(node("span", capsule, { class: "capsule" }), title ? node("h1", title, { class: "headline" }) : bone("title"), bone("sub"));
+  if (page === "today") head.append(bone("live"));
+  return head;
+}
+
+function boneRows(count, lead) {
+  const list = node("ul", undefined, { class: "rows" });
+  for (let i = 0; i < count; i++) {
+    const line = node("li", undefined, { class: "row" });
+    const words = node("span", undefined, { class: "row-text" });
+    words.append(bone("line"), bone("detail"));
+    if (lead) line.append(bone(lead));
+    line.append(words, bone("trail"));
+    list.append(line);
+  }
+  return list;
+}
+
+function skeleton(page) {
+  const head = boneHead(page);
+  const shapes = {
+    today: () => [card(COPY.doneTitle, "check", boneRows(4, "app")), waysGrid()],
+    history: () => [bone("capsule"), node("section", undefined, { class: "card is-close" })],
+    memory: () => [bone("capsule"), node("div", undefined, { class: "card is-close" })],
+    setup: () => [card(COPY.permissionsCard, "list-checks", boneRows(4, "dot")), card(COPY.macCard, "laptop", boneRows(3))],
+    voice: () => [card(COPY.keysCard, "keyboard", boneRows(1)), card(COPY.pillCard, "circle-dot", boneRows(1)), card(COPY.readingCard, "type", boneRows(2)), card(COPY.startCard, "power", boneRows(1))],
+    plan: () => [card(COPY.planCard, "circle-dot", bone("meter"), boneRows(3))],
+  };
+  const parts = shapes[page]();
+  if (page === "history") parts[1].append(boneRows(6, "app"));
+  if (page === "memory") parts[1].append(boneRows(4));
+  return [head, ...parts];
+}
+
+function failed(page) {
+  const [capsule, title] = heads(page);
+  const [head] = heading(capsule, title || greeting());
+  const box = node("div", undefined, { class: "notice", role: "alert" });
+  box.append(icon("circle-alert"), node("p", COPY.loadFailed[page]), button(COPY.tryAgain, () => show(page)));
+  return [head, box];
+}
+
+function paint(content, busy) {
+  const column = document.getElementById("column");
+  column.replaceChildren(...content);
+  column.setAttribute("aria-busy", String(busy));
+  if (arrived) return;
+  arrived = true;
+  column.classList.add("is-arriving");
+  after(column).then(() => column.classList.remove("is-arriving"));
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(() => resolve(LATE), ms));
+}
+
+async function withPlan(mine, data) {
+  const plan = ask("getPage", { page: "plan" }, PLAN_WAIT_MS).then((reply) => (reply === LATE ? knownPlan : (knownPlan = reply.plan)));
+  const first = await Promise.race([plan, wait(PLAN_BUDGET_MS)]);
+  data.plan = first === LATE ? knownPlan : first;
+  if (first !== LATE) return;
+  plan.then((fresh) => {
+    if (mine === turn && allowanceLow(fresh) !== allowanceLow(data.plan)) paint(RENDER.today({ ...data, plan: fresh })[0], false);
   });
 }
 
 async function show(page) {
-  const data = await ask("getPage", { page });
-  currentHotkey = data?.hotkey || data?.setup?.hotkey || currentHotkey;
-  const [content] = RENDER[page](data);
-  stagger(content);
-  document.getElementById("column").replaceChildren(...content);
+  const mine = ++turn;
+  const slow = setTimeout(() => mine === turn && paint(skeleton(page), true), SKELETON_AFTER_MS);
+  const data = await ask("getPage", { page }, page === "plan" ? PLAN_WAIT_MS : PAGE_WAIT_MS);
+  if (page === "today" && data !== LATE) await withPlan(mine, data);
+  clearTimeout(slow);
+  if (mine !== turn) return;
+  let content;
+  try {
+    if (data === LATE) throw new Error(page);
+    currentHotkey = data.hotkey || data.setup?.hotkey || currentHotkey;
+    [content] = RENDER[page](data);
+  } catch {
+    content = failed(page);
+  }
+  paint(content, false);
   document.title = `zoya · ${TITLES[page]}`;
   window.scrollTo(0, 0);
   ask("pageState", { page });
