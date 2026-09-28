@@ -461,10 +461,10 @@ SEARCH_SUBMIT_RISKY = re.compile(
 def search_submit(facts: ClickFacts) -> bool:
     """D138 (a): a GET search submit is D75 "navigate" only when every strict condition holds.
 
-    The submit really goes by GET (the button's formmethod, else the form's method) and its form
-    holds a searchbox or type=search field (the page fact), the control's names carry no risky
-    word, and neither the page nor where the form goes (formaction, else action) is a cart,
-    checkout, payment or order path (D148 G1/G2).
+    The submit really goes by GET (the button's formmethod, else the form's method), its form is
+    a search landmark or holds a searchbox or type=search field (the page fact), the control's
+    names carry no risky word, and neither the page nor where the form goes (formaction, else
+    action) is a cart, checkout, payment or order path (D148 G1/G2).
     """
     if not (facts.is_submit and facts.search_form):
         return False
@@ -562,6 +562,7 @@ def click_risk(facts: ClickFacts) -> RiskyLabel | None:
             for label in facts.labels
             for found in label_hits(label)
             if not (found.kind == "checkout" and date_clears(facts, label))
+            and not (found.say == "Submit" and search_clears(facts, label))
         ]
     )
     if hit and hit.kind == "purchase" and payment_blocked_host(facts.host):
@@ -582,6 +583,15 @@ def click_risk(facts: ClickFacts) -> RiskyLabel | None:
     if commerce_path(facts.path) or CURRENCY_AMOUNT.search(facts.nearby_text):
         return RiskyLabel("context", f"click {name}")
     return None
+
+
+SEARCH_WORD = re.compile(r"(?:^| )search(?: |$)")
+
+
+def search_clears(facts: ClickFacts, label: str) -> bool:
+    """D138 (a) with D148: "Submit search" on a strict GET search submit is the search, not a
+    submit. Only that label's "submit" hit is cleared; any other risky word still asks."""
+    return bool(SEARCH_WORD.search(normalise(label))) and search_submit(facts)
 
 
 def date_clears(facts: ClickFacts, label: str) -> bool:

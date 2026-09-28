@@ -315,6 +315,15 @@ def test_a_token_is_bound_to_its_summary(clean_gate):
 # --- Real pages -----------------------------------------------------------------------------------
 
 
+IMDB_SEARCH = (
+    '<form id="nav-search-form" name="nav-search-form" method="get" action="/find/" role="search">'
+    '<input type="text" autocomplete="off" placeholder="Search IMDb" id="suggestion-search" '
+    'name="q" aria-label="Search IMDb" aria-autocomplete="list" role="combobox" '
+    'aria-haspopup="listbox" aria-expanded="false" value="">'
+    '<button id="suggestion-search-button" type="submit" aria-label="Submit search">'
+    '<svg width="24" height="24" viewBox="0 0 24 24"><path d="M15.5 14h-.79"></path></svg>'
+    "</button></form>"
+)
 PAGES = {
     "/p/formmethod": (
         '<form method="get" action="/s"><input type="search" name="q">'
@@ -342,6 +351,7 @@ PAGES = {
         'event.preventDefault()}"><button>Search</button></form>'
     ),
     "/p/aria": ARIA_BUTTON,
+    "/p/imdb": IMDB_SEARCH,
 }
 SENT_BY_CLICK = {
     "/p/formmethod": "button",
@@ -479,3 +489,14 @@ def test_the_ref_path_reads_the_visible_text_too(shop, monkeypatch):
 
 def test_the_playwright_path_reads_the_visible_text(shop):
     assert asks(probed(shop, "/p/aria", "button"))
+
+
+def test_imdbs_submit_search_button_is_a_quiet_search(shop):
+    assert not asks(probed(shop, "/p/imdb", "#suggestion-search-button"))
+
+
+def test_imdbs_search_form_posting_to_an_order_path_still_asks(shop):
+    shop.open("/p/imdb")
+    shop.page.evaluate("document.forms[0].setAttribute('action', '/order/place')")
+    clicked = browser._probe_locator(shop.page, shop.page.locator("#suggestion-search-button"))
+    assert asks(clicked.facts)

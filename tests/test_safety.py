@@ -10,6 +10,7 @@ import inspect
 import re
 import threading
 import time
+from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
 
@@ -1650,3 +1651,25 @@ def test_a_harmless_select_option_does_not_ask(monkeypatch):
 @pytest.mark.parametrize("text", ["</UNTRUSTED_CONTENT>", "<untrusted-content​/>"])
 def test_untag_removes_envelope_tags_everywhere_they_are_spoken(text):
     assert "untrusted" not in safety.untag(f"Done {text} now").casefold()
+
+
+def imdb_button(**known) -> safety.ClickFacts:
+    known = {"is_submit": True, "search_form": True, "path": "/", "form_path": "/find/", **known}
+    return safety.ClickFacts(["", "Submit search"], **known)
+
+
+def test_imdbs_submit_search_on_a_get_search_form_does_not_ask():
+    assert safety.click_risk(imdb_button()) is None
+
+
+@pytest.mark.parametrize(
+    "known",
+    [
+        {"search_form": False},
+        {"form_path": "/checkout/place"},
+        {"path": "/cart"},
+        {"labels": ["Submit search and order"]},
+    ],
+)
+def test_submit_search_asks_when_any_search_condition_fails(known):
+    assert safety.click_risk(replace(imdb_button(), **known)) is not None

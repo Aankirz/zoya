@@ -1135,7 +1135,8 @@ SEARCH_FORM_JS = """(e => { const f = e.form || e.closest('form');
   const method = e.hasAttribute('formmethod') ? e.getAttribute('formmethod')
     : (f.getAttribute('method') || 'get');
   return method.trim().toLowerCase() === 'get'
-    && !!f.querySelector('input[type=search i], [role=searchbox]'); })"""
+    && (f.getAttribute('role') === 'search'
+      || !!f.querySelector('input[type=search i], [role=searchbox]')); })"""
 FORM_PATH_JS = """(e => { const f = e.form || e.closest('form');
   if (!f && !e.hasAttribute('formaction')) return '';
   const raw = e.hasAttribute('formaction') ? e.getAttribute('formaction')
