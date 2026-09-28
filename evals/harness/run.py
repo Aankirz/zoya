@@ -48,6 +48,9 @@ RUN_ID = f"{secrets.randbelow(9000) + 1000}"
 NOTHING_LEFT = ("", "0")
 
 
+TOOL_INPUT_CHARS = 120
+
+
 @dataclass
 class Run:
     id: str
@@ -127,7 +130,10 @@ def install_meters() -> None:
     def before_tool(self: Any, event: Any) -> None:
         meter.count("steps")
         if meter.run is not None:
-            meter.run.tools.append(str(event.tool_use.get("name", "")))
+            tool_input = json.dumps(event.tool_use.get("input", {}), ensure_ascii=False)
+            meter.run.tools.append(
+                f"{event.tool_use.get('name', '')} {tool_input[:TOOL_INPUT_CHARS]}"
+            )
         original_before_tool(self, event)
 
     safety.ConfirmationGate.before_tool = before_tool
