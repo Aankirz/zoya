@@ -4,11 +4,12 @@
 export const CONTACT_EMAIL = "sahuankit453@gmail.com";
 
 export const META = {
-  title: "zoya · your mac, by voice, for people who can't see the screen",
+  title: "zoya · your mac, by voice",
   ogTitle: "zoya · your mac, by voice",
+  // Describes public/og.jpg as it is: the image still shows the pre-launch subline until it is re-shot.
   ogImageAlt: "zoya: your mac, by voice. made for people who can't see the screen.",
   description:
-    "zoya lets people who can't see the screen use their mac by voice: say what you want done, and zoya does it.",
+    "zoya is a voice assistant for the mac. hold fn and shift, say what you want, let go, and zoya does it across your apps and websites.",
 };
 
 export const SKIP_LINK = "skip to the waitlist";
@@ -18,7 +19,7 @@ export const MENU = {
   links: [
     { href: "#demo", label: "watch" },
     { href: "#abilities", label: "what zoya does" },
-    { href: "#get-zoya", label: "get zoya" },
+    { href: "#pricing", label: "pricing" },
     { href: "#faq", label: "faq" },
   ],
   cta: "join the waitlist",
@@ -26,14 +27,28 @@ export const MENU = {
 
 export const HERO = {
   title: "zoya",
-  subline: "your mac, by voice. made for people who can't see the screen.",
+  subline: "your mac, by voice. hold fn and shift, say what you want, and it's done.",
+};
+
+// Push-to-talk as shipped: hold fn + Shift, speak, release (zoya/voice.py module docstring, PUSH_TO_TALK_KEYS).
+// The confirm gate is the same one CHARGE shows.
+export const HOW = {
+  label: "how it works",
+  title: "hold. say it. let go.",
+  stepLabel: "step",
+  steps: [
+    { title: "hold fn and shift.", line: "in any app, on any website. zoya is listening." },
+    { title: "say it.", line: "in your own words, the way you'd ask a friend." },
+    { title: "let go.", line: "zoya takes it from there, across your apps and the web." },
+    { title: "done.", line: "and anything that pays, sends or deletes still waits for your “confirm”." },
+  ],
 };
 
 export const WHY = {
   label: "why zoya",
-  title: "the computer was built for people who can see.",
-  body: "apps, the internet, and now ai agents. all of it assumes you can see the screen. zoya hands that power to people who can't. say what you want, and zoya does it for you.",
-  closer: "a screen reader tells you what's there. zoya does what you meant.",
+  title: "your mac should do what you mean.",
+  body: "every app and every website asks you to find the right button. zoya doesn't. say what you want in your own words, and zoya does it for you, across your apps and the web.",
+  closer: "built first for people who can't see the screen. made for everyone.",
 };
 
 // The owner's own demo (youtube oEmbed: "Zoya Demo", Ankit Kiran). The thumbnail is served from
@@ -134,51 +149,11 @@ export const APP_WINDOWS = {
   password: { title: "sign in", waiting: "zoya is waiting" },
 };
 
-const DAILY_COMMAND = "cd zoya && ./start.sh";
-
-// The real install flow is ../start.sh. Every command here must work on a fresh Apple Silicon Mac.
-export const GET_ZOYA = {
-  label: "get zoya",
-  title: "one command. then just talk.",
-  needs: "you need a mac with apple silicon, google chrome, and an openai api key.",
-  windowTitle: "terminal",
-  command: "git clone https://github.com/Aankirz/zoya.git && cd zoya && ./start.sh",
-  // Where the URL may wrap on a narrow screen (rendered as <wbr>), so it never splits mid-word.
-  commandBreakAfter: "https://github.com/",
-  copyLabel: "copy install command",
-  copy: "copy",
-  copied: "copied",
-  stepLabel: "step",
-  steps: [
-    {
-      title: "open terminal and paste this.",
-      line: "if your mac offers to install developer tools, say yes, then paste it again.",
-      showCommand: true,
-      command: "",
-    },
-    {
-      title: "paste your keys when asked.",
-      line: "only the openai key is required. your keys stay in a file on your mac.",
-      showCommand: false,
-      command: "",
-    },
-    {
-      title: "let zoya hear, see and click.",
-      // A reopened terminal starts in the home folder, so the rerun needs `cd zoya` too.
-      line: "in system settings, privacy & security, allow terminal for microphone, accessibility and screen recording. quit terminal, open it again, and type",
-      command: DAILY_COMMAND,
-      showCommand: false,
-    },
-  ],
-  after: "every day after: open terminal, type",
-  afterCommand: DAILY_COMMAND,
-};
-
 // Each phrase checked against zoya/router.py, the skill triggers and zoya/shutdown.py.
 export const TALK = {
   label: "talk to zoya",
-  title: "say “hey zoya”. then say what you want.",
-  line: "or hold fn and shift while you talk.",
+  title: "hold fn and shift. say what you want.",
+  line: "or start with “hey zoya”. or press ⌘k in zoya's window and type.",
   phrases: [
     { say: "hey zoya, open youtube", result: "opens it in your browser." },
     { say: "hey zoya, what's the weather in bangalore?", result: "tells you, out loud." },
@@ -187,6 +162,20 @@ export const TALK = {
     { say: "hey zoya, play tum hi ho by arijit singh on spotify", result: "starts the song." },
     { say: "zoya, stop", result: "stops what it's doing." },
     { say: "zoya, quit", result: "closes zoya. so does control, shift and escape." },
+  ],
+};
+
+// One plan, and the waitlist is the only way in: no checkout on the site yet.
+// Local transcription: STT_MODEL_REPO in zoya/config.py (mlx whisper). ⌘K: aria-keyshortcuts="Meta+K" in zoya/hub/index.html.
+export const PRICING = {
+  label: "pricing",
+  title: "one plan. $20 a month.",
+  line: "everything zoya does, for one price.",
+  items: [
+    { title: "everything included.", line: "shopping, music, slides and the rest. no tiers, no add-ons." },
+    { title: "no api keys.", line: "nothing to find, copy or paste." },
+    { title: "runs on your mac.", line: "hold fn and shift, say “hey zoya”, or press ⌘k in zoya's window and type." },
+    { title: "private.", line: "what you say is transcribed right on your mac." },
   ],
 };
 
@@ -199,6 +188,14 @@ export const FAQ = {
       a: "no. zoya looks at your screen only when a task needs it, like when you ask “what's on my screen?”. it listens for “hey zoya” right on your mac, and your voice recordings stay there.",
     },
     {
+      q: "who is zoya for?",
+      a: "anyone with a mac. and if you can't see the screen, zoya is fully built for you too.",
+    },
+    {
+      q: "how much does it cost?",
+      a: "$20 a month, with everything included. you don't need an api key.",
+    },
+    {
       q: "does zoya replace voiceover?",
       a: "no. keep voiceover for moving around your mac. zoya works right alongside it and takes on whole tasks.",
     },
@@ -209,7 +206,7 @@ export const FAQ = {
     { q: "which mac do i need?", a: "a mac with apple silicon and an internet connection." },
     {
       q: "when can i get it?",
-      a: "today. it's open source. follow the steps in get zoya, or join the waitlist to hear when installing gets even easier.",
+      a: "soon. join the waitlist, and we'll email you when zoya is ready.",
     },
   ],
 };

@@ -2,7 +2,6 @@ import { AppWindow } from "./components/AppWindows";
 import { DemoVideo } from "./components/DemoVideo";
 import { FolderWordmark } from "./components/FolderWordmark";
 import { HelloWindow } from "./components/HelloWindow";
-import { InstallCommand } from "./components/InstallCommand";
 import { MenuBar } from "./components/MenuBar";
 import { FolderIcon, HeroProps, TrashIcon } from "./components/Props";
 import { Waveform } from "./components/Talk";
@@ -10,7 +9,7 @@ import { TypingBubble } from "./components/TypingBubble";
 import { VisitorCount } from "./components/VisitorCount";
 import { WaitlistForm } from "./components/WaitlistForm";
 import { AppKind } from "./components/AppWindows";
-import { ABILITIES, CHARGE, CONTACT_EMAIL, DEMO, FAQ, FOOTER, GET_ZOYA, HERO, SKIP_LINK, TALK, WHY } from "./copy";
+import { ABILITIES, CHARGE, CONTACT_EMAIL, DEMO, FAQ, FOOTER, HERO, HOW, PRICING, SKIP_LINK, TALK, WHY } from "./copy";
 import { OutlinePlus } from "./icons/rune";
 import { getVisitorCount } from "@/lib/visitors";
 
@@ -18,6 +17,7 @@ import { getVisitorCount } from "@/lib/visitors";
 export const revalidate = 60;
 
 const HERO_FORM = "hero";
+const PRICING_FORM = "pricing";
 
 type Row = { readonly say: string; readonly title: string; readonly line: string; readonly window: AppKind };
 
@@ -62,6 +62,24 @@ export default async function Home() {
           <HelloWindow />
         </section>
 
+        <section className="abilities install" id="how">
+          <p className="capsule" aria-hidden="true">
+            {HOW.label}
+          </p>
+          <h2 className="section-title">{HOW.title}</h2>
+          <ol className="ability-list install-steps">
+            {HOW.steps.map((step, index) => (
+              <li className="ability install-step" key={step.title}>
+                <span className="capsule" aria-hidden="true">
+                  {HOW.stepLabel} {index + 1}
+                </span>
+                <h3 className="ability-title">{step.title}</h3>
+                <p className="ability-line">{step.line}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
+
         <section className="why" id="why">
           <p className="capsule" aria-hidden="true">
             {WHY.label}
@@ -92,37 +110,6 @@ export default async function Home() {
           <FeatureRows rows={CHARGE.items} />
         </section>
 
-        <section className="abilities install" id="get-zoya">
-          <p className="capsule" aria-hidden="true">
-            {GET_ZOYA.label}
-          </p>
-          <h2 className="section-title">{GET_ZOYA.title}</h2>
-          <p className="install-needs">{GET_ZOYA.needs}</p>
-          <ol className="ability-list install-steps">
-            {GET_ZOYA.steps.map((step, index) => (
-              <li className="ability install-step" key={step.title}>
-                <span className="capsule" aria-hidden="true">
-                  {GET_ZOYA.stepLabel} {index + 1}
-                </span>
-                <h3 className="ability-title">{step.title}</h3>
-                {step.showCommand ? <InstallCommand /> : null}
-                <p className="ability-line">
-                  {step.line}
-                  {step.command ? (
-                    <>
-                      {" "}
-                      <code className="inline-command">{step.command}</code>
-                    </>
-                  ) : null}
-                </p>
-              </li>
-            ))}
-          </ol>
-          <p className="ability-line install-after">
-            {GET_ZOYA.after} <code className="inline-command">{GET_ZOYA.afterCommand}</code>
-          </p>
-        </section>
-
         <section className="abilities install" id="talk">
           <p className="capsule" aria-hidden="true">
             {TALK.label}
@@ -138,6 +125,26 @@ export default async function Home() {
               </li>
             ))}
           </ul>
+        </section>
+
+        <section className="abilities install" id="pricing">
+          <p className="capsule" aria-hidden="true">
+            {PRICING.label}
+          </p>
+          <h2 className="section-title">{PRICING.title}</h2>
+          <p className="install-needs">{PRICING.line}</p>
+          <ul className="ability-list install-steps">
+            {PRICING.items.map((item) => (
+              <li className="ability install-step" key={item.title}>
+                <h3 className="ability-title">{item.title}</h3>
+                <p className="ability-line">{item.line}</p>
+              </li>
+            ))}
+          </ul>
+          {/* The step row's centred grid, so the form sits centred like it does in the hero. */}
+          <div className="ability install-step">
+            <WaitlistForm idPrefix={PRICING_FORM} />
+          </div>
         </section>
 
         <section className="faq" id="faq">
