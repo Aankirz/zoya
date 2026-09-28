@@ -31,7 +31,7 @@ from pathlib import Path
 from typing import Any
 
 from strands import tool
-from typesafe_sdk import Choice
+from typesafe_sdk import Choice, Noul
 
 from zoya import decisions, safety
 from zoya.config import (
@@ -492,3 +492,46 @@ def browser_task(goal: str) -> str:
 
 
 TOOLS = [browser_task]
+
+
+CLAIMS_QUESTION = (
+    "Does the assistant's reply say it completed an action on the website, such as opened, "
+    "played, searched, posted, subscribed, added or booked something?"
+)
+SUPPORTED_QUESTION = (
+    "Does the page Zoya's browser shows now support that the action the reply claims was "
+    "completed really happened?"
+)
+CLAIM_STATE = "The assistant's reply: {reply!r}\nPage: {title} ({url})\n{page}"
+HONEST_SAY = "I couldn't confirm that on the page. It now shows {title}."
+
+
+def honest_reply(reply: str) -> str:
+    """D138 (b): a completion the page doesn't support becomes what the page does show.
+
+    One Jev call with two Nouls. It only ever makes the reply more honest: Jev unavailable, an
+    unreadable page, or no claim leaves the reply exactly as the brain wrote it.
+    """
+    try:
+        page = observe()
+    except Exception:  # noqa: BLE001 — a check that can't run changes nothing (D138 b)
+        return reply
+    title = clean(page.get("title", "")) or "the same page"
+    answers = decisions.ask(
+        CLAIM_STATE.format(
+            reply=reply,
+            title=title,
+            url=page.get("url", ""),
+            page=safety.wrap_untrusted(page.get("text", "")),
+        ),
+        {
+            "claims": Noul(instructions=CLAIMS_QUESTION),
+            "supported": Noul(instructions=SUPPORTED_QUESTION),
+        },
+    )
+    if not answers or not {"claims", "supported"} <= answers.answers.keys():
+        return reply
+    claims, supported = answers.noul("claims"), answers.noul("supported")
+    if claims >= JEV_STEP_CONFIDENCE and supported < JEV_STEP_CONFIDENCE:
+        return HONEST_SAY.format(title=title)
+    return reply

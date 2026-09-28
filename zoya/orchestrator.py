@@ -20,7 +20,7 @@ import threading
 import time
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from functools import cache
 from typing import Any
@@ -39,6 +39,7 @@ from strands.tools.executors import SequentialToolExecutor
 from strands.types.exceptions import EventLoopException
 
 from zoya import aws, events, harness, hub_data, safety, speculate, speech, tasks
+from zoya.agents import web_loop
 from zoya.config import (
     BRAIN_STEP_REASONING_EFFORT,
     LOG_DIR,
@@ -178,6 +179,18 @@ class SentenceStream:
         return rest
 
 
+@dataclass
+class HeldReply:
+    """After a browser tool, the current turn's sentences wait: a tool call releases them as
+    narration, and what is left at the end is the final answer, checked before it is said."""
+
+    browser_used: bool = False
+    sentences: list[str] = field(default_factory=list)
+
+
+BROWSER_TOOL_PREFIX = "browser_"
+
+
 # --- Orchestrator -----------------------------------------------------------------
 
 _cancel = threading.Event()  # outside a Task Manager task (tests, evals); tasks have their own
@@ -260,14 +273,28 @@ def build_orchestrator(
     )
 
 
-def _speak_stream(sentences: SentenceStream, spoken: list[str] | None = None) -> Any:
+def _speak_stream(
+    sentences: SentenceStream, spoken: list[str] | None = None, held: HeldReply | None = None
+) -> Any:
+    def say(sentence: str) -> None:
+        tasks.say(sentence)
+        if spoken is not None:
+            spoken.append(sentence)
+
     def handler(**kwargs: Any) -> None:
         if cancel_signal().is_set():
             return  # stopped: Strands ends the stream at its next checkpoint; say nothing more
+        tool = (kwargs.get("current_tool_use") or {}).get("name", "")
+        if tool and held is not None:
+            for sentence in held.sentences:
+                say(sentence)
+            held.sentences.clear()
+            held.browser_used = held.browser_used or tool.startswith(BROWSER_TOOL_PREFIX)
         for sentence in sentences.feed(kwargs.get("data", "")):
-            tasks.say(sentence)
-            if spoken is not None:
-                spoken.append(sentence)
+            if held is not None and held.browser_used:
+                held.sentences.append(sentence)
+            else:
+                say(sentence)
 
     return handler
 
@@ -330,9 +357,11 @@ def _compact_block(block: dict[str, Any]) -> dict[str, Any]:
 def run_orchestrator(command: str, timings: dict[str, int] | None = None, skill: str = "") -> str:
     """Speak the brain's answer sentence by sentence as it streams; return the full text."""
     history = [message for turn in _conversation for message in turn]
-    sentences, spoken = SentenceStream(), []
+    sentences, spoken, held = SentenceStream(), [], HeldReply()
     agent = build_orchestrator(
-        messages=list(history), callback_handler=_speak_stream(sentences, spoken), skill=skill
+        messages=list(history),
+        callback_handler=_speak_stream(sentences, spoken, held),
+        skill=skill,
     )
     if timings is not None:
         timings[STREAMED] = 1
@@ -355,10 +384,18 @@ def run_orchestrator(command: str, timings: dict[str, int] | None = None, skill:
     if result.stop_reason == "cancelled" or cancel_signal().is_set():
         _remember_interrupted(command, spoken)
         raise TaskCancelled
-    tasks.say(sentences.flush())
+    reply = str(result).strip() or "Done."
+    if held.browser_used:
+        final = " ".join([*held.sentences, sentences.flush()]).strip()
+        honest = web_loop.honest_reply(final) if final else final
+        tasks.say(honest)
+        if honest != final:
+            reply = honest
+    else:
+        tasks.say(sentences.flush())
     _conversation.append(compact_turn(agent.messages[len(history) :]))
     del _conversation[:-MAX_CONVERSATION_TURNS]
-    return str(result).strip() or "Done."
+    return reply
 
 
 def _invoke(agent: Agent, command: str) -> Any:
