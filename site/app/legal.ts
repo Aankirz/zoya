@@ -109,9 +109,9 @@ export const TERMS: LegalDoc = {
   ],
 };
 
-// Sources, all in the repo: zoya/config.py (STT_MODEL_REPO, RELAY_URL, MEMORY_SERVER_*, LOG_DIR),
+// Sources, all in the repo: zoya/config.py (STT_MODEL_REPO, RELAY_URL, MEMORY_LOCAL_FILE, LOG_DIR),
 // zoya/speech.py (_engines: Polly via the relay with a license), zoya/models.py (store=False), zoya/decisions.py
-// (_endpoint: Jev via the relay), zoya/memory_server.py (local server, telemetry off), zoya/hub_data.py (history from
+// (_endpoint: Jev via the relay), zoya/tools/memory.py (memory.json only), zoya/hub_data.py (history from
 // local logs), zoya/screen.py (screenshots in memory only), zoya/tools/weather.py (Open-Meteo, city name only),
 // zoya/setup_models.py (Hugging Face download), zoya/diagnostics.py (report zipped to the Desktop),
 // packaging/build_app.py (SUFeedURL https://zoya.app/appcast.xml), relay/src/relay.ts (ROUTES, rewrite store:false,
@@ -129,7 +129,7 @@ export const PRIVACY: LegalDoc = {
       body: ["These never leave your Mac:"],
       list: [
         "Your voice. Zoya turns speech into text right on your Mac, with a Whisper model that runs locally. The audio is not sent anywhere.",
-        "Your memories. Things Zoya remembers about you are stored by a memory server that runs on your Mac, with its usage reporting turned off. To pick out what's worth remembering, the text goes through the relay to OpenAI, like any other request, and nothing is kept there.",
+        "Your memories. Things Zoya remembers about you are kept in one file on your Mac, ~/.zoya/memory.json, and nowhere else. Card numbers, passwords and one-time codes are refused before anything is saved. When a memory helps answer you, it travels with that request through the relay to OpenAI, like anything else you ask, and nothing is kept there. Delete a memory on the Hub's Memory page and it's gone from the file.",
         "Your history. The Hub's list of what you asked and what Zoya did is read from files on your Mac.",
         "Your license key, which is kept in your Mac's Keychain.",
         "Screenshots. When a task needs to see your screen, the picture is held in memory for that request and never written to disk.",
