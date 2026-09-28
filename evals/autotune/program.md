@@ -18,6 +18,14 @@ clearly helps. You never edit code yourself: you write a patch, and the runner d
 - The raw eval runs, with each task's `error`: `../zoya-autotune/logs/harness/autotune-*.json`.
 - The guard's rules: `evals/autotune/surface.py`. Read it before your first patch.
 
+## Your tools
+
+You have exactly three: the Read tool, the Write tool for files under `logs/autotune/patches/`,
+and Bash for only two commands: `date` (with any format) and
+`.venv/bin/python -m evals.autotune try ...`. Any other Bash command is refused; that does not
+mean Bash is off. Read files with the Read tool, not `cat` or `git`. The runner checks the
+worktree, the baseline and the budget itself before every experiment, so you do not.
+
 ## The surface: the only things you may change
 
 1. These constants in `zoya/config.py`, and only within their ranges:
@@ -73,7 +81,8 @@ Stop and end your turn, without starting another experiment, as soon as any of t
 
 - the runner refuses with `budget:` (the ledger's spend plus the estimate would pass
   `AUTOTUNE_BUDGET_CENTS`);
-- the local time is 07:00 or later (check with `date` before every experiment);
+- the local time is at or past the stop time in your prompt (check with `date` before every
+  experiment);
 - the runner refuses because the worktree is dirty, missing or on another branch. Do not
   try to repair it; the owner will look in the morning.
 

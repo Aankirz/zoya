@@ -15,6 +15,8 @@
 #                                 (Edit rules also cover Write; //path is an absolute path)
 #   --append-system-prompt-file   program.md appended to the default system prompt
 #   --max-budget-usd              print mode only
+#   --output-format stream-json   every tool call, result and permission denial lands in the log
+#   --verbose                     required by stream-json in print mode
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -34,6 +36,11 @@ while [[ $# -gt 0 ]]; do
     *) echo "usage: $0 [--now] [--runs N] [--group GROUP]" >&2; exit 2 ;;
   esac
 done
+MIN_RUNS=2
+if ! [[ "$RUNS" =~ ^[0-9]+$ ]] || (( RUNS < MIN_RUNS )); then
+  echo "autotune-night: --runs must be at least $MIN_RUNS, got $RUNS" >&2
+  exit 2
+fi
 
 # Keep the Mac awake for the whole night: caffeinate -i holds an idle-sleep assertion for as
 # long as the utility it runs (this script, re-executed once) is alive.
@@ -68,12 +75,13 @@ if [[ ! -f "$LOGS/baseline.json" ]]; then
 fi
 
 # Seconds until the next 07:00 local; the agent is stopped then even mid-thought.
-deadline_s="$("$PY" -c '
+read -r deadline_s stop_at < <("$PY" -c '
 import datetime as d, sys
 now = d.datetime.now().astimezone()
 stop = now.replace(hour=int(sys.argv[1]), minute=0, second=0, microsecond=0)
-print(int(((stop if stop > now else stop + d.timedelta(days=1)) - now).total_seconds()))
-' "$STOP_HOUR")"
+stop = stop if stop > now else stop + d.timedelta(days=1)
+print(int((stop - now).total_seconds()), stop.strftime("%Y-%m-%dT%H:%M"))
+' "$STOP_HOUR")
 
 allowed=(
   "Read(/$WORKTREE/**)"  # //abs/path: $WORKTREE already starts with /
@@ -86,15 +94,16 @@ budget=()
 [[ -n "${AUTOTUNE_AGENT_MAX_USD:-}" ]] && budget=(--max-budget-usd "$AUTOTUNE_AGENT_MAX_USD")
 
 prompt="Run tonight's autotune program from your system prompt. Use --runs $RUNS and \
---group \"$GROUP\", the same as the baseline. Stop at 07:00 local or at the budget, \
-whichever comes first."
+--group \"$GROUP\", the same as the baseline. Your stop time is $stop_at local: stop \
+then or at the budget, whichever comes first."
 
-echo "autotune-night: agent starts $(date +%H:%M), stops by $(printf '%02d' $STOP_HOUR):00" \
+echo "autotune-night: agent starts $(date +%H:%M), stops by $stop_at" \
   | tee -a "$agent_log"
 claude -p "$prompt" \
   --permission-mode dontAsk \
   --allowedTools "${allowed[@]}" \
   --append-system-prompt-file "$ROOT/evals/autotune/program.md" \
+  --output-format stream-json --verbose \
   ${budget[@]+"${budget[@]}"} \
   >>"$agent_log" 2>&1 &
 agent=$!
