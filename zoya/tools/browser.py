@@ -553,6 +553,7 @@ def _probe_locator(page: Any, locator: Any) -> Target:
         opens_popup=shape["popup"],
         search_form=shape["searchForm"],
         date_container=shape["dateContainer"],
+        link_path=shape["linkPath"],
     )
     return Target(locator.element_handle(), facts, page.title(), url.netloc)
 
@@ -1075,12 +1076,16 @@ DATE_CONTAINER_JS = """(e => { const c = e.closest(
     .map(id => document.getElementById(id)?.innerText || '').join(' ');
   const caption = c.tagName === 'TABLE' ? (c.caption?.innerText || '') : '';
   return (c.getAttribute('aria-label') || named || caption).trim().slice(0, 80); })"""
+LINK_PATH_JS = """(e => { const a = e.closest('a[href]');
+  if (!a) return '';
+  try { return new URL(a.href).pathname; } catch { return ''; } })"""
 ELEMENT_SHAPE_JS = f"""e => ({{
   role: e.getAttribute('role') || e.tagName.toLowerCase(),
   type: e.tagName === 'INPUT' ? (e.getAttribute('type') || 'text') : '',
   popup: e.hasAttribute('aria-haspopup') || e.hasAttribute('aria-expanded'),
   searchForm: {SEARCH_FORM_JS}(e),
   dateContainer: {DATE_CONTAINER_JS}(e),
+  linkPath: {LINK_PATH_JS}(e),
 }})"""
 FOCUS_FACTS_JS = (
     """(() => {
@@ -1100,12 +1105,14 @@ FOCUS_FACTS_JS = (
     popup: e.hasAttribute('aria-haspopup') || e.hasAttribute('aria-expanded'),
     searchForm: SEARCH_FORM(e),
     dateContainer: DATE_CONTAINER(e),
+    linkPath: LINK_PATH(e),
     near: (near.innerText || '').slice(0, NEARBY_LIMIT),
     rect: [screenX + r.left, screenY + (outerHeight - innerHeight) + r.top, r.width, r.height]
   });
 })()""".replace("NEARBY_LIMIT", str(NEARBY_MAX_CHARS))
     .replace("SEARCH_FORM", SEARCH_FORM_JS)
     .replace("DATE_CONTAINER", DATE_CONTAINER_JS)
+    .replace("LINK_PATH", LINK_PATH_JS)
 )
 
 
@@ -1269,6 +1276,7 @@ def _ref_probe(ref: str, approved: str) -> Target:
         opens_popup=bool(focused.get("popup")),
         search_form=bool(focused.get("searchForm")),
         date_container=str(focused.get("dateContainer") or ""),
+        link_path=str(focused.get("linkPath") or ""),
     )
     title = _batch_value(answers[1], "title") or ""
     return Target(focused.get("rect"), facts, title, address.netloc)

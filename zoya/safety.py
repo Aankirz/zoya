@@ -292,7 +292,17 @@ COMMERCE_PATH_WORDS = {
     "billing",
 }
 CURRENCY_AMOUNT = re.compile(r"(?:₹|\brs\.?|\binr\b|\$|€|£)\s*\d|\d\s*(?:rupees|inr)\b", re.I)
-ACCESSIBLE_NAME = re.compile(r'^- \w+(?: "(.*)")?', re.S)
+ACCESSIBLE_NAME = re.compile(r'^- \w+(?: "(.*)")?')
+LINK_MONEY_PATH_WORDS = {
+    "cart",
+    "basket",
+    "checkout",
+    "payment",
+    "payments",
+    "pay",
+    "order",
+    "orders",
+}
 
 
 @dataclass(frozen=True)
@@ -310,6 +320,7 @@ class ClickFacts:
     opens_popup: bool = False
     search_form: bool = False
     date_container: str = ""
+    link_path: str = ""
 
 
 def spoken_name(labels: list[str]) -> str:
@@ -322,9 +333,14 @@ def spoken_name(labels: list[str]) -> str:
 
 
 def accessible_name(snapshot: str) -> str:
-    """Name from a Playwright aria snapshot line: '- button "Place order"' → 'Place order'."""
-    match = ACCESSIBLE_NAME.match(snapshot.strip())
-    return (match.group(1) or "") if match else snapshot
+    """Name from a Playwright aria snapshot's first line: '- button "Place order"' → 'Place order'.
+
+    Only the first line (D143): a link's snapshot goes on with its "/url: …" line, whose query
+    ("checkout=2026-10-19") is not the link's name.
+    """
+    first = snapshot.strip().split("\n", 1)[0]
+    match = ACCESSIBLE_NAME.match(first)
+    return (match.group(1) or "") if match else first
 
 
 REVERSIBLE_INTENTS: tuple[tuple[str, str, str], ...] = (
@@ -486,6 +502,8 @@ def click_risk(facts: ClickFacts) -> RiskyLabel | None:
         raise ConfirmationDeclined(PAYMENT_BLOCKED_SAY)
     if hit:
         return hit
+    if facts.is_link and set(normalise(facts.link_path).split()) & LINK_MONEY_PATH_WORDS:
+        return RiskyLabel("context", f"open {spoken_name(facts.labels) or 'this link'}")
     if reversible_click(facts) is not None:
         return None
     name = spoken_name(facts.labels)
