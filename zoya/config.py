@@ -391,7 +391,7 @@ AX_ACTION_SETTLE_S = 0.3
 
 # --- Production P1: the relay (D105, D107) -----------------------------------------------------
 
-RELAY_URL = ""
+RELAY_URL = "https://zoya-relay.zoya-relay.workers.dev"
 RELAY_URL_ENV = "ZOYA_RELAY_URL"
 LICENSE_KEY_ENV = "ZOYA_LICENSE_KEY"
 
@@ -422,6 +422,11 @@ def license_key() -> str:
 
 def relay_url() -> str:
     return (os.environ.get(RELAY_URL_ENV) or RELAY_URL).rstrip("/")
+
+
+def relay_headers(key: str) -> dict[str, str]:
+    """Cloudflare refuses Python's default User-Agent (error 1010), so every call names Zoya."""
+    return {"Authorization": f"Bearer {key}", "User-Agent": f"Zoya/{app_version()}"}
 
 
 # --- Production P2: local first (D105) ---------------------------------------------------------

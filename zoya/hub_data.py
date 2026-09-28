@@ -210,7 +210,7 @@ def counts() -> dict[str, str]:
         "today": str(done_count(today()) or ""),
         "history": str(done_count(history(limit=READ_LINES)) or ""),
         "memory": str(len(memories()) or ""),
-        "setup": f"{granted}/{len(PERMISSIONS)}",
+        "setup": f"{granted} of {len(PERMISSIONS)}",
     }
 
 
@@ -281,7 +281,7 @@ def plan() -> dict[str, Any] | None:
     key, url = config.license_key(), first_run._license_url()
     if not key or not url:
         return None
-    request = urllib.request.Request(url, headers={"Authorization": f"Bearer {key}"})
+    request = urllib.request.Request(url, headers=config.relay_headers(key))
     try:
         with urllib.request.urlopen(request, timeout=PLAN_TIMEOUT_S) as response:
             return parse_plan(json.loads(response.read(PLAN_MAX_BYTES)))

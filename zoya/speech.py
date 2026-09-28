@@ -43,6 +43,7 @@ from zoya.config import (
     SPEECH_DRAIN_MARGIN_S,
     SPEECH_SAMPLE_RATE_HZ,
     license_key,
+    relay_headers,
     relay_url,
 )
 from zoya.decisions import LOOPBACK_HOSTS
@@ -105,7 +106,7 @@ def _relay_polly_chunks(text: str) -> Iterator[bytes]:
     request = urllib.request.Request(
         _relay_speech_url(),
         data=json.dumps(body).encode(),
-        headers={"Authorization": f"Bearer {license_key()}", "Content-Type": "application/json"},
+        headers={**relay_headers(license_key()), "Content-Type": "application/json"},
     )
     with urllib.request.urlopen(request, timeout=RELAY_SPEECH_TIMEOUT_S) as response:
         while chunk := response.read(POLLY_CHUNK_BYTES):

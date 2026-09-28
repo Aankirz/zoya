@@ -63,3 +63,24 @@ def test_crash_loop_stops_at_the_cap_within_the_window():
     assert supervisor.should_restart([0.0, 1.0], now=2.0)
     assert not supervisor.should_restart([0.0, 1.0, 2.0], now=3.0)
     assert supervisor.should_restart([0.0, 1.0, 2.0], now=window + 1.0)
+
+
+def test_the_license_check_names_zoya_so_cloudflare_does_not_refuse_it(monkeypatch):
+    sent = {}
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+    def urlopen(request, timeout):
+        sent.update(request.header_items())
+        return Response()
+
+    monkeypatch.setattr(config, "RELAY_URL", "https://relay.example")
+    monkeypatch.setattr(first_run.urllib.request, "urlopen", urlopen)
+    assert first_run.validate_license("zoya_key") == "valid"
+    assert sent["User-agent"].startswith("Zoya/")
+    assert sent["Authorization"] == "Bearer zoya_key"

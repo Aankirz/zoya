@@ -175,7 +175,7 @@ def _license_url() -> str:
 
 
 def validate_license(key: str) -> str:
-    request = urllib.request.Request(_license_url(), headers={"Authorization": f"Bearer {key}"})
+    request = urllib.request.Request(_license_url(), headers=config.relay_headers(key))
     try:
         with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_S):
             return "valid"
