@@ -64,6 +64,15 @@ def window_at(point: tuple[float, float], windows: Iterable[dict], own: set[int]
     return None
 
 
+def target_for(
+    tool: str, point: tuple[float, float], windows: list[dict], own: set[int], chrome: int | None
+) -> dict | None:
+    """A web tool works in Zoya's Chrome even when another window covers the point."""
+    if is_web(tool) and chrome and (window := largest_of(chrome, windows)):
+        return window
+    return window_at(point, windows, own)
+
+
 def largest_of(pid: int, windows: Iterable[dict]) -> dict | None:
     """The app's main window: its biggest ordinary one."""
     mine = [
@@ -159,7 +168,8 @@ class Glow:
         """A click or type is 0.25 s away at this top-left-origin rect: glow its window, glide."""
         x, y, width, height = rect
         centre = (x + width / 2, y + height / 2)
-        self._aim(window_at(centre, _on_screen(), self.own) or self.target)
+        window = target_for(self.tool, centre, _on_screen(), self.own, _chrome_pid())
+        self._aim(window or self.target)
         self._draw()
         self._glide(centre)
 

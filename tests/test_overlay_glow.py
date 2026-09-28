@@ -1,7 +1,7 @@
 """D145: Zoya's glow and cursor never land on her own windows, and never take a click or focus."""
 
 from zoya import overlay, screen
-from zoya.overlay_glow import is_web, largest_of, window_at
+from zoya.overlay_glow import is_web, largest_of, target_for, window_at
 
 
 def _window(pid: int, x: float, y: float, w: float, h: float, layer: int = 0) -> dict:
@@ -17,6 +17,13 @@ def test_the_glow_takes_the_frontmost_window_under_the_target_but_never_zoyas_ow
     listed = [menu_bar, zoya_panel, chrome, notes]
     assert window_at((100, 10), listed, own={1}) is chrome
     assert window_at((1500, 900), listed, own={1}) is None
+
+
+def test_a_web_click_glows_zoyas_chrome_even_behind_the_users_terminal():
+    terminal, chrome = _window(5, 0, 0, 1500, 900), _window(7, 0, 0, 1200, 800)
+    listed = [terminal, chrome]
+    assert target_for("browser click", (100, 100), listed, own={1}, chrome=7) is chrome
+    assert target_for("ax press", (100, 100), listed, own={1}, chrome=7) is terminal
 
 
 def test_the_main_window_is_the_apps_biggest_ordinary_one():

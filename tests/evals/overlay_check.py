@@ -28,6 +28,7 @@ from zoya import events, overlay, screen
 
 STATE_HOLD_S = 3.0
 RING = (120, 60)
+DIFF_LEVEL = 24
 
 
 def states() -> None:
@@ -204,12 +205,10 @@ def _near(pixels: np.ndarray, rgba: tuple[float, ...], tolerance: int = 40) -> i
 
 
 def _glow_counts(label: str, whole: tuple[float, float, float, float]) -> None:
-    from zoya.overlay_glow import CURSOR_BOTTOM, GLOW_BLUE
-
-    for name, excluded in (("unfiltered", False), ("display_filter", True)):
-        pixels = _grab(excluded, whole)
-        print(f"{label:>14} {name:>15}: glow {_near(pixels, GLOW_BLUE)}", end=" ")
-        print(f"cursor {_near(pixels, CURSOR_BOTTOM, 24)}")
+    unfiltered = _grab(False, whole).astype(int)
+    filtered = _grab(True, whole).astype(int)
+    only_seen_unfiltered = int((np.abs(unfiltered - filtered).max(axis=2) > DIFF_LEVEL).sum())
+    print(f"{label:>14}: pixels only in the unfiltered capture {only_seen_unfiltered}")
 
 
 def glow() -> None:
