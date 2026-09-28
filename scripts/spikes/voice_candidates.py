@@ -44,6 +44,9 @@ SENTENCES = [
     "Calling Priya Sharma and Aniruddha Iyer now.",
     "It's 31 degrees in Bengaluru, with a chance of rain after 4 PM.",
     "Aaj Noida mein 34 degree hai, shaam ko baarish ho sakti hai.",
+    "Kesariya chala rahi hoon, Arijit Singh ka.",
+    "₹1,249 ka order place karoon? Say confirm, or stop.",
+    "Aapki meeting 4:30 baje hai, Riya ke saath.",
 ]
 SAY_VOICES = {
     "macos-rishi": "Rishi",
@@ -97,14 +100,14 @@ def _record(candidate: str, index: int, ttfa_ms: float, memory_mb: float, note: 
     print(row, flush=True)
 
 
-def run_polly() -> None:
+def run_polly(start: int = 0) -> None:
     sys.path.insert(0, str(REPO))
     from zoya import aws
     from zoya.config import POLLY_ENGINE, POLLY_LANGUAGE_CODE, POLLY_VOICE_ID, load_env
 
     load_env()
     polly = aws.client("polly")
-    for index, text in enumerate(SENTENCES):
+    for index, text in enumerate(SENTENCES[start:], start):
         started = time.monotonic()
         response = polly.synthesize_speech(
             Text=text,
@@ -139,9 +142,9 @@ def _say_once(voice: str, text: str, target: Path) -> tuple[float, float]:
     return elapsed, rss / (1024 * 1024)
 
 
-def run_say() -> None:
+def run_say(start: int = 0) -> None:
     for candidate, voice in SAY_VOICES.items():
-        for index, text in enumerate(SENTENCES):
+        for index, text in enumerate(SENTENCES[start:], start):
             path = OUT / candidate / f"{index + 1:02}.wav"
             ttfa, rss = _say_once(voice, text, path)
             _record(candidate, index, ttfa, rss, "whole sentence rendered to a file")
@@ -232,6 +235,10 @@ NOTES = """
   with the English front-end, since Zoya's Hinglish is written in Latin script.
 - Not rendered: **Indic Parler-TTS** (ai4bharat, Apache-2.0, 0.9B) is gated on Hugging Face;
   **rumik-oss-1** (3B, Indic and Hinglish) is CC-BY-NC-4.0, so it cannot ship in a paid app.
+- **veena-*** and **svara-*** (D136): 3B Llama + SNAC, MLX 4-bit (q8 for one Veena voice),
+  rendered by `voice_llm_tts.py`. Both run slower than real time on this Mac (real-time factor
+  about 1.4-1.6 at q4); measurements, licences and verdicts are in
+  `docs/phases/prod-voice-report.md`. `asr_check.json` holds a Whisper round-trip per clip.
 """
 
 
@@ -243,7 +250,7 @@ def write_table() -> None:
     lines = [
         "# Voice candidates (P2, D33): the owner picks by ear",
         "",
-        "Every folder holds the same 10 sentences, 01.wav to 10.wav:",
+        "Every folder holds the same sentences, 01.wav to 13.wav (11-13 added in D136):",
         "",
         *[f"{i + 1}. {text}" for i, text in enumerate(SENTENCES)],
         "",
@@ -257,18 +264,32 @@ def write_table() -> None:
             f"{max(row['memory_mb'] for row in items)} | {items[0]['note']} |"
         )
     (OUT / "README.md").write_text("\n".join(lines) + "\n" + NOTES, encoding="utf-8")
-    _write_listening_page(list(by_candidate))
+    _write_listening_page(sorted(by_candidate, key=_page_order))
     print((OUT / "README.md").read_text(encoding="utf-8"))
+
+
+PAGE_FIRST = ("polly-kajal", "macos-tara-enhanced", "veena-", "svara-")
+
+
+def _page_order(candidate: str) -> int:
+    return next(
+        (rank for rank, prefix in enumerate(PAGE_FIRST) if candidate.startswith(prefix)),
+        len(PAGE_FIRST),
+    )
+
+
+def _audio_cell(name: str, index: int) -> str:
+    clip = f"{name}/{index + 1:02}.wav"
+    if not (OUT / clip).exists():
+        return "<td>—</td>"
+    return f'<td><audio controls preload="none" src="{clip}"></audio></td>'
 
 
 def _write_listening_page(candidates: list[str]) -> None:
     head = "".join(f"<th>{html.escape(name)}</th>" for name in candidates)
     rows = "".join(
         f"<tr><td>{index + 1}. {html.escape(text)}</td>"
-        + "".join(
-            f'<td><audio controls preload="none" src="{name}/{index + 1:02}.wav"></audio></td>'
-            for name in candidates
-        )
+        + "".join(_audio_cell(name, index) for name in candidates)
         + "</tr>"
         for index, text in enumerate(SENTENCES)
     )
@@ -295,9 +316,11 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--engine", choices=sorted(ENGINES))
     parser.add_argument("--table", action="store_true")
+    parser.add_argument("--start", type=int, default=0, help="first sentence index (polly, say)")
     args = parser.parse_args()
     if args.engine:
-        ENGINES[args.engine]()
+        engine = ENGINES[args.engine]
+        engine(args.start) if args.engine in {"polly", "say"} else engine()
     if args.table:
         write_table()
     return 0
