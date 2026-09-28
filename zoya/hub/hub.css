@@ -354,14 +354,14 @@ main {
 .row .trail {
   flex: none;
   margin-left: auto;
-  color: var(--field);
+  color: var(--quiet);
   font-size: var(--text-small);
   white-space: nowrap;
 }
 
 .times {
   margin-left: 6px;
-  color: var(--field);
+  color: var(--quiet);
   font-size: var(--text-small);
   font-weight: 500;
 }

@@ -19,6 +19,7 @@
   --muted: oklch(40% 0.006 260);
   --rule: oklch(86% 0.004 260);
   --field: oklch(60% 0.006 260);
+  --quiet: oklch(52% 0.006 260);
   --link: oklch(43% 0.16 258);
   --focus: oklch(45% 0.17 258);
   --danger: oklch(41% 0.15 27);
@@ -66,6 +67,7 @@
     --muted: oklch(76% 0.006 260);
     --rule: oklch(34% 0.005 260);
     --field: oklch(64% 0.006 260);
+    --quiet: oklch(64% 0.006 260);
     --link: oklch(78% 0.11 252);
     --focus: oklch(72% 0.14 252);
     --warn: oklch(80% 0.14 75);
@@ -94,6 +96,7 @@
     --muted: var(--text);
     --rule: var(--muted);
     --field: var(--text);
+    --quiet: var(--text);
   }
 }
 

@@ -58,7 +58,7 @@ WEIGHTS = {
 
 TEXT = (oklch(0.15, 0.005, 260), oklch(0.965, 0.003, 260))
 MUTED = (oklch(0.40, 0.006, 260), oklch(0.76, 0.006, 260))
-FIELD = (oklch(0.60, 0.006, 260), oklch(0.64, 0.006, 260))
+QUIET = (oklch(0.52, 0.006, 260), oklch(0.64, 0.006, 260))
 LINK = (oklch(0.43, 0.16, 258), oklch(0.78, 0.11, 252))
 RULE = (oklch(0.86, 0.004, 260), oklch(0.34, 0.005, 260))
 PANE = (oklch(0.975, 0.003, 260, 0.82), oklch(0.21, 0.004, 260, 0.82))
@@ -225,7 +225,7 @@ class PageCell(AppKit.NSTableCellView):
         self.textField().setTextColor_(_dynamic(TEXT if on else MUTED))
         self.textField().setFont_(inter(ROW_PT, "medium" if on else "regular"))
         self.imageView().setContentTintColor_(_dynamic(TEXT if on else MUTED))
-        self.number.setTextColor_(_dynamic(LINK if on else FIELD))
+        self.number.setTextColor_(_dynamic(LINK if on else QUIET))
 
 
 def _symbol(name: str) -> Any:
@@ -244,7 +244,7 @@ def _page_cell(title: str, symbol: str, count: str, selected: bool) -> Any:
     cell = PageCell.alloc().initWithFrame_(((0, 0), (200, ROW_HEIGHT)))
     image = _symbol(symbol)
     label = _label(title, inter(ROW_PT, "regular"), _dynamic(MUTED))
-    number = _label(count, tabular(inter(COUNT_PT, "regular")), _dynamic(FIELD))
+    number = _label(count, tabular(inter(COUNT_PT, "regular")), _dynamic(QUIET))
     number.setAccessibilityElement_(False)
     for view in (image, label, number):
         view.setTranslatesAutoresizingMaskIntoConstraints_(False)
