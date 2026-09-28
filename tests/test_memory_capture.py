@@ -20,7 +20,6 @@ def stores(tmp_path, monkeypatch):
     monkeypatch.setattr(memory, "MEMORY_LOCAL_FILE", tmp_path / "memory.json")
     monkeypatch.setattr(memory, "_supermemory", lambda: None)
     monkeypatch.setattr(memory, "_put_dynamodb", lambda _item: None)
-    monkeypatch.setattr(memory, "refresh_profile", lambda *_: None)
     asked: list[str] = []
     return asked
 

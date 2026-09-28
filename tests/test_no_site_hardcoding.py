@@ -28,7 +28,6 @@ ALLOWED_HOSTS = {
     "api.fireworks.ai": "the model provider's endpoint",
     "api.search.tinyfish.ai": "the web search provider's endpoint",
     "api.fetch.tinyfish.ai": "the web fetch provider's endpoint",
-    "github.com": "the pinned Supermemory server release",
     "geocoding-api.open-meteo.com": "the weather provider's endpoint",
     "api.open-meteo.com": "the weather provider's endpoint",
     "booking.com": "the safety gate's payment refusal (§9.9), out of this phase's reach",

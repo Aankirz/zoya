@@ -190,9 +190,9 @@ MEMORY_LOCAL_FILE = Path.home() / ".zoya" / "memory.json"  # fallback copy, neve
 MEMORY_TIMEOUT_S = 6.0
 MEMORY_SEARCH_LIMIT = 5
 MEMORY_PROFILE_MAX_TOKENS = 250
-MEMORY_PROFILE_TIMEOUT_S = 30.0
-MEMORY_PROFILE_TTL_S = 15 * 60
-MEMORY_PROFILE_SETTLE_S = 10.0
+# memory_search hands every memory to the brain up to this many (D147): a memory averages ~80
+# characters (~20 tokens), so 150 is ~3k tokens, about $0.0006 a search on gpt-5.6-luna.
+MEMORY_INLINE_MAX = 150
 ALERTS_TOPIC_ARN = "arn:aws:sns:ap-south-1:567487920371:zoya-alerts"  # trusted contact (Flow 10)
 PLACES_MAX_RESULTS = 3
 # Done-when #5 test run only (coordinator): `python -m zoya.main --order-limit 300` sets this env
@@ -433,37 +433,6 @@ def relay_headers(key: str) -> dict[str, str]:
 
 
 # --- Production P2: local first (D105) ---------------------------------------------------------
-
-# Supermemory local, the self-hosted server, run by Zoya when a license key is set and no
-# SUPERMEMORY_API_KEY is. Release server-v0.0.8 of github.com/supermemoryai/supermemory.
-# https://supermemory.ai/docs/self-hosting/overview
-MEMORY_SERVER_VERSION = "0.0.8"
-MEMORY_SERVER_URL = (
-    "https://github.com/supermemoryai/supermemory/releases/download/"
-    f"server-v{MEMORY_SERVER_VERSION}/supermemory-server-darwin-arm64"
-)
-MEMORY_SERVER_SHA256 = "12b7817a105ed0a9e70f96c461fb6f8dded5d70eaeb6034e774778c257bed78a"
-MEMORY_SERVER_BIN = (
-    APP_BUNDLE / "Contents" / "MacOS" / "supermemory-server"
-    if APP_BUNDLE
-    else Path.home() / ".zoya" / "bin" / "supermemory-server"
-)
-MEMORY_SERVER_DATA_DIR = Path.home() / ".zoya" / "supermemory"
-MEMORY_SERVER_PID_FILE = Path.home() / ".zoya" / "supermemory.pid"
-MEMORY_SERVER_LOG = LOG_DIR / "supermemory.log"
-MEMORY_SERVER_PORT = 6776
-MEMORY_SERVER_LOCAL_KEY = "zoya-local"
-MEMORY_SERVER_STOP_TIMEOUT_S = 5.0
-MEMORY_SERVER_READY_WAIT_S = 15.0
-MEMORY_SERVER_READY_POLL_S = 0.2
-MEMORY_SERVER_DOWNLOAD_TIMEOUT_S = 120
-# Measured on 18 English, Hinglish and Devanagari questions (scripts/spikes/memory_embeddings.py):
-# the default English bge-base-en-v1.5 put the right memory first 10 times; multilingual bge-m3
-# 14 times once the search threshold is 0.4. Fixed before any memory is stored: the server
-# refuses to boot if the dimensions change under stored vectors.
-MEMORY_EMBEDDING_MODEL = "Xenova/bge-m3"
-MEMORY_EMBEDDING_DIMENSIONS = 1024
-MEMORY_LOCAL_SEARCH_THRESHOLD = 0.4
 
 # Polly through the relay (production P2): the relay signs the request with Zoya's AWS key and
 # meters the characters Polly bills. https://docs.aws.amazon.com/polly/latest/dg/API_SynthesizeSpeech.html

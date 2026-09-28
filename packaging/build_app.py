@@ -175,14 +175,10 @@ def copy_app_sources(resources: Path) -> None:
 
 
 def add_helpers(macos: Path) -> None:
-    from zoya.config import MEMORY_SERVER_SHA256, MEMORY_SERVER_URL
-
-    shutil.copy2(fetch(MEMORY_SERVER_URL, MEMORY_SERVER_SHA256), macos / "supermemory-server")
     with tarfile.open(fetch(AGENT_BROWSER_URL, AGENT_BROWSER_SHA256)) as archive:
         member = archive.extractfile(AGENT_BROWSER_MEMBER)
         (macos / "agent-browser").write_bytes(member.read())
-    for helper in ("supermemory-server", "agent-browser"):
-        (macos / helper).chmod(0o755)
+    (macos / "agent-browser").chmod(0o755)
 
 
 def add_sparkle(contents: Path) -> None:

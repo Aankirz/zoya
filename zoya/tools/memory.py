@@ -1,11 +1,11 @@
-"""Memory (§9.8, D8, D22): Supermemory, a local copy and a DynamoDB copy, and a secret filter.
+"""Memory (§9.8, D8, D22, D147): ~/.zoya/memory.json, a secret filter, and two dev-only copies.
 
-- `memory_add` rejects card numbers, OTPs, passwords, PINs and CVVs before anything leaves the Mac
+- `memory_add` rejects card numbers, OTPs, passwords, PINs and CVVs before anything is written
   (§9.8 privacy, §12.3). The filter is the only gate: the model is told, but not trusted.
-- Supermemory local (zoya/memory_server.py) for license users, the cloud with SUPERMEMORY_API_KEY.
-- Supermemory with `dreaming="instant"` (searchable in ~7 s) and `search_mode="hybrid"` (AUDIT B16).
-- Every saved memory is also written to ~/.zoya/memory.json and DynamoDB `zoya-memory`, so search
-  still works when Supermemory is down or the free plan pauses (D22).
+- License users and the shipped app: memory.json is the only store (D147). Keyword search with
+  folded, lightly stemmed words; every memory inline while there are few; the profile built locally.
+- A developer's own SUPERMEMORY_API_KEY (dev checkout, no license) adds the Supermemory cloud,
+  `dreaming="instant"` and `search_mode="hybrid"` (AUDIT B16). AWS_PROFILE adds DynamoDB.
 
 SDK (supermemory 3.61.0, installed source): `Supermemory.add(content, container_tag, dreaming,
 metadata)`, `Supermemory.search.memories(q, container_tag, limit, search_mode)` → results[].memory /
@@ -28,20 +28,18 @@ from typing import Any
 
 from strands import tool
 
-from zoya import aws, events, memory_server
+from zoya import aws, events
 from zoya.config import (
+    APP_BUNDLE,
     JEV_STEP_CONFIDENCE,
+    MEMORY_INLINE_MAX,
     MEMORY_LOCAL_FILE,
-    MEMORY_LOCAL_SEARCH_THRESHOLD,
     MEMORY_PROFILE_MAX_TOKENS,
-    MEMORY_PROFILE_SETTLE_S,
-    MEMORY_PROFILE_TIMEOUT_S,
-    MEMORY_PROFILE_TTL_S,
     MEMORY_SEARCH_LIMIT,
-    MEMORY_SERVER_LOCAL_KEY,
     MEMORY_TABLE,
     MEMORY_TIMEOUT_S,
     MEMORY_USER_TAG,
+    license_key,
 )
 from zoya.tools import ToolError
 
@@ -59,6 +57,7 @@ CATEGORIES = {
 MAX_MEMORY_CHARS = 1000
 LOCAL_MAX_ITEMS = 500
 MIN_WORD_CHARS = 3
+REMEMBERED = "Here's what I remember:\n"
 REJECTED = "I can't remember that: it looks like a card number, password or one-time code."
 
 # --- Secret filter (tests/test_memory_filter.py) --------------------------------------------
@@ -150,28 +149,19 @@ def secret_reason(text: str) -> str | None:
 _local_lock = threading.Lock()
 
 
-@cache
 def _supermemory() -> Any | None:
+    """The Supermemory cloud, for a developer's own key only: no license user, not the app."""
+    key = os.environ.get("SUPERMEMORY_API_KEY")
+    if not key or license_key() or APP_BUNDLE:
+        return None
+    return _cloud(key)
+
+
+@cache
+def _cloud(key: str) -> Any:
     from supermemory import Supermemory
 
-    if key := os.environ.get("SUPERMEMORY_API_KEY"):
-        return Supermemory(api_key=key, timeout=MEMORY_TIMEOUT_S, max_retries=0)
-    if memory_server.wanted():
-        memory_server.wait_ready()
-        return Supermemory(
-            api_key=MEMORY_SERVER_LOCAL_KEY,
-            base_url=memory_server.base_url(),
-            timeout=MEMORY_TIMEOUT_S,
-            max_retries=0,
-        )
-    return None
-
-
-def _search_options() -> dict[str, float]:
-    """Supermemory local runs bge-m3, whose scores sit under the cloud's default threshold."""
-    if not memory_server.wanted():
-        return {}
-    return {"threshold": MEMORY_LOCAL_SEARCH_THRESHOLD}
+    return Supermemory(api_key=key, timeout=MEMORY_TIMEOUT_S, max_retries=0)
 
 
 def _read_local() -> list[dict[str, str]]:
@@ -275,17 +265,51 @@ def forget(item_id: str) -> bool:
         kept = [i for i in _read_local() if i.get("id") != item_id]
         MEMORY_LOCAL_FILE.write_text(json.dumps(kept, ensure_ascii=False), encoding="utf-8")
     log.info("memory deleted from every copy")
-    refresh_profile()
     return True
 
 
+# --- Local search (D147) ---------------------------------------------------------------------
+
+WORD = re.compile(r"[\w\u0900-\u097f]+")
+LATIN_ACCENTS = re.compile(r"[\u0300-\u036f]")
+STOPWORDS = {
+    # fmt: off
+    "the", "and", "are", "was", "for", "you", "your", "what", "which", "who", "whom", "when",
+    "where", "how", "does", "did", "have", "has",
+    "kya", "hai", "hain", "tha", "thi", "mera", "meri", "mere", "mujhe", "mujhko", "kaun",
+    "kaunsa", "kaunsi", "kab", "kahan", "aur", "myself",
+    "क्या", "है", "हैं", "मेरा", "मेरी", "मेरे", "मुझे", "कौन", "कब", "कहाँ", "और",
+    # fmt: on
+}
+KEEP_S = ("ss", "us", "is", "as")
+KEEP_DOUBLE = "lsz"
+
+
+def _stem(word: str) -> str:
+    """Plurals and -ing only, on long enough words: "chais" → "chai", "running" → "run"."""
+    if word.endswith("ing") and len(word) >= 6:
+        stem = word[:-3]
+        return stem[:-1] if stem[-1] == stem[-2] and stem[-1] not in KEEP_DOUBLE else stem
+    if word.endswith("ies") and len(word) >= 5:
+        return word[:-3] + "y"
+    if word.endswith("s") and len(word) >= 4 and not word.endswith(KEEP_S):
+        return word[:-1]
+    return word
+
+
+def search_words(text: str) -> set[str]:
+    """Case- and accent-folded words plus their stems. A Hinglish word always keeps its own form."""
+    folded = LATIN_ACCENTS.sub("", unicodedata.normalize("NFKD", text.casefold()))
+    words = {w for w in WORD.findall(unicodedata.normalize("NFC", folded)) if w not in STOPWORDS}
+    return {form for w in words if len(w) >= MIN_WORD_CHARS for form in (w, _stem(w))}
+
+
 def local_matches(query: str, items: list[dict[str, str]]) -> list[str]:
-    """Keyword fallback: memories sharing the most words with the query, newest first on ties."""
-    wanted = {w for w in re.findall(r"\w+", query.casefold()) if len(w) >= MIN_WORD_CHARS}
+    """Memories sharing the most words with the query, newest first on ties."""
+    wanted = search_words(query)
     scored = []
     for index, item in enumerate(items):
-        words = set(re.findall(r"\w+", item.get("content", "").casefold()))
-        if hits := len(wanted & words):
+        if hits := len(wanted & search_words(item.get("content", ""))):
             scored.append((hits, index, item["content"]))
     return [content for *_, content in sorted(scored, reverse=True)[:MEMORY_SEARCH_LIMIT]]
 
@@ -325,7 +349,6 @@ def remember(content: str, category: str = "preference") -> str:
     except Exception as error:  # noqa: BLE001 — the local and DynamoDB copies still hold it
         log.warning("Supermemory add failed (%s)", type(error).__name__)
     log.info("memory_add %s in %d ms", where, round((time.monotonic() - started) * 1000))
-    refresh_profile(MEMORY_PROFILE_SETTLE_S)
     return f"Saved {where}: {text}"
 
 
@@ -346,6 +369,7 @@ def memory_add(content: str, category: str = "preference") -> str:
 @tool
 def memory_search(query: str) -> str:
     """Look up what Zoya remembers about the user. Call it before asking a preference question.
+    While Zoya remembers only a few things, it returns all of them: use the ones that fit.
 
     Args:
         query: What to look for, e.g. "usual groceries".
@@ -353,25 +377,34 @@ def memory_search(query: str) -> str:
     query = " ".join(query.split())
     if not query:
         raise ToolError("What should I look up?")
-    found: list[str] = []
-    try:
-        client = _supermemory()
-        if client is not None:
-            response = client.search.memories(
-                q=query,
-                container_tag=MEMORY_USER_TAG,
-                limit=MEMORY_SEARCH_LIMIT,
-                search_mode="hybrid",
-                **_search_options(),
-            )
-            found = [text for r in response.results if (text := r.memory or r.chunk)]
-    except Exception as error:  # noqa: BLE001 — fall back to the copies
-        log.warning("Supermemory search failed (%s)", type(error).__name__)
-    if not found:
-        found = local_matches(query, _read_local() or _query_dynamodb())
+    local = _read_local()
+    if local and len(local) <= MEMORY_INLINE_MAX:
+        return REMEMBERED + _bullets([i["content"] for i in reversed(local)])
+    if search_words(query):
+        found = _cloud_search(query) or local_matches(query, local or _query_dynamodb())
+    else:
+        found = _profile_lines(local)[:MEMORY_SEARCH_LIMIT]
     if not found:
         return f"I don't remember anything about {query}."
-    return "Memories:\n" + "\n".join(f"- {text}" for text in found)
+    return REMEMBERED + _bullets(found)
+
+
+def _bullets(lines: list[str]) -> str:
+    return "\n".join(f"- {text}" for text in lines)
+
+
+def _cloud_search(query: str) -> list[str]:
+    try:
+        client = _supermemory()
+        if client is None:
+            return []
+        response = client.search.memories(
+            q=query, container_tag=MEMORY_USER_TAG, limit=MEMORY_SEARCH_LIMIT, search_mode="hybrid"
+        )
+        return [text for r in response.results if (text := r.memory or r.chunk)]
+    except Exception as error:  # noqa: BLE001 — the local copy answers instead
+        log.warning("Supermemory search failed (%s)", type(error).__name__)
+        return []
 
 
 def recent_corrections(limit: int = 3) -> list[str]:
@@ -387,14 +420,13 @@ def home_address() -> str:
     )
 
 
-# --- The user's profile in the brain's prompt (Phase H) ------------------------------------------
+# --- The user's profile in the brain's prompt (Phase H, D147) -----------------------------------
 
 CHARS_PER_TOKEN = 4
 PROFILE_HEADING = (
     "About the user (from Zoya's memory; answer from it without memory_search when it is enough):"
 )
-_profile: dict[str, Any] = {"block": "", "at": 0.0, "fetching": False}
-_profile_lock = threading.Lock()
+NOT_PROFILE = {"activity"}
 
 
 def profile_block(lines: list[str], max_tokens: int = MEMORY_PROFILE_MAX_TOKENS) -> str:
@@ -412,42 +444,13 @@ def profile_block(lines: list[str], max_tokens: int = MEMORY_PROFILE_MAX_TOKENS)
     return "\n".join([PROFILE_HEADING, *(f"- {line}" for line in kept)]) if kept else ""
 
 
-def _fetch_profile(delay_s: float) -> None:
-    time.sleep(delay_s)
-    try:
-        client = _supermemory()
-        if client is None:
-            return
-        response = client.profile(container_tag=MEMORY_USER_TAG, timeout=MEMORY_PROFILE_TIMEOUT_S)
-        lines = [*(response.profile.static or []), *(response.profile.dynamic or [])]
-        with _profile_lock:
-            _profile["block"], _profile["at"] = profile_block(lines), time.monotonic()
-        log.info("profile: %d lines", len(lines))
-    except Exception as error:  # noqa: BLE001 — the brain still has memory_search
-        log.warning("Supermemory profile failed (%s)", type(error).__name__)
-    finally:
-        with _profile_lock:
-            _profile["fetching"] = False
-
-
-def refresh_profile(delay_s: float = 0.0) -> None:
-    """Fetch the profile in the background: at session start and after every memory write."""
-    with _profile_lock:
-        if _profile["fetching"] and not delay_s:
-            return
-        _profile["fetching"] = True
-    threading.Thread(
-        target=_fetch_profile, args=(delay_s,), name="zoya-profile", daemon=True
-    ).start()
+def _profile_lines(items: list[dict[str, str]]) -> list[str]:
+    return [i["content"] for i in reversed(items) if i.get("category") not in NOT_PROFILE]
 
 
 def user_profile() -> str:
-    """The cached "About the user" block, never waited on; a stale one is refreshed behind."""
-    with _profile_lock:
-        block, age = _profile["block"], time.monotonic() - _profile["at"]
-    if not _profile["at"] or age > MEMORY_PROFILE_TTL_S:
-        refresh_profile()
-    return block
+    """The newest preferences and facts from memory.json, capped. One file read, no network."""
+    return profile_block(_profile_lines(_read_local()))
 
 
 # --- Learning from what Zoya does (Phase H) -------------------------------------------------------

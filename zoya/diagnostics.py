@@ -113,8 +113,6 @@ def versions() -> dict:
         "models": {name: os.environ.get(name, "") for name in MODEL_ENV},
         "speech_to_text": config.STT_MODEL_REPO,
         "wake_word": config.WAKE_MODEL,
-        "memory_server": config.MEMORY_SERVER_VERSION,
-        "memory_embeddings": config.MEMORY_EMBEDDING_MODEL,
         "voice": config.POLLY_VOICE_ID,
         "license": "present" if config.license_key() else "none",
         "relay_configured": bool(config.relay_url()),

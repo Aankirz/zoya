@@ -2,8 +2,8 @@
 
     .venv/bin/python evals/harness/profile_check.py
 
-Uses its own Supermemory container and a scratch local copy, so the owner's memories are never
-read or written; every document it adds is deleted at the end.
+The profile is built from memory.json (D147). Uses a scratch memory.json, so the owner's memories
+are never read or written.
 """
 
 from __future__ import annotations
@@ -11,7 +11,6 @@ from __future__ import annotations
 import json
 import sys
 import tempfile
-import time
 from pathlib import Path
 from typing import Any
 
@@ -24,37 +23,15 @@ from zoya import safety  # noqa: E402
 from zoya.config import load_env  # noqa: E402
 from zoya.tools import memory  # noqa: E402
 
-CONTAINER = f"zoya_eval_profile_{run.RUN_ID}"
 FACTS = [("My home city is Pune.", "address"), ("I am vegetarian.", "preference")]
 CORRECTION = ("No, I meant my sister's name is Riya, not Rhea.", "correction")
-PROFILE_WAIT_S = 180.0
-PROFILE_POLL_S = 10.0
 QUESTION = "what's my home city?"
 
 
 def isolate() -> None:
-    memory.MEMORY_USER_TAG = CONTAINER
     memory.MEMORY_LOCAL_FILE = Path(tempfile.mkdtemp()) / "memory.json"
     memory._put_dynamodb = lambda _item: None
-    memory.refresh_profile = lambda *_: None
-
-
-def profile_lines() -> list[str]:
-    response = memory._supermemory().profile(
-        container_tag=CONTAINER, timeout=memory.MEMORY_PROFILE_TIMEOUT_S
-    )
-    return [*(response.profile.static or []), *(response.profile.dynamic or [])]
-
-
-def wait_for(words: list[str]) -> list[str]:
-    deadline = time.monotonic() + PROFILE_WAIT_S
-    lines: list[str] = []
-    while time.monotonic() < deadline:
-        lines = profile_lines()
-        if all(any(w.casefold() in line.casefold() for line in lines) for w in words):
-            return lines
-        time.sleep(PROFILE_POLL_S)
-    return lines
+    memory._supermemory = lambda: None
 
 
 def ask_fresh(block: str) -> dict[str, Any]:
@@ -93,23 +70,16 @@ def main() -> int:
     run.install_meters()
     run.install_voice()
     added = [memory.remember(text, kind) for text, kind in FACTS]
-    try:
-        lines = wait_for(["Pune", "vegetarian"])
-        block = memory.profile_block(lines)
-        memory.remember(*CORRECTION)
-        corrected = wait_for(["Riya"])
-        report = {
-            "container": CONTAINER,
-            "added": added,
-            "profile_lines": lines,
-            "block": block,
-            "fresh_session": ask_fresh(block),
-            "correction_in_profile": any("riya" in line.casefold() for line in corrected),
-            "profile_after_correction": corrected,
-        }
-    finally:
-        for item in memory.memories():
-            memory.forget(item["id"])
+    block = memory.user_profile()
+    memory.remember(*CORRECTION)
+    corrected = memory.user_profile()
+    report = {
+        "added": added,
+        "block": block,
+        "fresh_session": ask_fresh(block),
+        "correction_in_profile": "riya" in corrected.casefold(),
+        "profile_after_correction": corrected,
+    }
     print(json.dumps(report, indent=1, ensure_ascii=False))
     return 0
 
