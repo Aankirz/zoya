@@ -12,6 +12,9 @@ const ENV: Env = {
   AWS_ACCESS_KEY_ID: "AKIDEXAMPLE",
   AWS_SECRET_ACCESS_KEY: "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY",
   POLLY_REGION: "ap-south-1",
+  DODO_WEBHOOK_SECRET: "",
+  DODO_API_KEY: "",
+  DODO_API_BASE_URL: "https://dodo.test",
 };
 const GOOD = "zoya_good";
 const REVOKED = "zoya_revoked";
@@ -30,6 +33,10 @@ async function fakeStore(licenses: Record<string, License>): Promise<Store & { r
     async record(licenseId, _month, cents) {
       recorded.push({ licenseId, cents });
     },
+    async seen() {
+      return false;
+    },
+    async recordEvent() {},
   };
 }
 

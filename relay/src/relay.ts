@@ -1,11 +1,15 @@
 import { HEAVY_MODELS, OVERALL_CEILING_MULTIPLIER, PRICES_USD_PER_1M, costCents, usageFrom, type Usage } from "./cost";
+import { DODO_WEBHOOK_PATH, handleDodo } from "./dodo";
 import { amzDate, signedPostHeaders } from "./sigv4";
 
 export type License = { id: number; active: boolean; capCents: number; spentCents: number };
+export type KeyChange = { keyHash: string | null; grantId: string; customerId: string; active: boolean; at: string };
 
 export interface Store {
   find(keyHash: string, month: string): Promise<License | null>;
   record(licenseId: number, month: string, cents: number): Promise<void>;
+  seen(webhookId: string): Promise<boolean>;
+  recordEvent(webhookId: string, type: string, change: KeyChange | null): Promise<void>;
 }
 
 export type Env = {
@@ -18,6 +22,9 @@ export type Env = {
   AWS_SECRET_ACCESS_KEY: string;
   AWS_SESSION_TOKEN?: string;
   POLLY_REGION: string;
+  DODO_WEBHOOK_SECRET: string;
+  DODO_API_KEY: string;
+  DODO_API_BASE_URL: string;
 };
 
 type Upstream = "openai" | "jev" | "polly";
@@ -144,6 +151,7 @@ async function authorise(request: Request, store: Store): Promise<{ license: Lic
 export async function handle(request: Request, env: Env, store: Store, waitUntil: (p: Promise<unknown>) => void): Promise<Response> {
   const path = new URL(request.url).pathname;
   if (path === LICENSE_PATH && request.method === "GET") return checkLicense(request, store);
+  if (path === DODO_WEBHOOK_PATH && request.method === "POST") return handleDodo(request, env, store);
   const upstream = ROUTES[path];
   if (!upstream || request.method !== "POST") return fail(404, "not_found", "Not found.");
   const auth = await authorise(request, store);

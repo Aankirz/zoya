@@ -57,5 +57,9 @@ images, videos or GIFs.
 
 - Import the GitHub repo; set **Root Directory = `site`**. Framework preset: Next.js.
 - Environment variables: `DATABASE_URL` (Neon connection string), see `.env.example`.
+- Checkout: set `NEXT_PUBLIC_DODO_CHECKOUT_URL` to the Dodo static payment link for the $20/month product
+  ([payment links](https://docs.dodopayments.com/guides/payment-links-guide)) and redeploy; it is inlined at
+  build time. The hero and pricing then show a "get zoya, $20 a month" pill instead of the waitlist form, and
+  the FAQ says the key arrives by email (`relay/PAYMENTS.md` on `p5-web-payments`). Unset, the site is the waitlist.
 - Enable Web Analytics on the project. `<Analytics />` renders only when `VERCEL` is set.
 - Production builds from `main`.
