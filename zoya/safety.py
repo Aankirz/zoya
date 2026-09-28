@@ -172,7 +172,6 @@ CONFUSABLES = str.maketrans(
     "аеорсхуіјѕԁһӏАВЕКМНОРСТХУІЈЅαβεικνορτυχΑΒΕΖΗΙΚΜΝΟΡΤΥΧ" "օսոհցզաՕՍ" "ᎪᏴᏟᎠᎬᏀᎻᎥᎫᏦᏞᎷᏢᏒᏚᎢᏙᎳᎩᏃ",
     "aeopcxyijsdhlABEKMHOPCTXYIJSabeiknoptuxABEZHIKMNOPTYX" "ounhgqwOU" "ABCDEGHiJKLMPRSTVWYZ",
 )
-# Blank letters and symbols that are not format characters but draw nothing: "B⠀uy", "Paㅤy".
 INVISIBLE = {"\u2800", "\u3164", "\u115f", "\u1160", "\uffa0"}
 LEET = str.maketrans("0134578@$", "oleastbas")
 CAMEL_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
@@ -233,8 +232,6 @@ RISKY_PHRASES: tuple[tuple[str, str, str], ...] = (
     ("post", r"subscribe|subscribed|सब्सक्राइब\S*", "Subscribe"),
     ("post", r"like|comment|reply", "Post"),
 )
-# Everyday verbs that also name things ("Track order", "Books", "Share price"): risky only as the
-# control's first word, where they are the verb.
 LEADING_RISKY_PHRASES: tuple[tuple[str, str, str], ...] = (
     (
         "purchase",
@@ -276,7 +273,7 @@ class RiskyLabel:
     say: str  # canonical action name spoken to the user, never raw page text
 
 
-SPACED_LETTERS = re.compile(r"(?<!\S)(?:\S ){2,}\S(?!\S)")  # "p a y", "s e n d"
+SPACED_LETTERS = re.compile(r"(?<!\S)(?:\S ){2,}\S(?!\S)")
 
 
 def label_hits(raw: str) -> list[RiskyLabel]:
@@ -336,9 +333,7 @@ COMMERCE_PATH_WORDS = {
 CURRENCY_AMOUNT = re.compile(
     r"(?:₹|\brs\.?|\binr\b|\bmrp\b|रु\.?|\$|€|£)\s*:?\s*\d|\d\s*(?:rupees?\b|inr\b|रु|/-)", re.I
 )
-# A total, not a price beside a product: the page is about to take money for what it adds up.
 TOTAL_WORDS = re.compile(r"\btotal\b|payable|you pay|to pay|कुल|amount due", re.I)
-# Where money moves next. Not "cart": adding to a cart from the cart page stays reversible (D75).
 CHECKOUT_PATH_WORDS = {"checkout", "payment", "payments", "pay", "buy", "order", "billing"}
 ACCESSIBLE_NAME = re.compile(r'^- \w+(?: "(.*)")?')
 LINK_MONEY_PATH_WORDS = {
@@ -369,7 +364,7 @@ class ClickFacts:
     search_form: bool = False
     date_container: str = ""
     link_path: str = ""
-    form_path: str = ""  # where the submit goes: the button's formaction, else its form's action
+    form_path: str = ""
 
 
 def spoken_name(labels: list[str]) -> str:
@@ -577,7 +572,7 @@ def click_risk(facts: ClickFacts) -> RiskyLabel | None:
         return RiskyLabel("context", f"open {spoken_name(facts.labels) or 'this link'}")
     name = spoken_name(facts.labels)
     if facts.is_submit and not search_submit(facts) and checkout_page(facts):
-        return RiskyLabel("submit", f"submit {name or 'this form'}")  # D148: whatever its words
+        return RiskyLabel("submit", f"submit {name or 'this form'}")
     if reversible_click(facts) is not None:
         return None
     if not name:
@@ -926,8 +921,6 @@ def classify_reply(text: str) -> Reply:
 
 # --- Untrusted content and secrets (§12.1, §12.2) ---------------------------------------------
 
-# Any tag naming the envelope, with junk inside it ("</untrusted_content x>", "< / untrusted content
-# >"); `untag` folds fullwidth brackets and strips zero-width characters before matching.
 UNTRUSTED_TAG = re.compile(r"<[^<>]{0,40}?untrusted[\W_]{0,5}content[^<>]{0,40}>", re.I)
 
 

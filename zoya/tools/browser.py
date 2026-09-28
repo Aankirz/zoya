@@ -988,8 +988,6 @@ def fill_checked(locator: Any, text: str, field: str) -> None:
 
 ENTER_MARK = "data-zoya-enter"
 KEY_EVENTS = {"keydown", "keypress", "keyup"}
-# The field's form owner (form= included), and its default button: the first submit button among
-# form.elements in tree order, wherever it sits. The button is marked so Playwright can probe it.
 DEFAULT_BUTTON_JS = """(e, [attribute, mark]) => { const f = e.form;
   if (!f) return 'none';
   const b = [...f.elements].find(x => (x.tagName === 'BUTTON' && x.type === 'submit')
@@ -1036,7 +1034,7 @@ def _own_key_handler(page: Any, field: Any) -> bool:
             "DOM.querySelectorAll", {"nodeId": root, "selector": f'[{ENTER_MARK}="{mark}"]'}
         )["nodeIds"]
         if not found:
-            return True  # in a shadow root or gone: can't read it, so no Enter
+            return True
         for node in found:
             remote = session.send("DOM.resolveNode", {"nodeId": node})["object"]["objectId"]
             listeners = session.send(
@@ -1119,8 +1117,6 @@ SEARCH_FORM_JS = """(e => { const f = e.form || e.closest('form');
     : (f.getAttribute('method') || 'get');
   return method.trim().toLowerCase() === 'get'
     && !!f.querySelector('input[type=search i], [role=searchbox]'); })"""
-# Where a submit goes: the button's own formaction, else its form's action attribute (attributes,
-# not f.action, which an <input name="action"> inside the form would shadow).
 FORM_PATH_JS = """(e => { const f = e.form || e.closest('form');
   if (!f && !e.hasAttribute('formaction')) return '';
   const raw = e.hasAttribute('formaction') ? e.getAttribute('formaction')
