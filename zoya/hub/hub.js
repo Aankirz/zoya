@@ -54,6 +54,7 @@ const COPY = {
   },
   replied: "answered you",
   failed: "couldn’t finish",
+  couldnt: (heard) => `couldn’t ${heard}`,
   timesLabel: (n) => `asked ${n} times`,
   historyTitle: "history",
   historyCapsule: "on this mac",
@@ -134,6 +135,23 @@ const COPY = {
   sent: (text) => `asked: “${text}”. watch the pill.`,
 };
 
+const SPECIFIC = [
+  { outcomes: ["Played music", "Played a video"], pattern: /^(?:play|put on)\s+(.+?)(?:\s+on\s+(?:spotify|youtube))?[.!?]?$/i, say: (thing) => `played ${thing}` },
+  { outcomes: ["Searched Amazon"], pattern: /^search\s+amazon\s+for\s+(.+?)[.!?]?$/i, say: (thing) => `searched amazon for ${thing}` },
+  { outcomes: ["Searched the web"], pattern: /^(?:search(?:\s+the\s+web)?\s+for|google|look\s+up)\s+(.+?)[.!?]?$/i, say: (thing) => `searched for ${thing}` },
+  { outcomes: ["Set a reminder"], pattern: /^(?:set\s+a\s+reminder|remind\s+me)\s+to\s+(.+?)[.!?]?$/i, say: (thing) => `set a reminder to ${thing}` },
+  { outcomes: ["Remembered"], pattern: /^remember(?:\s+that)?\s+(.+?)[.!?]?$/i, say: (thing) => `remembered ${yours(thing)}` },
+  { outcomes: ["Ordered"], pattern: /^(order|buy)\s+(.+?)[.!?]?$/i, say: (verb, thing) => `${verb.toLowerCase() === "buy" ? "bought" : "ordered"} ${thing}` },
+  { outcomes: ["Cancelled"], pattern: /^(order|buy)\s+(.+?)[.!?]?$/i, say: (verb, thing) => `didn’t ${verb.toLowerCase()} ${thing}` },
+];
+const DOING = /^(?:play|open|search|set|order|buy|remember|send|share|write|find|remind)\b/i;
+const DOING_MAX = 60;
+const YOURS = { i: "you", "i’m": "you’re", "i'm": "you’re", my: "your", me: "you", mine: "yours", am: "are" };
+
+function yours(text) {
+  return text.replace(/(?<![\w’'])(i’m|i'm|i|my|me|mine|am)(?![\w’'])/gi, (word) => YOURS[word.toLowerCase()]);
+}
+
 const UNDO_MS = 8000;
 const UNDO_GRACE_MS = 3000;
 const ALLOWANCE_WARN = 0.9;
@@ -189,7 +207,14 @@ function appIcon(entry) {
     face.append(eyes());
     return face;
   }
-  return node("img", undefined, { class: "app", src: `appicon/${encodeURIComponent(entry.app)}`, alt: "", width: "26", height: "26" });
+  const picture = node("img", undefined, { class: "app", src: `appicon/${encodeURIComponent(entry.app)}`, alt: "", width: "26", height: "26" });
+  const letter = () => picture.replaceWith(node("span", entry.app[0], { class: "app is-letter", "aria-hidden": "true" }));
+  picture.addEventListener("error", letter, { once: true });
+  return picture;
+}
+
+function after(part) {
+  return Promise.all(part.getAnimations().map((motion) => motion.finished.catch(() => undefined)));
 }
 
 function clock(at) {
@@ -274,9 +299,21 @@ function doneCount(entries) {
   return entries.filter((e) => !e.failed).reduce((sum, e) => sum + (e.times || 1), 0);
 }
 
+function specific(entry) {
+  const [head, ...rest] = entry.outcome.split(" · ");
+  for (const { outcomes, pattern, say } of SPECIFIC) {
+    const match = outcomes.includes(head) && String(entry.heard).match(pattern);
+    if (match) return [say(...match.slice(1)), ...rest].join(" · ");
+  }
+  return entry.outcome;
+}
+
 function entryTitle(entry) {
-  if (entry.failed) return COPY.failed;
-  return lowerFirst(entry.outcome || COPY.replied);
+  if (entry.failed) {
+    const heard = String(entry.heard || "");
+    return DOING.test(heard) && heard.length <= DOING_MAX ? COPY.couldnt(lowerFirst(heard)) : COPY.failed;
+  }
+  return lowerFirst(entry.outcome ? specific(entry) : COPY.replied);
 }
 
 function entryDetail(entry) {

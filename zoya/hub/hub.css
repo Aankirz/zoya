@@ -383,6 +383,14 @@ main {
   box-shadow: 0 0 0 1px var(--icon-outline);
 }
 
+.app.is-letter {
+  background: var(--strip);
+  color: var(--muted);
+  font-size: var(--text-small);
+  font-weight: 600;
+  line-height: 1;
+}
+
 .app.is-zoya {
   background: var(--live);
   color: var(--on-live);
