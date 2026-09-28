@@ -165,7 +165,7 @@ export const TALK = {
   ],
 };
 
-// One plan, and the waitlist is the only way in: no checkout on the site yet.
+// One plan. The way in is the waitlist, or Dodo's checkout once NEXT_PUBLIC_DODO_CHECKOUT_URL is set (lib/checkout.ts).
 // Local transcription: STT_MODEL_REPO in zoya/config.py (mlx whisper). ⌘K: aria-keyshortcuts="Meta+K" in zoya/hub/index.html.
 export const PRICING = {
   label: "pricing",
@@ -177,6 +177,14 @@ export const PRICING = {
     { title: "runs on your mac.", line: "hold fn and shift, say “hey zoya”, or press ⌘k in zoya's window and type." },
     { title: "private.", line: "what you say is transcribed right on your mac." },
   ],
+};
+
+// Shown only when NEXT_PUBLIC_DODO_CHECKOUT_URL is set.
+export const CHECKOUT = {
+  cta: "get zoya, $20 a month",
+  menu: "get zoya",
+  skipLink: "skip to get zoya",
+  hint: "mac only. your key arrives by email.",
 };
 
 export const FAQ = {

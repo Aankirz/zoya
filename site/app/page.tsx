@@ -1,4 +1,5 @@
 import { AppWindow } from "./components/AppWindows";
+import { CheckoutLink } from "./components/CheckoutLink";
 import { DemoVideo } from "./components/DemoVideo";
 import { FolderWordmark } from "./components/FolderWordmark";
 import { HelloWindow } from "./components/HelloWindow";
@@ -9,8 +10,9 @@ import { TypingBubble } from "./components/TypingBubble";
 import { VisitorCount } from "./components/VisitorCount";
 import { WaitlistForm } from "./components/WaitlistForm";
 import { AppKind } from "./components/AppWindows";
-import { ABILITIES, CHARGE, CONTACT_EMAIL, DEMO, FAQ, FOOTER, HERO, HOW, PRICING, SKIP_LINK, TALK, WHY } from "./copy";
+import { ABILITIES, CHARGE, CHECKOUT, CONTACT_EMAIL, DEMO, FAQ, FOOTER, HERO, HOW, PRICING, SKIP_LINK, TALK, WHY } from "./copy";
 import { OutlinePlus } from "./icons/rune";
+import { ctaFor } from "@/lib/checkout";
 import { getVisitorCount } from "@/lib/visitors";
 
 // The visitor count is rendered on the server and refreshed at most once a minute.
@@ -18,6 +20,9 @@ export const revalidate = 60;
 
 const HERO_FORM = "hero";
 const PRICING_FORM = "pricing";
+
+// Where the hero's call to action lands: the checkout pill, or the waitlist's email field.
+const heroTarget = (checkout: boolean) => `#${HERO_FORM}-${checkout ? "checkout" : "email"}`;
 
 type Row = { readonly say: string; readonly title: string; readonly line: string; readonly window: AppKind };
 
@@ -40,13 +45,16 @@ function FeatureRows({ rows }: { rows: readonly Row[] }) {
 
 export default async function Home() {
   const visitorCount = await getVisitorCount();
+  const cta = ctaFor(process.env);
+  const checkout = cta.kind === "checkout";
+  const joinHref = heroTarget(checkout);
 
   return (
     <>
-      <a className="skip-link" href={`#${HERO_FORM}-email`}>
-        {SKIP_LINK}
+      <a className="skip-link" href={joinHref}>
+        {checkout ? CHECKOUT.skipLink : SKIP_LINK}
       </a>
-      <MenuBar joinHref={`#${HERO_FORM}-email`} />
+      <MenuBar joinHref={joinHref} joinLabel={checkout ? CHECKOUT.menu : undefined} />
 
       <main>
         <section className="hero desktop-dots">
@@ -54,7 +62,11 @@ export default async function Home() {
           <div className="hero-copy">
             <h1 className="hero-title">{HERO.title}</h1>
             <p className="hero-subline">{HERO.subline}</p>
-            <WaitlistForm idPrefix={HERO_FORM} />
+            {checkout ? (
+              <CheckoutLink id={`${HERO_FORM}-checkout`} href={cta.href} label={cta.label} />
+            ) : (
+              <WaitlistForm idPrefix={HERO_FORM} />
+            )}
           </div>
         </section>
 
@@ -143,7 +155,11 @@ export default async function Home() {
           </ul>
           {/* The step row's centred grid, so the form sits centred like it does in the hero. */}
           <div className="ability install-step">
-            <WaitlistForm idPrefix={PRICING_FORM} />
+            {checkout ? (
+              <CheckoutLink id={`${PRICING_FORM}-checkout`} href={cta.href} label={cta.label} />
+            ) : (
+              <WaitlistForm idPrefix={PRICING_FORM} />
+            )}
           </div>
         </section>
 

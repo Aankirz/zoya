@@ -15,7 +15,7 @@ export function ZoyaMark({ className }: { className?: string }) {
   );
 }
 
-export function MenuBar({ joinHref }: { joinHref: string }) {
+export function MenuBar({ joinHref, joinLabel = MENU.cta }: { joinHref: string; joinLabel?: string }) {
   return (
     <header className="menubar">
       <nav className="menubar-left" aria-label="page">
@@ -36,7 +36,7 @@ export function MenuBar({ joinHref }: { joinHref: string }) {
           <MenuClock />
         </span>
         <a className="menubar-cta" href={joinHref}>
-          {MENU.cta}
+          {joinLabel}
         </a>
       </div>
     </header>
