@@ -30,6 +30,18 @@ WORKTREE="$(dirname "$ROOT")/zoya-autotune"
 LOGS="$ROOT/logs/autotune"
 PY="$ROOT/.venv/bin/python"
 STOP_HOUR=7
+KEEP_NIGHTS=7  # night logs kept as text; older ones are gzipped
+
+# The newest KEEP_NIGHTS night logs stay as text; older ones are gzipped. Bash 3.2 safe.
+rotate_night_logs() {
+  local logs=() log i
+  for log in "$LOGS"/night-*.log; do
+    [[ -f "$log" ]] && logs+=("$log")
+  done
+  for ((i = 0; i + KEEP_NIGHTS < ${#logs[@]}; i++)); do
+    gzip -f "${logs[i]}"
+  done
+}
 
 NOW=0
 RUNS=3  # two repeats are mostly noise: a baseline's two differed by 3 of 10 tasks
@@ -69,6 +81,8 @@ cd "$ROOT" || exit 1
 mkdir -p "$LOGS/patches"
 tonight="$(date +%Y-%m-%d)"
 agent_log="$LOGS/night-$tonight.log"
+: >>"$agent_log"
+rotate_night_logs
 
 if [[ ! -d "$WORKTREE" ]]; then
   "$PY" -m evals.autotune init || exit 1
