@@ -534,6 +534,11 @@ def honest_reply(reply: str) -> str:
     if not answers or not {"claims", "supported"} <= answers.answers.keys():
         return reply
     claims, supported = answers.noul("claims"), answers.noul("supported")
-    if claims >= JEV_STEP_CONFIDENCE and supported < JEV_STEP_CONFIDENCE:
-        return HONEST_SAY.format(title=title)
-    return reply
+    replaced = claims >= JEV_STEP_CONFIDENCE and supported < JEV_STEP_CONFIDENCE
+    safety.log_safety_timing(
+        event="claim_check",
+        claims=round(claims, 2),
+        supported=round(supported, 2),
+        replaced=replaced,
+    )
+    return HONEST_SAY.format(title=title) if replaced else reply
