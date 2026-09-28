@@ -648,12 +648,27 @@ def page_subject(say: str, control: str, title: str, ref: str) -> str:
     except ToolError:
         log.debug("no snapshot for the confirmation summary", exc_info=True)
         return ""
-    subjects = page_items.subject_candidates(snapshot_text, ref, title)
+    anchor = ref or anchor_ref(snapshot_text, control)
+    subjects = page_items.subject_candidates(snapshot_text, anchor, title)
     name, confidence = page_items.subject(say, control, title, subjects)
     safety.log_safety_timing(
         event="page_subject", named=bool(name), confidence=round(confidence, 3)
     )
     return name
+
+
+def anchor_ref(snapshot_text: str, control: str) -> str:
+    """The snapshot ref of the control the Playwright path clicked, found by its own spoken name,
+    so the subject is read around it and not around the middle of the page (D138 c).
+
+    ponytail: the first control with that name wins; two same-named controls read the first.
+    """
+    if not control:
+        return ""
+    for node in page_items.parse(snapshot_text):
+        if node.ref and safety.spoken_name([node.name]) == control:
+            return node.ref
+    return ""
 
 
 def _subject_for(risky: safety.RiskyLabel, target: Target, item: str, ref: str) -> str:
