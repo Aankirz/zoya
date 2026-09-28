@@ -62,6 +62,7 @@ MUTED = (oklch(0.40, 0.006, 260), oklch(0.76, 0.006, 260))
 QUIET = (oklch(0.52, 0.006, 260), oklch(0.64, 0.006, 260))
 LINK = (oklch(0.43, 0.16, 258), oklch(0.78, 0.11, 252))
 RULE = (oklch(0.86, 0.004, 260), oklch(0.34, 0.005, 260))
+PAGE = (oklch(0.969, 0.002, 260), oklch(0.19, 0.004, 260))
 PANE = (oklch(0.975, 0.003, 260, 0.82), oklch(0.21, 0.004, 260, 0.82))
 CAPSULE_TOP = (oklch(0.91, 0.05, 245), oklch(0.36, 0.06, 252))
 CAPSULE_BOTTOM = (oklch(0.86, 0.07, 248), oklch(0.31, 0.07, 254))
@@ -84,6 +85,10 @@ def _dynamic(pair: tuple[tuple[float, ...], tuple[float, ...]]) -> Any:
     return AppKit.NSColor.colorWithName_dynamicProvider_(
         None, lambda appearance: _ns(dark if _dark(appearance) else light)
     )
+
+
+def page_background() -> Any:
+    return _dynamic(PAGE)
 
 
 def _cg(pair: tuple[tuple[float, ...], tuple[float, ...]], view: Any) -> Any:

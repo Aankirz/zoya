@@ -150,6 +150,8 @@ class Hub:
         config.setURLSchemeHandler_forURLScheme_(schemes, SCHEME)
         config.userContentController().addScriptMessageHandler_name_(messages, HANDLER)
         view = WebKit.WKWebView.alloc().initWithFrame_configuration_(((0, 0), WINDOW_SIZE), config)
+        view.setValue_forKey_(False, "drawsBackground")
+        view.setUnderPageBackgroundColor_(hub_chrome.page_background())
         self.keep += [schemes, messages]
         return view
 
@@ -165,6 +167,7 @@ class Hub:
             ((0, 0), WINDOW_SIZE), style, AppKit.NSBackingStoreBuffered, False
         )
         window.setTitle_(WINDOW_TITLE)
+        window.setBackgroundColor_(hub_chrome.page_background())
         window.setTitleVisibility_(AppKit.NSWindowTitleHidden)
         window.setReleasedWhenClosed_(False)
         window.setContentMinSize_(MIN_SIZE)
