@@ -189,6 +189,18 @@ class HeldReply:
 
 
 BROWSER_TOOL_PREFIX = "browser_"
+CLAIM_TOOL_RESULTS = 3
+
+
+def last_tool_results(messages: list[Any], count: int) -> list[str]:
+    """The text of the turn's last `count` tool results, oldest first, for the claim check."""
+    texts = [
+        " ".join(part.get("text", "") for part in block["toolResult"].get("content", [])).strip()
+        for message in messages
+        for block in message.get("content", [])
+        if isinstance(block, dict) and "toolResult" in block
+    ]
+    return [text for text in texts if text][-count:]
 
 
 # --- Orchestrator -----------------------------------------------------------------
@@ -387,7 +399,8 @@ def run_orchestrator(command: str, timings: dict[str, int] | None = None, skill:
     reply = str(result).strip() or "Done."
     if held.browser_used:
         final = " ".join([*held.sentences, sentences.flush()]).strip()
-        honest = web_loop.honest_reply(final) if final else final
+        proof = last_tool_results(agent.messages[len(history) :], CLAIM_TOOL_RESULTS)
+        honest = web_loop.honest_reply(final, proof) if final else final
         tasks.say(honest)
         if honest != final:
             reply = honest

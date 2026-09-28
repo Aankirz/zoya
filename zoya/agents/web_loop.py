@@ -136,6 +136,7 @@ class Outcome:
     text_calls: int = 0
     jev_ms: int = 0
     history: list[dict[str, Any]] = field(default_factory=list)
+    page: dict[str, Any] = field(default_factory=dict)
 
 
 def clean(text: str) -> str:
@@ -404,6 +405,7 @@ def _stuck(history: list[dict[str, Any]]) -> bool:
 def step(goal: str, outcome: Outcome) -> bool:
     """One observe → decide → act. True to keep going; False with outcome.reason set to stop."""
     observed = observe_rendered()
+    outcome.page = observed
     table = element_table(observed["actions"])
     offered = operations_offered(table, observed)
     answers = decisions.ask(
@@ -427,6 +429,7 @@ def step(goal: str, outcome: Outcome) -> bool:
     did = execute(decision, observed, goal, outcome.history, outcome)
     outcome.steps += 1
     after = observe()
+    outcome.page = after
     outcome.history.append(
         {
             "action": did,
@@ -470,6 +473,29 @@ HANDED_BACK = (
     "I couldn't finish that on the page by myself ({reason}). Steps so far: {steps}. Carry on with "
     "browser_read, browser_click and browser_type."
 )
+HANDED_BACK_ON_PAGE = (
+    "I couldn't finish that on the page by myself ({reason}). Steps so far: {steps}. The page is "
+    "now {title} ({url}); these are its controls, so carry on from here with browser_click and "
+    "browser_type without browser_read, and don't open the site again or repeat these steps:\n"
+    "{elements}"
+)
+HANDBACK_ELEMENTS = 40
+
+
+def hand_back(outcome: Outcome, steps: str) -> str:
+    """The loop's hand-back: what it did and the page it last saw, so the brain carries on from
+    there instead of reading the page again or starting over (D141)."""
+    page = outcome.page
+    if not page:
+        return HANDED_BACK.format(reason=outcome.reason, steps=steps)
+    lines = element_lines(element_table(page["actions"])).splitlines()[:HANDBACK_ELEMENTS]
+    return HANDED_BACK_ON_PAGE.format(
+        reason=outcome.reason,
+        steps=steps,
+        title=clean(page.get("title", "")),
+        url=page.get("url", ""),
+        elements=safety.wrap_untrusted("\n".join(lines) or "none"),
+    )
 
 
 @tool
@@ -489,7 +515,7 @@ def browser_task(goal: str) -> str:
     if outcome.done:
         title = clean(observe().get("title", "")) if outcome.steps else ""
         return DONE_SAY.format(steps=steps, title=title or "the same page")
-    return HANDED_BACK.format(reason=outcome.reason, steps=steps)
+    return hand_back(outcome, steps)
 
 
 TOOLS = [browser_task]
@@ -500,15 +526,21 @@ CLAIMS_QUESTION = (
     "played, searched, posted, subscribed, added or booked something?"
 )
 SUPPORTED_QUESTION = (
-    "Does the page Zoya's browser shows now support that the action the reply claims was "
-    "completed really happened?"
+    "Does the page Zoya's browser shows now, or the results of the tools she used in this task, "
+    "support that the action the reply claims was completed really happened?"
 )
 CLAIM_STATE = "The assistant's reply: {reply!r}\nPage: {title} ({url})\n{page}"
 HONEST_SAY = "I couldn't confirm that on the page. It now shows {title}."
 HONEST_TITLE_CHARS = 60
+CLAIM_TOOL_RESULT_CHARS = 600
 
 
-def honest_reply(reply: str) -> str:
+def evidence(page_text: str, tool_results: list[str]) -> str:
+    results = "\n".join(f"- {text[:CLAIM_TOOL_RESULT_CHARS]}" for text in tool_results)
+    return f"Page text:\n{page_text}\n\nTool results from this task:\n{results or '- none'}"
+
+
+def honest_reply(reply: str, tool_results: list[str] | None = None) -> str:
     """D138 (b): a completion the page doesn't support becomes what the page does show.
 
     One Jev call with two Nouls. It only ever makes the reply more honest: Jev unavailable, an
@@ -524,7 +556,7 @@ def honest_reply(reply: str) -> str:
             reply=reply,
             title=title,
             url=page.get("url", ""),
-            page=safety.wrap_untrusted(page.get("text", "")),
+            page=safety.wrap_untrusted(evidence(page.get("text", ""), tool_results or [])),
         ),
         {
             "claims": Noul(instructions=CLAIMS_QUESTION),
