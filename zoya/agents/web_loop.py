@@ -28,6 +28,7 @@ import time
 from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
+from textwrap import shorten
 from typing import Any
 
 from strands import tool
@@ -504,6 +505,7 @@ SUPPORTED_QUESTION = (
 )
 CLAIM_STATE = "The assistant's reply: {reply!r}\nPage: {title} ({url})\n{page}"
 HONEST_SAY = "I couldn't confirm that on the page. It now shows {title}."
+HONEST_TITLE_CHARS = 60
 
 
 def honest_reply(reply: str) -> str:
@@ -516,7 +518,7 @@ def honest_reply(reply: str) -> str:
         page = observe()
     except Exception:  # noqa: BLE001 — a check that can't run changes nothing (D138 b)
         return reply
-    title = clean(page.get("title", "")) or "the same page"
+    title = shorten(clean(page.get("title", "")), HONEST_TITLE_CHARS) or "the same page"
     answers = decisions.ask(
         CLAIM_STATE.format(
             reply=reply,
