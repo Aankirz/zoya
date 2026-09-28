@@ -62,7 +62,8 @@ of the same thing.
 4. **Write it as a unified diff** against the worktree, with paths `a/zoya/...` and
    `b/zoya/...`, into `logs/autotune/patches/<next exp_id>.diff`. Check your context lines
    against the worktree's current file, or `git apply` will refuse it.
-5. **Run it**, with the same `--group` and `--runs` as the baseline:
+5. **Run it**, with the same `--group` and `--runs` as the baseline (the night uses 3;
+   two repeats are mostly noise):
 
    ```
    .venv/bin/python -m evals.autotune try logs/autotune/patches/<id>.diff --desc "<what and why, one line>" --runs <N> --group "<group>"

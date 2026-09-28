@@ -4,8 +4,9 @@
 #
 #   scripts/autotune-night.sh [--now] [--runs N] [--group "mac app"]
 #
-# --now starts outside 00:00-07:00. AUTOTUNE_BUDGET_CENTS caps the eval spend (the runner
-# enforces it); AUTOTUNE_AGENT_MAX_USD, if set, caps the proposing agent's own API spend.
+# --runs defaults to 3 and must be at least 2. --now starts outside 00:00-07:00.
+# AUTOTUNE_BUDGET_CENTS caps the eval spend (the runner enforces it); AUTOTUNE_AGENT_MAX_USD,
+# if set, caps the proposing agent's own API spend.
 #
 # claude flags, from https://code.claude.com/docs/en/cli-reference and .../permission-modes:
 #   -p                            print mode, non-interactive
@@ -26,7 +27,7 @@ PY="$ROOT/.venv/bin/python"
 STOP_HOUR=7
 
 NOW=0
-RUNS=2
+RUNS=3  # two repeats are mostly noise: a baseline's two differed by 3 of 10 tasks
 GROUP=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
