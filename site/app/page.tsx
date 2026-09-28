@@ -12,7 +12,7 @@ import { WaitlistForm } from "./components/WaitlistForm";
 import { AppKind } from "./components/AppWindows";
 import { ABILITIES, CHARGE, CHECKOUT, CONTACT_EMAIL, DEMO, FAQ, FOOTER, HERO, HOW, PRICING, SKIP_LINK, TALK, WHY } from "./copy";
 import { OutlinePlus } from "./icons/rune";
-import { ctaFor } from "@/lib/checkout";
+import { ctaFor, faqFor } from "@/lib/checkout";
 import { getVisitorCount } from "@/lib/visitors";
 
 // The visitor count is rendered on the server and refreshed at most once a minute.
@@ -169,7 +169,7 @@ export default async function Home() {
           </p>
           <h2 className="section-title">{FAQ.title}</h2>
           <div className="faq-list">
-            {FAQ.items.map((item) => (
+            {faqFor(cta).map((item) => (
               <details key={item.q}>
                 <summary>
                   {item.q}

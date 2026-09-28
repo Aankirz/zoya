@@ -179,12 +179,21 @@ export const PRICING = {
   ],
 };
 
-// Shown only when NEXT_PUBLIC_DODO_CHECKOUT_URL is set.
+// Shown only when NEXT_PUBLIC_DODO_CHECKOUT_URL is set. After purchase Dodo emails the license key
+// (relay/PAYMENTS.md), and zoya asks for it on first launch.
 export const CHECKOUT = {
   cta: "get zoya, $20 a month",
   menu: "get zoya",
   skipLink: "skip to get zoya",
   hint: "mac only. your key arrives by email.",
+  when: {
+    q: "when can i get it?",
+    a: "now. get zoya for $20 a month, and your key arrives by email.",
+  },
+  key: {
+    q: "how do i get my key?",
+    a: "it arrives by email, right after you pay. when zoya asks for it, paste it in. that's it.",
+  },
 };
 
 export const FAQ = {
