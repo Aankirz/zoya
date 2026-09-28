@@ -4,8 +4,9 @@
 #
 #   scripts/autotune-night.sh [--now] [--runs N] [--group "mac app"]
 #
-# --now starts outside 00:00-07:00. AUTOTUNE_BUDGET_CENTS caps the eval spend (the runner
-# enforces it); AUTOTUNE_AGENT_MAX_USD, if set, caps the proposing agent's own API spend.
+# --runs defaults to 3 and must be at least 2. --now starts outside 00:00-07:00.
+# AUTOTUNE_BUDGET_CENTS caps the eval spend (the runner enforces it); AUTOTUNE_AGENT_MAX_USD,
+# if set, caps the proposing agent's own API spend.
 #
 # claude flags, from https://code.claude.com/docs/en/cli-reference and .../permission-modes:
 #   -p                            print mode, non-interactive
@@ -17,6 +18,11 @@
 #   --max-budget-usd              print mode only
 #   --output-format stream-json   every tool call, result and permission denial lands in the log
 #   --verbose                     required by stream-json in print mode
+#   --safe-mode                   CLAUDE.md, skills, plugins, hooks, MCP servers, custom commands
+#                                 and agents and auto memory do not load; authentication, built-in
+#                                 tools and permissions work normally. Not --bare: it never reads
+#                                 the subscription login, only ANTHROPIC_API_KEY
+#                                 (https://code.claude.com/docs/en/headless#start-faster-with-bare-mode)
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -24,9 +30,21 @@ WORKTREE="$(dirname "$ROOT")/zoya-autotune"
 LOGS="$ROOT/logs/autotune"
 PY="$ROOT/.venv/bin/python"
 STOP_HOUR=7
+KEEP_NIGHTS=7  # night logs kept as text; older ones are gzipped
+
+# The newest KEEP_NIGHTS night logs stay as text; older ones are gzipped. Bash 3.2 safe.
+rotate_night_logs() {
+  local logs=() log i
+  for log in "$LOGS"/night-*.log; do
+    [[ -f "$log" ]] && logs+=("$log")
+  done
+  for ((i = 0; i + KEEP_NIGHTS < ${#logs[@]}; i++)); do
+    gzip -f "${logs[i]}"
+  done
+}
 
 NOW=0
-RUNS=2
+RUNS=3  # two repeats are mostly noise: a baseline's two differed by 3 of 10 tasks
 GROUP=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -63,6 +81,8 @@ cd "$ROOT" || exit 1
 mkdir -p "$LOGS/patches"
 tonight="$(date +%Y-%m-%d)"
 agent_log="$LOGS/night-$tonight.log"
+: >>"$agent_log"
+rotate_night_logs
 
 if [[ ! -d "$WORKTREE" ]]; then
   "$PY" -m evals.autotune init || exit 1
@@ -104,6 +124,7 @@ claude -p "$prompt" \
   --allowedTools "${allowed[@]}" \
   --append-system-prompt-file "$ROOT/evals/autotune/program.md" \
   --output-format stream-json --verbose \
+  --safe-mode \
   ${budget[@]+"${budget[@]}"} \
   >>"$agent_log" 2>&1 &
 agent=$!

@@ -15,6 +15,8 @@ def summaries(*names: str) -> list[dict]:
 
 
 BASELINE = ("baseline_1", "baseline_2", "baseline_3")
+GAIN_3 = ("gain3_1", "gain3_2", "gain3_3")
+NOISE_3 = ("noise3_1", "noise3_2", "noise3_3")
 
 
 def test_load_reads_a_harness_run() -> None:
@@ -77,6 +79,21 @@ def test_noise_that_clears_a_small_min_gain_still_fails_on_a_group() -> None:
     keep, reason = score.decide(summaries(*BASELINE), summaries("noise_1", "noise_2"), min_gain=0.3)
     assert not keep
     assert "former skill drops from 1.67 to 1.50" in reason
+
+
+def test_with_three_repeats_a_real_one_task_gain_is_kept() -> None:
+    # The candidate's repeats spread over 2 of 8 tasks (7, 5, 5), yet its mean is one task up.
+    keep, reason = score.decide(summaries(*BASELINE), summaries(*GAIN_3))
+    assert keep, reason
+    assert "4.67 → 5.67" in reason
+
+
+def test_with_three_repeats_noise_is_not_kept() -> None:
+    # Same odds as the baseline (6, 5, 4 successes): its first two repeats alone look like a gain.
+    assert score.decide(summaries(*BASELINE[:2]), summaries(*NOISE_3[:2]))[0]
+    keep, reason = score.decide(summaries(*BASELINE), summaries(*NOISE_3))
+    assert not keep
+    assert "4.67 → 5.00 gains less than 1" in reason
 
 
 def test_a_group_drop_is_discarded_despite_a_higher_total() -> None:
