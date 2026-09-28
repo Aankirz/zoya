@@ -287,7 +287,7 @@ def try_patch(paths: Paths, patch_file: str, desc: str, runs: int, group: str) -
     patch_sha = hashlib.sha256(text.encode("utf-8")).hexdigest()[:SHA_CHARS]
     book = _open_ledger(paths)
     exp_id = _next_exp_id(book)
-    violations = surface.check_patch(text)
+    violations = surface.check_patch(text, paths.worktree)
     if violations:
         _record(book, exp_id, desc, patch_sha, [], "reject: " + "; ".join(violations))
         raise AutotuneError("rejected by the surface guard: " + "; ".join(violations))

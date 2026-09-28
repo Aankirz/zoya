@@ -19,6 +19,8 @@ from pathlib import Path
 
 import pytest
 
+from evals.autotune import surface as real_surface
+
 SURFACE_FILES = {"zoya/config.py", "zoya/prompts.py"}
 TASKS = 10
 CENTS_PER_TASK = 5.0  # one fake eval run costs 50 cents
@@ -48,7 +50,7 @@ out.mkdir(parents=True, exist_ok=True)
 # --- stand-ins for the sibling modules (contract signatures only) ---------------------------------
 
 
-def _check_patch(unified_diff: str) -> list[str]:
+def _check_patch(unified_diff: str, root: Path | None = None) -> list[str]:
     violations = []
     for line in unified_diff.splitlines():
         if line.startswith(("--- a/", "+++ b/")) and line[6:] not in SURFACE_FILES:
@@ -229,6 +231,21 @@ def test_guard_rejected_patch_never_runs_the_eval(loop, repo: Path) -> None:
     assert git(worktree(repo), "rev-parse", "HEAD") == before[2]
     assert ledger_rows(repo)[-1]["verdict"].startswith("reject:")
     assert float(ledger_rows(repo)[-1]["cents_total"]) == 0
+
+
+def test_guard_reads_the_worktree_when_main_has_moved_on(
+    loop, repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(loop, "surface", real_surface)
+    config = repo / "zoya" / "config.py"
+    config.write_text("RELAY_URL = 'x'\n" + config.read_text())
+    git(repo, "commit", "-qam", "feat: main moves on")
+    patch = make_patch(repo, "one-more", "zoya/config.py", "= 3", "= 4")
+
+    code = loop.main(["try", str(patch), "--desc", "one more", "--runs", "2", "--group", "mac app"])
+
+    assert code == 0
+    assert not ledger_rows(repo)[-1]["verdict"].startswith("reject:")
 
 
 def test_kept_patch_is_committed_and_becomes_the_new_baseline(loop, repo: Path) -> None:
