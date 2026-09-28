@@ -551,6 +551,7 @@ def _probe_locator(page: Any, locator: Any) -> Target:
         role=shape["role"],
         input_type=shape["type"],
         opens_popup=shape["popup"],
+        search_form=shape["searchForm"],
     )
     return Target(locator.element_handle(), facts, page.title(), url.netloc)
 
@@ -992,11 +993,15 @@ SECRET_FIELD_SAY = "That's a password or code field. Please type it yourself; I'
 # The focused element's own facts, mirroring the Playwright probe: its submit-ness, its name
 # attribute (KNOWN_SAFE_CLICKS), the text of its form or third ancestor (NEARBY), and its box in
 # global screen points (SCREEN_RECT_JS) for the stage ring.
-ELEMENT_SHAPE_JS = """e => ({
+SEARCH_FORM_JS = """(e => { const f = e.form || e.closest('form');
+  return !!f && f.method === 'get'
+    && !!f.querySelector('input[type=search i], [role=searchbox]'); })"""
+ELEMENT_SHAPE_JS = f"""e => ({{
   role: e.getAttribute('role') || e.tagName.toLowerCase(),
   type: e.tagName === 'INPUT' ? (e.getAttribute('type') || 'text') : '',
   popup: e.hasAttribute('aria-haspopup') || e.hasAttribute('aria-expanded'),
-})"""
+  searchForm: {SEARCH_FORM_JS}(e),
+}})"""
 FOCUS_FACTS_JS = """(() => {
   const e = document.activeElement;
   if (!e || e === document.body || e === document.documentElement) return JSON.stringify({});
@@ -1012,10 +1017,11 @@ FOCUS_FACTS_JS = """(() => {
       || (e.tagName === 'BUTTON' && !e.getAttribute('type')))),
     link: e.tagName === 'A' && e.hasAttribute('href'),
     popup: e.hasAttribute('aria-haspopup') || e.hasAttribute('aria-expanded'),
+    searchForm: SEARCH_FORM(e),
     near: (near.innerText || '').slice(0, NEARBY_LIMIT),
     rect: [screenX + r.left, screenY + (outerHeight - innerHeight) + r.top, r.width, r.height]
   });
-})()""".replace("NEARBY_LIMIT", str(NEARBY_MAX_CHARS))
+})()""".replace("NEARBY_LIMIT", str(NEARBY_MAX_CHARS)).replace("SEARCH_FORM", SEARCH_FORM_JS)
 
 
 @dataclass(frozen=True)
@@ -1176,6 +1182,7 @@ def _ref_probe(ref: str, approved: str) -> Target:
         role=node.role,
         input_type=str(focused.get("type") or ""),
         opens_popup=bool(focused.get("popup")),
+        search_form=bool(focused.get("searchForm")),
     )
     title = _batch_value(answers[1], "title") or ""
     return Target(focused.get("rect"), facts, title, address.netloc)

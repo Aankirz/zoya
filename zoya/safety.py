@@ -308,6 +308,7 @@ class ClickFacts:
     role: str = ""
     input_type: str = ""
     opens_popup: bool = False
+    search_form: bool = False
 
 
 def spoken_name(labels: list[str]) -> str:
@@ -377,6 +378,8 @@ def reversible_click(facts: ClickFacts) -> Reversible | None:
     """
     if facts.is_link and not facts.is_submit and spoken_name(facts.labels):
         return Reversible("navigate", "go back")
+    if search_submit(facts):
+        return Reversible("navigate", "go back")
     names = [name for label in facts.labels if (name := normalise(label))]
     if not names:
         return None
@@ -384,6 +387,24 @@ def reversible_click(facts: ClickFacts) -> Reversible | None:
         if all(pattern.search(name) for name in names):
             return Reversible(intent, undo)
     return None
+
+
+SEARCH_SUBMIT_RISKY = re.compile(
+    r"order|pay|buy|check ?out|delete|send|post|subscribe|confirm", re.I
+)
+
+
+def search_submit(facts: ClickFacts) -> bool:
+    """D138 (a): a GET search submit is D75 "navigate" only when every strict condition holds.
+
+    The form is method=GET and holds a searchbox or type=search field (the page fact), the
+    control's names carry no risky word, and the page is not on a cart, checkout or payment path.
+    """
+    if not (facts.is_submit and facts.search_form):
+        return False
+    if any(SEARCH_SUBMIT_RISKY.search(normalise(label)) for label in facts.labels):
+        return False
+    return not set(normalise(facts.path).split()) & COMMERCE_PATH_WORDS
 
 
 def payment_blocked_host(host: str) -> bool:
