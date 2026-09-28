@@ -224,7 +224,9 @@ PILL_STATES = (
 
 
 def pill_window(pid: int, hub: int) -> int:
-    return next(w["kCGWindowNumber"] for w in _windows(pid) if w["kCGWindowNumber"] != hub)
+    """The pill sits lowest on screen; the menu-bar item and any glow are higher up."""
+    others = [w for w in _windows(pid) if w["kCGWindowNumber"] != hub]
+    return max(others, key=lambda w: w["kCGWindowBounds"]["Y"])["kCGWindowNumber"]
 
 
 def shots(child: subprocess.Popen, folder: Path, theme: str) -> None:

@@ -552,6 +552,7 @@ class Sidebar(
         share = min(plan["usedCents"] / plan["capCents"], 1.0) if shown else 0.0
         self.plan_right.setStringValue_(f"{round(share * 100)}% used" if shown else "")
         self.plan.spoken = f"Plan, {round(share * 100)} percent used" if shown else "Plan"
+        self.plan.setHidden_(not shown)
         if self.plan_width is not None:
             self.plan_width.setActive_(False)
         self.plan_width = self.plan_fill.widthAnchor().constraintEqualToAnchor_multiplier_(

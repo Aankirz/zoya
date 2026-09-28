@@ -208,7 +208,7 @@ def counts() -> dict[str, str]:
     granted = sum(setup()["permissions"].values())
     return {
         "today": str(done_count(today()) or ""),
-        "history": str(done_count(history(limit=READ_LINES)) or ""),
+        "history": str(sum(int(e.get("times", 1)) for e in history()) or ""),
         "memory": str(len(memories()) or ""),
         "setup": f"{granted} of {len(PERMISSIONS)}",
     }

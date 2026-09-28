@@ -56,6 +56,7 @@ const COPY = {
   failed: "couldn’t finish",
   timesLabel: (n) => `asked ${n} times`,
   historyTitle: "history",
+  historyCapsule: "on this mac",
   historySub: (n) => `${n} ${n === 1 ? "request" : "requests"}. they stay on this mac.`,
   historyEmpty: "nothing here yet. everything you ask me shows up here, and only on this mac.",
   heard: "heard",
@@ -72,6 +73,7 @@ const COPY = {
   cleared: "history is cleared.",
   clearRefused: "i couldn’t clear it. try again.",
   memoryTitle: "memory",
+  memoryCapsule: "only yours",
   memorySub: (n) => (n === 1 ? "one thing i remember about you." : `${n} things i remember about you.`),
   memoryCard: "what i remember",
   memoryEmpty: "nothing yet. tell me something to remember, like “remember that i’m vegetarian.”",
@@ -80,6 +82,7 @@ const COPY = {
   undo: "undo",
   deleteFailed: "i couldn’t delete that. try again in a moment.",
   planTitle: "plan",
+  planCapsule: "this month",
   planSub: (month) => `your allowance for ${month}.`,
   planCard: "this month",
   planUsed: "used",
@@ -87,6 +90,7 @@ const COPY = {
   planLeft: "left",
   planMissing: "your plan isn’t here right now. with your own keys, there’s nothing to track.",
   setupTitle: "setup",
+  setupCapsule: "what i need",
   setupSub: (on, all) => (on === all ? "everything is on." : `${on} of ${all} on.`),
   permissionsCard: "permissions",
   permissions: { microphone: "microphone", accessibility: "accessibility", screen: "screen recording", automation: "automation" },
@@ -112,6 +116,9 @@ const COPY = {
     return ["your mac, by voice.", `hold ${hotkey().caps.join(" ")},`, "and just talk.", "© 2026 zoya"];
   },
   voiceTitle: "voice & keys",
+  get voiceCapsule() {
+    return `${hotkey().caps.join(" ")} to talk`;
+  },
   voiceSub: "how you reach me, and how i look.",
   keysCard: "keys",
   holdToTalk: "hold to talk",
@@ -383,7 +390,7 @@ function historyEntry(entry) {
 function renderHistory({ entries }) {
   const total = entries.reduce((sum, e) => sum + (e.times || 1), 0);
   const clear = entries.length ? button(COPY.clearHistory, confirmClear) : undefined;
-  const [head, title] = heading(COPY.historyTitle, COPY.historyTitle, COPY.historySub(total));
+  const [head, title] = heading(COPY.historyCapsule, COPY.historyTitle, COPY.historySub(total));
   const page = [head];
   if (clear) {
     clear.style.marginTop = "18px";
@@ -485,7 +492,7 @@ function softDelete(line, item, list) {
 }
 
 function renderMemory({ items }) {
-  const [head, title] = heading(COPY.memoryTitle, COPY.memoryTitle, COPY.memorySub(items.length));
+  const [head, title] = heading(COPY.memoryCapsule, COPY.memoryTitle, COPY.memorySub(items.length));
   if (!items.length) return [[head, node("p", COPY.memoryEmpty, { class: "empty" })], title];
   const list = rows([]);
   for (const item of items) list.append(memoryRow(item, list));
@@ -504,11 +511,11 @@ function kv(lines) {
 
 function renderPlan({ plan }) {
   if (!plan) {
-    const [head, title] = heading(COPY.planTitle, COPY.planTitle, COPY.planMissing);
+    const [head, title] = heading(COPY.planCapsule, COPY.planTitle, COPY.planMissing);
     return [[head], title];
   }
   const month = new Date(`${plan.month}-01T12:00:00`).toLocaleDateString("en-GB", { month: "long" }).toLowerCase();
-  const [head, title] = heading(COPY.planTitle, COPY.planTitle, COPY.planSub(month));
+  const [head, title] = heading(COPY.planCapsule, COPY.planTitle, COPY.planSub(month));
   const share = plan.capCents ? Math.min(plan.usedCents / plan.capCents, 1) : 0;
   const meter = node("div", undefined, { class: "meter", role: "meter", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(Math.round(share * 100)), "aria-label": COPY.planUsed });
   const fill = node("i");
@@ -543,7 +550,7 @@ function retro(version) {
 function renderSetup(state) {
   const names = Object.keys(COPY.permissions);
   const on = names.filter((name) => state.permissions[name]).length;
-  const [head, title] = heading(COPY.setupTitle, COPY.setupTitle, COPY.setupSub(on, names.length));
+  const [head, title] = heading(COPY.setupCapsule, COPY.setupTitle, COPY.setupSub(on, names.length));
   const permissions = card(COPY.permissionsCard, "list-checks", rows(names.map((name) => permissionRow(name, state.permissions[name]))));
   const note = node("p", "", { class: "sub", role: "status", id: "setup-note" });
   const updates = button(COPY.updates, async () => {
@@ -607,7 +614,7 @@ function keysRow(settings) {
 }
 
 function renderVoice(settings) {
-  const [head, title] = heading(COPY.voiceTitle, COPY.voiceTitle, COPY.voiceSub);
+  const [head, title] = heading(COPY.voiceCapsule, COPY.voiceTitle, COPY.voiceSub);
   const cards = [
     card(COPY.keysCard, "keyboard", rows([keysRow(settings)])),
     card(COPY.pillCard, "circle-dot", rows([positions(settings)])),
