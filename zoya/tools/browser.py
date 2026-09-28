@@ -49,7 +49,7 @@ import threading
 import time
 import urllib.request
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal
 from typing import Any
 from urllib.parse import urlparse
@@ -977,8 +977,32 @@ def fill_checked(locator: Any, text: str, field: str) -> None:
     locator.fill(text)
 
 
+DEFAULT_SUBMIT = (
+    "button:not([type=button]):not([type=reset]), input[type=submit i], input[type=image i]"
+)
+ENTER_REFUSED_SAY = (
+    "Pressing Enter there would {say}. Click its button with browser_click instead, so the user "
+    "can confirm."
+)
+NO_ENTER_SAY = "That field has no button of its own to check, so I didn't press Enter."
+
+
+def enter_target(page: Any, field: Any) -> Target | None:
+    """What Enter in `field` really presses: its form's default submit button, probed as a click,
+    or with no such button the field itself as the form's submit (HTML implicit submission).
+    None outside a form, so Enter is never pressed where a script decides what it does."""
+    form = field.locator("xpath=ancestor::form[1]")
+    if not form.count():
+        return None
+    button = form.locator(DEFAULT_SUBMIT)
+    if button.count():
+        return _probe_locator(page, button.first)
+    target = _probe_locator(page, field)
+    return replace(target, facts=replace(target.facts, is_submit=True))
+
+
 @tool
-def browser_type(field: str, text: str) -> str:
+def browser_type(field: str, text: str, submit: bool = False) -> str:
     """Type text into a field on the page, found by its label or placeholder.
 
     Never used for passwords, OTPs or card numbers: the user types those themselves.
@@ -986,9 +1010,37 @@ def browser_type(field: str, text: str) -> str:
     Args:
         field: The field's label or placeholder, e.g. "Search".
         text: What to type.
+        submit: Press Enter afterwards, e.g. to run a search. Guard 2 checks it as the click on
+            the form's own button; a risky one is refused, so use browser_click for those.
     """
-    on_page(lambda page: fill_checked(_locate_field(page, field), text, field))
-    return f"Typed into {field}."
+
+    def fill(page: Any) -> tuple[Any, Target | None]:
+        located = _locate_field(page, field)
+        fill_checked(located, text, field)
+        return located, enter_target(page, located) if submit else None
+
+    located, target = on_page(fill)
+    if not submit:
+        return f"Typed into {field}."
+    return _press_enter(located, target, field)
+
+
+def _press_enter(located: Any, target: Target | None, field: str) -> str:
+    if target is None:
+        raise ToolError(NO_ENTER_SAY)
+    risky = safety.click_risk(target.facts)
+    safety.log_safety_timing(event="browser_enter", risk=risky.kind if risky else "free")
+    if risky is not None:
+        raise ToolError(ENTER_REFUSED_SAY.format(say=risky.say))
+    reversible = safety.reversible_click(target.facts)
+    before = _page_state() if reversible else None
+    _on_browser(lambda: located.press("Enter"))
+    _check_no_order(target, _playwright_url_and_text, None)
+    if reversible is None:
+        return f"Typed into {field} and pressed Enter."
+    return _reversible_said(f"Enter in {field}", reversible.undo, before).replace(
+        "Clicked Enter", "Pressed Enter", 1
+    )
 
 
 # --- The ref substrate: agent-browser snapshot / click @ref / fill @ref (D83) -------------------
