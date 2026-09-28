@@ -643,6 +643,7 @@ main {
 
 .segments {
   display: inline-flex;
+  flex: none;
   margin-left: auto;
   padding: 2px;
   border: 1px solid var(--rule);
@@ -657,6 +658,7 @@ main {
   color: var(--muted);
   font-size: 13px;
   font-weight: 500;
+  white-space: nowrap;
   cursor: pointer;
 }
 

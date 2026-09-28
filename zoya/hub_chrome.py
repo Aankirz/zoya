@@ -7,6 +7,7 @@ from collections.abc import Callable
 from typing import Any
 
 import AppKit
+import CoreText
 import objc
 import Quartz
 
@@ -97,8 +98,8 @@ def inter(size: float, weight: str) -> Any:
 
 def tabular(font: Any) -> Any:
     feature = {
-        AppKit.NSFontFeatureTypeIdentifierKey: AppKit.kNumberSpacingType,
-        AppKit.NSFontFeatureSelectorIdentifierKey: AppKit.kMonospacedNumbersSelector,
+        AppKit.NSFontFeatureTypeIdentifierKey: CoreText.kNumberSpacingType,
+        AppKit.NSFontFeatureSelectorIdentifierKey: CoreText.kMonospacedNumbersSelector,
     }
     descriptor = font.fontDescriptor().fontDescriptorByAddingAttributes_(
         {AppKit.NSFontFeatureSettingsAttribute: [feature]}
@@ -237,6 +238,7 @@ def _symbol(name: str) -> Any:
             13.0, AppKit.NSFontWeightRegular
         )
     )
+    image.setAccessibilityElement_(False)
     return _fixed(image, SYMBOL_W, SYMBOL_W)
 
 
@@ -246,6 +248,7 @@ def _page_cell(title: str, symbol: str, count: str, selected: bool) -> Any:
     label = _label(title, inter(ROW_PT, "regular"), _dynamic(MUTED))
     number = _label(count, tabular(inter(COUNT_PT, "regular")), _dynamic(QUIET))
     number.setAccessibilityElement_(False)
+    label.setAccessibilityElement_(False)
     for view in (image, label, number):
         view.setTranslatesAutoresizingMaskIntoConstraints_(False)
         cell.addSubview_(view)

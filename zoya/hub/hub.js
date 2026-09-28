@@ -118,7 +118,7 @@ const COPY = {
   holdHint: "hold both, talk, let go.",
   pillCard: "the pill",
   pillPosition: "where i sit",
-  positions: { bottom: "bottom", notch: "at the notch", left: "left", right: "right" },
+  positions: { bottom: "bottom", notch: "notch", left: "left", right: "right" },
   hotkeys: { "fn-shift": "fn ⇧", "control-option": "⌃ ⌥" },
   readingCard: "reading",
   largerText: "larger captions and text",

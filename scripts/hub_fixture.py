@@ -98,6 +98,7 @@ def make_home() -> Path:
     home = Path(tempfile.mkdtemp(prefix="zoya-fixture-"))
     _logs(home)
     zoya = home / ".zoya"
+    zoya.mkdir()
     memories = [
         {"id": secrets.token_hex(16), "at": _stamp(3, "12:00"), "content": text}
         for text in MEMORIES
@@ -114,7 +115,7 @@ def make_home() -> Path:
 def launch(home: Path, dark: bool) -> subprocess.Popen:
     if not BINARY.exists():
         sys.exit("Build first: ./build")
-    style = ["-AppleInterfaceStyle", "Dark" if dark else "Light"]
+    style = ["-AppleInterfaceStyle", "Dark"] if dark else ["-NSRequiresAquaSystemAppearance", "YES"]
     child = subprocess.Popen(
         [str(BINARY), "-m", "zoya.overlay", *style],
         stdin=subprocess.PIPE,
@@ -162,7 +163,10 @@ def _find(element: object, role: str) -> object:
 
 
 def _plan_button(element: object) -> object:
-    if _attribute(element, "AXRole") == "AXButton" and _attribute(element, "AXTitle") == "Plan":
+    names = (_attribute(element, "AXTitle"), _attribute(element, "AXDescription"))
+    if _attribute(element, "AXRole") == "AXButton" and any(
+        str(name or "").startswith("Plan") for name in names
+    ):
         return element
     for child in _attribute(element, "AXChildren") or []:
         if found := _plan_button(child):
@@ -170,8 +174,14 @@ def _plan_button(element: object) -> object:
     return None
 
 
+def _cell_name(row: object) -> str:
+    cells = _attribute(row, "AXChildren") or []
+    return str(_attribute(cells[0], "AXDescription") or "") if cells else ""
+
+
 def select_page(pid: int, page: str) -> None:
-    app = AX.AXUIElementCreateApplication(pid)
+    windows = _attribute(AX.AXUIElementCreateApplication(pid), "AXWindows") or []
+    app = max(windows, key=lambda w: len(_attribute(w, "AXChildren") or []))
     if page == "plan":
         AX.AXUIElementPerformAction(_plan_button(app), "AXPress")
         time.sleep(SETTLE_S)
@@ -179,14 +189,23 @@ def select_page(pid: int, page: str) -> None:
     table = _find(app, "AXTable")
     if table is None:
         sys.exit("No sidebar table: give this terminal Accessibility access.")
-    rows = [r for r in _attribute(table, "AXRows") or [] if _attribute(r, "AXChildren")]
+    rows = [r for r in _attribute(table, "AXRows") or [] if _cell_name(r)]
     AX.AXUIElementSetAttributeValue(rows[PAGES.index(page)], "AXSelected", True)
     time.sleep(SETTLE_S)
 
 
 def capture(window: int, path: Path) -> None:
+    """A window capture: nothing behind it is recorded, but glass shows untinted."""
     path.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(["screencapture", "-x", "-o", f"-l{window}", str(path)], check=True)
+
+
+def capture_region(pid: int, window: int, path: Path) -> None:
+    """The window as it is on screen, glass included; an opaque window hides what is behind."""
+    bounds = next(w for w in _windows(pid) if w["kCGWindowNumber"] == window)["kCGWindowBounds"]
+    rect = ",".join(str(int(bounds[k])) for k in ("X", "Y", "Width", "Height"))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["screencapture", "-x", f"-R{rect}", str(path)], check=True)
 
 
 PILL_STATES = (
@@ -212,7 +231,7 @@ def shots(child: subprocess.Popen, folder: Path, theme: str) -> None:
     window = hub_window(child.pid)
     for page in SHOT_PAGES:
         select_page(child.pid, page)
-        capture(window, folder / f"{page}-{theme}.png")
+        capture_region(child.pid, window, folder / f"{page}-{theme}.png")
     for name, state, extra in PILL_STATES:
         send(child, state)
         if extra:
