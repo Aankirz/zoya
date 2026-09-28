@@ -36,3 +36,18 @@ def test_the_glow_and_cursor_panels_are_click_through_and_never_key():
 def test_the_overlay_process_is_left_out_of_every_capture(monkeypatch):
     monkeypatch.setattr(overlay, "pids", lambda: {4242})
     assert 4242 in screen.own_pids()
+
+
+def test_under_reduce_motion_the_glow_holds_still_and_the_cursor_jumps(monkeypatch):
+    from zoya.overlay_app import _panel
+    from zoya.overlay_glow import Glow
+
+    off_screen = _window(7, -6000, -6000, 400, 300)
+    monkeypatch.setattr(Glow, "_first_target", lambda _self: off_screen)
+    glow = Glow(_panel, reduce_motion=lambda: True)
+    glow.update("acting", "ax_press")
+    assert glow.edge is not None and glow.edge.animationForKey_("breathe") is None
+    glow._glide((-5000.0, -5000.0))
+    assert tuple(glow.cursor.frame().origin) == glow._origin((-5000.0, -5000.0))
+    glow.update("stopped", "")
+    assert not glow.panel.isVisible() and not glow.cursor.isVisible()

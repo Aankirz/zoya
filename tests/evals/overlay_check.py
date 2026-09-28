@@ -8,7 +8,10 @@
              unfiltered filter, and a desktop-independent window capture (the Phase 3 OCR check)
              of the window under the ring. Prints numbers only; never saves the user's screen.
 
-Usage: .venv/bin/python -u tests/evals/overlay_check.py states|capture
+  glow     — D145: the glow and Zoya's cursor, counted on the whole main display through
+             screen.display_filter (what her screenshots and OCR use) vs unfiltered. Numbers only.
+
+Usage: .venv/bin/python -u tests/evals/overlay_check.py states|capture|glow
 An eval, not a pytest. The overlay's own latency line lands in logs/overlay.log on exit.
 """
 
@@ -195,18 +198,50 @@ def capture() -> None:
     print("overlay %cpu / rss KB:", cpu.stdout.strip())
 
 
+def _near(pixels: np.ndarray, rgba: tuple[float, ...], tolerance: int = 40) -> int:
+    target = np.array([round(rgba[2] * 255), round(rgba[1] * 255), round(rgba[0] * 255)])
+    return int((np.abs(pixels - target).max(axis=2) < tolerance).sum())
+
+
+def _glow_counts(label: str, whole: tuple[float, float, float, float]) -> None:
+    from zoya.overlay_glow import CURSOR_BOTTOM, GLOW_BLUE
+
+    for name, excluded in (("unfiltered", False), ("display_filter", True)):
+        pixels = _grab(excluded, whole)
+        print(f"{label:>14} {name:>15}: glow {_near(pixels, GLOW_BLUE)}", end=" ")
+        print(f"cursor {_near(pixels, CURSOR_BOTTOM, 24)}")
+
+
+def glow() -> None:
+    width, height = _main_size()
+    whole = (0.0, 0.0, width, height)
+    _glow_counts("before", whole)
+    print(f"overlay: {overlay.start()}")
+    time.sleep(2.0)
+    events.emit(events.OverlayEvent("", "working", {"tool": "ax_press", "task": ""}))
+    time.sleep(1.5)
+    overlay.show_ring(width / 2 - RING[0] / 2, height / 2 - RING[1] / 2, *RING)
+    time.sleep(0.6)
+    _glow_counts("while acting", whole)
+    events.emit(events.EarconEvent("stop"))
+    time.sleep(0.6)
+    _glow_counts("after stop", whole)
+
+
 def main() -> int:
     import Quartz
 
     Quartz.CGMainDisplayID()  # window-server connection before any ScreenCaptureKit filter
     mode = sys.argv[1] if len(sys.argv) > 1 else ""
-    if mode not in ("states", "capture"):
+    if mode not in ("states", "capture", "glow"):
         print(__doc__)
         return 2
     if mode == "states":
         print(f"overlay: {overlay.start()}")
         time.sleep(2.0)
         states()
+    elif mode == "glow":
+        glow()
     else:
         capture()
     overlay._child.stdin.close()
