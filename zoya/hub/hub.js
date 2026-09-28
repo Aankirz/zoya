@@ -68,7 +68,6 @@ const COPY = {
   clearHistory: "clear history",
   clearAsk: (n) => `clear all ${n} ${n === 1 ? "request" : "requests"}? this can’t be undone.`,
   clearNothing: "there’s nothing to clear.",
-  clear: "clear history",
   cancel: "cancel",
   cleared: "history is cleared.",
   clearRefused: "i couldn’t clear it. try again.",
@@ -84,7 +83,7 @@ const COPY = {
   planTitle: "plan",
   planCapsule: "this month",
   planSub: (month) => `your allowance for ${month}.`,
-  planCard: "this month",
+  planCard: "usage",
   planUsed: "used",
   planAllowance: "allowance",
   planLeft: "left",
@@ -419,7 +418,7 @@ async function confirmClear() {
     return;
   }
   const cancel = button(COPY.cancel, () => slot.replaceChildren());
-  const clear = button(COPY.clear, async () => {
+  const clear = button(COPY.clearHistory, async () => {
     const { cleared } = await ask("clearHistory", { token });
     if (cleared === null) {
       slot.replaceChildren(node("p", COPY.clearRefused, { role: "status", class: "empty" }));
