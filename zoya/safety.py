@@ -309,6 +309,7 @@ class ClickFacts:
     input_type: str = ""
     opens_popup: bool = False
     search_form: bool = False
+    date_container: str = ""
 
 
 def spoken_name(labels: list[str]) -> str:
@@ -436,6 +437,35 @@ def is_date_field(facts: ClickFacts) -> bool:
     return any(DATE_WORDS.search(normalise(label)) for label in facts.labels)
 
 
+DATE_PICK_ROLES = {"gridcell", "button", "td"}
+DATE_FILLER = {"check", "in", "out", "checkin", "checkout", "date", "dates", "selected"}
+MONTH = r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*"
+DATE_NAME = re.compile(
+    rf"^(?:(?:mon|tue|wed|thu|fri|sat|sun)[a-z]* )?"
+    rf"(?:\d{{1,2}}(?: {MONTH})?|{MONTH} \d{{1,2}})(?: \d{{4}})?$"
+)
+
+
+def is_date_name(label: str) -> bool:
+    words = [w for w in re.findall(r"[a-z]+|\d+", normalise(label)) if w not in DATE_FILLER]
+    return bool(words) and bool(DATE_NAME.match(" ".join(words)))
+
+
+def is_date_pick(facts: ClickFacts) -> bool:
+    """D141: a day picked in a date calendar ("17", "17 October 2026, check-out date") inside a
+    dialog, grid or table labelled with a date word, never a checkout button.
+
+    Every one of the control's own labels must be a date once the check-in/out words are set
+    aside, so "Check out" or "Proceed to checkout" in the same dialog still asks.
+    """
+    if facts.is_submit or facts.is_link or facts.role.casefold() not in DATE_PICK_ROLES:
+        return False
+    if not DATE_WORDS.search(normalise(facts.date_container)):
+        return False
+    labels = [label for label in facts.labels if label.strip()]
+    return bool(labels) and all(is_date_name(label) for label in labels)
+
+
 def click_risk(facts: ClickFacts) -> RiskyLabel | None:
     """Guard 2, failing closed: ask unless the click is clearly harmless.
 
@@ -450,7 +480,7 @@ def click_risk(facts: ClickFacts) -> RiskyLabel | None:
     neutral URL still passes.
     """
     hit = risky_label(facts.labels)
-    if hit and hit.kind == "checkout" and is_date_field(facts):
+    if hit and hit.kind == "checkout" and (is_date_field(facts) or is_date_pick(facts)):
         hit = None
     if hit and hit.kind == "purchase" and payment_blocked_host(facts.host):
         raise ConfirmationDeclined(PAYMENT_BLOCKED_SAY)

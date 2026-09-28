@@ -552,6 +552,7 @@ def _probe_locator(page: Any, locator: Any) -> Target:
         input_type=shape["type"],
         opens_popup=shape["popup"],
         search_form=shape["searchForm"],
+        date_container=shape["dateContainer"],
     )
     return Target(locator.element_handle(), facts, page.title(), url.netloc)
 
@@ -1067,13 +1068,22 @@ SECRET_FIELD_SAY = "That's a password or code field. Please type it yourself; I'
 SEARCH_FORM_JS = """(e => { const f = e.form || e.closest('form');
   return !!f && f.method === 'get'
     && !!f.querySelector('input[type=search i], [role=searchbox]'); })"""
+DATE_CONTAINER_JS = """(e => { const c = e.closest(
+    '[role=grid], [role=dialog], dialog, table, [role=application]');
+  if (!c) return '';
+  const named = (c.getAttribute('aria-labelledby') || '').split(/\\s+/).filter(Boolean)
+    .map(id => document.getElementById(id)?.innerText || '').join(' ');
+  const caption = c.tagName === 'TABLE' ? (c.caption?.innerText || '') : '';
+  return (c.getAttribute('aria-label') || named || caption).trim().slice(0, 80); })"""
 ELEMENT_SHAPE_JS = f"""e => ({{
   role: e.getAttribute('role') || e.tagName.toLowerCase(),
   type: e.tagName === 'INPUT' ? (e.getAttribute('type') || 'text') : '',
   popup: e.hasAttribute('aria-haspopup') || e.hasAttribute('aria-expanded'),
   searchForm: {SEARCH_FORM_JS}(e),
+  dateContainer: {DATE_CONTAINER_JS}(e),
 }})"""
-FOCUS_FACTS_JS = """(() => {
+FOCUS_FACTS_JS = (
+    """(() => {
   const e = document.activeElement;
   if (!e || e === document.body || e === document.documentElement) return JSON.stringify({});
   const near = e.closest('form') || e.parentElement?.parentElement?.parentElement || document.body;
@@ -1089,10 +1099,14 @@ FOCUS_FACTS_JS = """(() => {
     link: e.tagName === 'A' && e.hasAttribute('href'),
     popup: e.hasAttribute('aria-haspopup') || e.hasAttribute('aria-expanded'),
     searchForm: SEARCH_FORM(e),
+    dateContainer: DATE_CONTAINER(e),
     near: (near.innerText || '').slice(0, NEARBY_LIMIT),
     rect: [screenX + r.left, screenY + (outerHeight - innerHeight) + r.top, r.width, r.height]
   });
-})()""".replace("NEARBY_LIMIT", str(NEARBY_MAX_CHARS)).replace("SEARCH_FORM", SEARCH_FORM_JS)
+})()""".replace("NEARBY_LIMIT", str(NEARBY_MAX_CHARS))
+    .replace("SEARCH_FORM", SEARCH_FORM_JS)
+    .replace("DATE_CONTAINER", DATE_CONTAINER_JS)
+)
 
 
 @dataclass(frozen=True)
@@ -1254,6 +1268,7 @@ def _ref_probe(ref: str, approved: str) -> Target:
         input_type=str(focused.get("type") or ""),
         opens_popup=bool(focused.get("popup")),
         search_form=bool(focused.get("searchForm")),
+        date_container=str(focused.get("dateContainer") or ""),
     )
     title = _batch_value(answers[1], "title") or ""
     return Target(focused.get("rect"), facts, title, address.netloc)
