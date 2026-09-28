@@ -1,16 +1,15 @@
 import { AppWindow } from "./components/AppWindows";
 import { CheckoutLink } from "./components/CheckoutLink";
 import { DemoVideo } from "./components/DemoVideo";
-import { FolderWordmark } from "./components/FolderWordmark";
 import { HelloWindow } from "./components/HelloWindow";
 import { MenuBar } from "./components/MenuBar";
-import { FolderIcon, HeroProps, TrashIcon } from "./components/Props";
+import { HeroProps } from "./components/Props";
+import { SiteFooter } from "./components/SiteFooter";
 import { Waveform } from "./components/Talk";
 import { TypingBubble } from "./components/TypingBubble";
-import { VisitorCount } from "./components/VisitorCount";
 import { WaitlistForm } from "./components/WaitlistForm";
 import { AppKind } from "./components/AppWindows";
-import { ABILITIES, CHARGE, CHECKOUT, CONTACT_EMAIL, DEMO, FAQ, FOOTER, HERO, HOW, PRICING, SKIP_LINK, TALK, WHY } from "./copy";
+import { ABILITIES, CHARGE, CHECKOUT, DEMO, FAQ, HERO, HOW, PRICING, SKIP_LINK, TALK, WHY } from "./copy";
 import { OutlinePlus } from "./icons/rune";
 import { ctaFor, faqFor } from "@/lib/checkout";
 import { getVisitorCount } from "@/lib/visitors";
@@ -182,22 +181,7 @@ export default async function Home() {
         </section>
       </main>
 
-      <footer className="site-footer">
-        <div className="footer-mark" aria-hidden="true">
-          <TrashIcon className="footer-prop footer-trash" />
-          <FolderWordmark />
-          <FolderIcon className="footer-prop footer-folder" />
-        </div>
-        <p>{FOOTER.disclaimer}</p>
-        <VisitorCount initial={visitorCount} />
-        <p>
-          {FOOTER.contactLead} <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
-        </p>
-        <p>
-          {FOOTER.iconsLead} <a href={FOOTER.iconsHref}>{FOOTER.iconsName}</a>
-        </p>
-        <p>{FOOTER.copyright}</p>
-      </footer>
+      <SiteFooter visitorCount={visitorCount} />
     </>
   );
 }
