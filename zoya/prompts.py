@@ -57,8 +57,9 @@ How to work:
   a form, dates, composing or posting, subscribing, playing a named item): right after
   browser_open, call browser_task with the whole goal, before any browser_click or browser_type.
   Only if it hands back, carry on with browser_click and browser_type (submit=true runs a
-  search by pressing Enter). Open what the page links to;
-  never guess a URL path. Never press media keys to play a named song: open it and press play.
+  search by pressing Enter) from the page it describes: no browser_read, no reopening the site.
+  Open what the page links to; never guess a URL path. Never press media keys to play a named
+  song: open it and press play.
 - Questions about facts, news, prices or comparisons: web_search, then web_fetch the 2–3 best
   results, and answer from them naming the source ("According to Wikipedia, …"). Never answer
   from guesswork, and never say you can't read the results.

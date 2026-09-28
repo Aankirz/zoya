@@ -212,3 +212,29 @@ def test_the_state_lists_every_offered_element_as_untrusted_page_data(path):
     untrusted = state[state.index("<untrusted_content>") :]
     for element in table.elements:
         assert f"[{element['index']}] " in untrusted
+
+
+def handed_back(monkeypatch, page: dict[str, Any]) -> str:
+    monkeypatch.setattr(web_loop, "observe", lambda: page)
+    monkeypatch.setattr(web_loop.time, "sleep", lambda _s: None)
+    monkeypatch.setattr(decisions, "ask", lambda *_a, **_k: answers("BLOCKED", confidence=0.4))
+    return web_loop.browser_task._tool_func("search for dune")
+
+
+def test_a_hand_back_carries_the_page_the_loop_saw_so_the_brain_need_not_reread_it(monkeypatch):
+    page = recorded(RECORDED[0])
+    said = handed_back(monkeypatch, page)
+    table = web_loop.element_table(page["actions"])
+    first = table.elements[0]["index"]
+    assert page["url"] in said and f"[{first}] " in said
+    assert "don't open the site again" in said and "without browser_read" in said
+    inside = said.split("<untrusted_content>")[1]
+    assert f"[{first}] " in inside and said.count("</untrusted_content>") == 1
+
+
+def test_a_hand_back_before_any_page_was_seen_says_only_what_happened(monkeypatch):
+    monkeypatch.setattr(
+        web_loop, "run", lambda *_a, **_k: web_loop.Outcome(reason="Jev unavailable")
+    )
+    said = web_loop.browser_task._tool_func("search for dune")
+    assert "Jev unavailable" in said and "<untrusted_content>" not in said
