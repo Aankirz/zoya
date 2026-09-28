@@ -22,10 +22,8 @@
   --quiet: oklch(52% 0.006 260);
   --link: oklch(43% 0.16 258);
   --focus: oklch(45% 0.17 258);
-  --danger: oklch(41% 0.15 27);
-  --success: oklch(40% 0.1 150);
+  --focus-halo: oklch(45% 0.17 258 / 0.14);
   --warn: oklch(62% 0.15 70);
-  --warn-halo: oklch(62% 0.15 70 / 0.15);
 
   --gloss-top: oklch(91% 0.05 245);
   --gloss-mid: oklch(81% 0.095 250);
@@ -40,7 +38,7 @@
   --window-rule: oklch(83% 0.004 260);
   --row-rule: oklch(93% 0.003 260);
   --toolbar: oklch(99% 0.002 260 / 0.8);
-  --window-shadow: 0 1px 2px oklch(20% 0 0 / 0.06), 0 14px 34px oklch(25% 0.01 260 / 0.1);
+  --window-shadow: 0 1px 2px oklch(20% 0.005 260 / 0.06), 0 14px 34px oklch(25% 0.005 260 / 0.1);
   --icon-outline: oklch(0% 0 0 / 0.08);
   --live: oklch(30% 0.09 258 / 0.92);
   --live-glow: oklch(45% 0.17 258 / 0.55);
@@ -70,8 +68,8 @@
     --quiet: oklch(64% 0.006 260);
     --link: oklch(78% 0.11 252);
     --focus: oklch(72% 0.14 252);
+    --focus-halo: oklch(72% 0.14 252 / 0.2);
     --warn: oklch(80% 0.14 75);
-    --warn-halo: oklch(80% 0.14 75 / 0.18);
     --gloss-top: oklch(62% 0.13 250);
     --gloss-mid: oklch(52% 0.15 254);
     --gloss-bottom: oklch(46% 0.16 256);
