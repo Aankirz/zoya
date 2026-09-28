@@ -671,10 +671,14 @@ def anchor_ref(snapshot_text: str, control: str) -> str:
     return ""
 
 
+SCREEN_VERIFIED_KINDS = ("send", "delete")
+
+
 def _subject_for(risky: safety.RiskyLabel, target: Target, item: str, ref: str) -> str:
-    """The page's own word for what this click is about; "" when the caller already named it,
-    when the money path will verify a name by OCR instead, or when Jev cannot say."""
-    if item.strip() or risky.kind == "purchase":
+    """The page's own word for what this click is about; "" when the screen will verify a name
+    instead (a purchase, or the item of a send or delete), or when Jev cannot say. The brain's
+    item names nothing else: only the page's own words reach the confirmation (D101)."""
+    if risky.kind == "purchase" or (item.strip() and risky.kind in SCREEN_VERIFIED_KINDS):
         return ""
     control = safety.spoken_name(target.facts.labels) or "an unnamed control"
     return page_subject(risky.say, control, target.title, ref)
