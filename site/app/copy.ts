@@ -6,8 +6,8 @@ export const CONTACT_EMAIL = "sahuankit453@gmail.com";
 export const META = {
   title: "zoya · your mac, by voice",
   ogTitle: "zoya · your mac, by voice",
-  // Describes public/og.jpg as it is: the image still shows the pre-launch subline until it is re-shot.
-  ogImageAlt: "zoya: your mac, by voice. made for people who can't see the screen.",
+  // Describes public/og.jpg: the hero with the checkout pill.
+  ogImageAlt: "zoya: your mac, by voice. hold fn and shift, say what you want, and it's done. get zoya, $20 a month.",
   description:
     "zoya is a voice assistant for the mac. hold fn and shift, say what you want, let go, and zoya does it across your apps and websites.",
 };
