@@ -44,6 +44,7 @@ WAVE_REST = 0.25
 WAVE_ALPHA = 0.6
 
 SCREEN_INSET_PT = 16.0
+NOTCH_GAP_PT = 6.0
 ROOM_PT = 24.0
 CAPTION_GAP_PT = 10.0
 CONTAINER_SPACING_PT = 28.0
@@ -65,6 +66,12 @@ OPEN_HELP = "Opens Zoya"
 STOP_LABEL = "Stop"
 READY = "Zoya is ready"
 IDLE_TIP = "Hold fn + Shift and talk"
+CAPTION_PAD = (18.0, 10.0)
+CAPTION_RADIUS = 20.0
+CHIP_PT = 13.0
+CHIP_PAD = 9.0
+CHIP_H = 21.0
+CHIP_GAP = 6.0
 
 
 @dataclass(frozen=True)
@@ -161,6 +168,36 @@ def color(rgb: tuple[int, int, int], alpha: float = 1.0) -> Any:
 
 def cg(rgb: tuple[int, int, int], alpha: float = 1.0) -> Any:
     return color(rgb, alpha).CGColor()
+
+
+def _encode(linear: float) -> float:
+    linear = min(max(linear, 0.0), 1.0)
+    return 12.92 * linear if linear <= 0.0031308 else 1.055 * linear ** (1 / 2.4) - 0.055
+
+
+def oklch(lightness: float, chroma: float, hue: float, alpha: float = 1.0) -> tuple[float, ...]:
+    a, b = chroma * math.cos(math.radians(hue)), chroma * math.sin(math.radians(hue))
+    l_ = (lightness + 0.3963377774 * a + 0.2158037573 * b) ** 3
+    m_ = (lightness - 0.1055613458 * a - 0.0638541728 * b) ** 3
+    s_ = (lightness - 0.0894841775 * a - 1.2914855480 * b) ** 3
+    red = 4.0767416621 * l_ - 3.3077115913 * m_ + 0.2309699292 * s_
+    green = -1.2684380046 * l_ + 2.6097574011 * m_ - 0.3413193965 * s_
+    blue = -0.0041960863 * l_ - 0.7034186147 * m_ + 1.7076147010 * s_
+    return (_encode(red), _encode(green), _encode(blue), alpha)
+
+
+GLOSS = (oklch(0.91, 0.05, 245), oklch(0.81, 0.095, 250), oklch(0.75, 0.12, 253))
+GLOSS_STOPS = [0.0, 0.6, 1.0]
+GLOSS_EDGE = oklch(0.56, 0.13, 255)
+GLOSS_SHINE = oklch(0.99, 0.01, 240, 0.9)
+CAPTION_INK = oklch(0.15, 0.005, 260)
+CHIP_FILL = oklch(1.0, 0, 0, 0.7)
+CHIP_EDGE = oklch(0.70, 0.1, 252, 0.5)
+CHIP_INK = oklch(0.43, 0.16, 258)
+
+
+def srgb(rgba: tuple[float, ...]) -> Any:
+    return AppKit.NSColor.colorWithSRGBRed_green_blue_alpha_(*rgba)
 
 
 def accessibility() -> tuple[bool, bool, bool]:
@@ -291,8 +328,10 @@ class Pill:
         self.large = self.legible = False
         self.position = "bottom"
         self.anchor = (0.0, 0.0)
+        self.hanging = False
         self.state, self.words, self.stake, self.how = "", "", "", ""
         self.caption_text, self.caption_heard = "", False
+        self.chip_words: tuple[str, ...] = ()
         self.caption_shown = False
         self.spoken_label = READY
         self.press: tuple[Any, Any] | None = None
@@ -331,9 +370,21 @@ class Pill:
             self.face.addSubview_(field)
         self.stop = self._stop_button()
         body.addSubview_(self.stop)
+        self.gloss, self.shine = Quartz.CAGradientLayer.layer(), Quartz.CALayer.layer()
+        self.gloss.setColors_([srgb(c).CGColor() for c in GLOSS])
+        self.gloss.setLocations_(GLOSS_STOPS)
+        self.gloss.setStartPoint_((0.5, 1.0))
+        self.gloss.setEndPoint_((0.5, 0.0))
+        self.gloss.setCornerRadius_(CAPTION_RADIUS)
+        self.gloss.setBorderWidth_(1.0)
+        self.gloss.setBorderColor_(srgb(GLOSS_EDGE).CGColor())
+        self.shine.setBackgroundColor_(srgb(GLOSS_SHINE).CGColor())
+        self.gloss.addSublayer_(self.shine)
+        self.bubble.contentView().layer().addSublayer_(self.gloss)
         self.caption_field = text_field(3)
         self.caption_field.setAlignment_(AppKit.NSTextAlignmentCenter)
         self.bubble.contentView().addSubview_(self.caption_field)
+        self.chips: list[Any] = []
         self.bubble.setHidden_(True)
 
     def _stop_button(self) -> Any:
@@ -371,7 +422,8 @@ class Pill:
             flush=True,
         )
 
-    def place(self, visible: Any) -> None:
+    def place(self, screen: Any) -> None:
+        visible = screen.visibleFrame()
         x, y = visible.origin.x, visible.origin.y
         width, height = visible.size.width, visible.size.height
         anchors = {
@@ -379,9 +431,13 @@ class Pill:
             "left": (x + SCREEN_INSET_PT, y + height / 2),
             "right": (x + width - SCREEN_INSET_PT, y + height / 2),
         }
+        hanging = self.position == "notch" and screen.safeAreaInsets().top > 0
+        if hanging:
+            frame = screen.frame()
+            anchors["notch"] = (frame.origin.x + frame.size.width / 2, y + height - NOTCH_GAP_PT)
         anchor = anchors.get(self.position, anchors["bottom"])
-        if anchor != self.anchor:
-            self.anchor = anchor
+        if (anchor, hanging) != (self.anchor, self.hanging):
+            self.anchor, self.hanging = anchor, hanging
             self.layout()
 
     # --- state ------------------------------------------------------------------------------
@@ -390,9 +446,31 @@ class Pill:
         self.state, self.words, self.stake, self.how = state, words, stake, how
         self.refresh()
 
-    def set_caption(self, text: str, heard: bool) -> None:
+    def set_caption(self, text: str, heard: bool, chips: Any = ()) -> None:
         self.caption_text, self.caption_heard = text, heard
+        if tuple(chips) != self.chip_words:
+            self.chip_words = tuple(chips)
+            self._make_chips()
         self.layout()
+
+    def _make_chips(self) -> None:
+        for chip in self.chips:
+            chip.removeFromSuperview()
+        self.chips = []
+        for word in self.chip_words:
+            chip = text_field()
+            chip.setStringValue_(word)
+            chip.setAlignment_(AppKit.NSTextAlignmentCenter)
+            chip.setTextColor_(srgb(CHIP_INK))
+            chip.setWantsLayer_(True)
+            chip.setDrawsBackground_(False)
+            layer = chip.layer()
+            layer.setBackgroundColor_(srgb(CHIP_FILL).CGColor())
+            layer.setBorderWidth_(1.0)
+            layer.setBorderColor_(srgb(CHIP_EDGE).CGColor())
+            self.bubble.contentView().addSubview_(chip)
+            self.chips.append(chip)
+        self.bubble.contentView().setAccessibilityLabel_(", ".join(self.chip_words) or None)
 
     def set_level(self, level: float) -> None:
         if self.state != "listening" or self.reduce_motion:
@@ -421,7 +499,9 @@ class Pill:
 
     def _paint(self, look: Look) -> None:
         self.pill.setTintColor_(self._tint(look.tint))
-        self.bubble.setTintColor_(self._tint(look.caption))
+        warm = look.caption == TINT_CAPTION_WARM
+        self.bubble.setTintColor_(self._tint(look.caption) if warm else srgb(GLOSS[1]))
+        self.gloss.setHidden_(warm)
         confirm = self.state == "waiting"
         edge = self.pill.contentView().layer()
         edge.setBorderWidth_(
@@ -438,7 +518,7 @@ class Pill:
         self.label.setTextColor_(color(look.ink))
         self.stake_field.setTextColor_(color(PAPER))
         self.how_field.setTextColor_(color(YES))
-        self.caption_field.setTextColor_(color(PAPER))
+        self.caption_field.setTextColor_(color(PAPER) if warm else srgb(CAPTION_INK))
         for bar in self.wave:
             bar.setBackgroundColor_(cg(look.ink, WAVE_ALPHA))
             bar.setHidden_(self.state != "listening")
@@ -540,11 +620,32 @@ class Pill:
         self.stake_field.setFrame_(((x, bottom + how.height + 4 * m.scale), (text_w, stake.height)))
         return x + text_w + m.gap + m.confirm_stop_pt + m.confirm_pad, height
 
+    def _chip_sizes(self, m: Metrics) -> list[tuple[float, float]]:
+        sizes = []
+        for chip in self.chips:
+            chip.setFont_(font(CHIP_PT * m.scale, "semibold", self.legible))
+            width = fitted(chip, m.caption_width).width + 2 * CHIP_PAD * m.scale
+            sizes.append((math.ceil(width), CHIP_H * m.scale))
+        return sizes
+
     def _caption_size(self, m: Metrics) -> tuple[float, float]:
         shown = f"“{self.caption_text}”" if self.caption_heard else self.caption_text
         self.caption_field.setStringValue_(shown)
-        size = fitted(self.caption_field, m.caption_width - 36)
-        return math.ceil(size.width + 36), math.ceil(size.height + 20)
+        pad_x, pad_y = CAPTION_PAD
+        room = m.caption_width - 2 * pad_x
+        text = fitted(self.caption_field, room)
+        text_w, text_h = math.ceil(min(text.width, room)), math.ceil(text.height)
+        chips, gap = self._chip_sizes(m), CHIP_GAP * m.scale
+        row_w = sum(w for w, _ in chips) + gap * max(len(chips) - 1, 0)
+        chip_h = chips[0][1] if chips else 0.0
+        one_line = text_h < self.caption_field.font().pointSize() * 1.8
+        inline = one_line and text_w + gap + row_w <= room
+        self.caption_parts = (text_w, text_h, chips, inline)
+        if not chips:
+            return text_w + 2 * pad_x, text_h + 2 * pad_y
+        if inline:
+            return text_w + gap + row_w + 2 * pad_x, max(text_h, chip_h) + 2 * pad_y
+        return max(text_w, row_w) + 2 * pad_x, text_h + gap + chip_h + 2 * pad_y
 
     def layout(self) -> None:
         if not self.state:
@@ -556,10 +657,13 @@ class Pill:
         cap_w, cap_h = self._caption_size(m) if wants_caption else (0, 0)
         stage_w = max(width, cap_w) + 2 * ROOM_PT
         stage_h = height + (cap_h + CAPTION_GAP_PT if wants_caption else 0) + 2 * ROOM_PT
-        self._frame_panel(width, height, stage_w, stage_h)
-        pill_frame = (((stage_w - width) / 2, ROOM_PT), (width, height))
+        below = cap_h + CAPTION_GAP_PT if wants_caption and self.hanging else 0.0
+        pill_y = ROOM_PT + below
+        self._frame_panel(width, height, stage_w, stage_h, pill_y)
+        pill_frame = (((stage_w - width) / 2, pill_y), (width, height))
         self._frame_pill(m, pill_frame)
-        caption_frame = (((stage_w - cap_w) / 2, ROOM_PT + height + CAPTION_GAP_PT), (cap_w, cap_h))
+        cap_y = ROOM_PT if self.hanging else ROOM_PT + height + CAPTION_GAP_PT
+        caption_frame = (((stage_w - cap_w) / 2, cap_y), (cap_w, cap_h))
         self._caption(wants_caption, pill_frame, caption_frame)
 
     def _frame_pill(self, m: Metrics, frame: Any) -> None:
@@ -591,13 +695,37 @@ class Pill:
         (px, py), (pw, ph) = pill_frame
         (_cx, _cy), (cw, ch) = caption_frame
         width, height = max(pw * 0.4, 24.0), max(ch * 0.5, 16.0)
-        return ((px + (pw - width) / 2, py + ph - height), (width, height))
+        y = py if self.hanging else py + ph - height
+        return ((px + (pw - width) / 2, y), (width, height))
+
+    def _place_caption(self, cw: float, ch: float) -> None:
+        pad_x, pad_y = CAPTION_PAD
+        text_w, text_h, chips, inline = self.caption_parts
+        gap = CHIP_GAP * (LARGE_SCALE if self.large else 1.0)
+        if inline or not chips:
+            self.caption_field.setFrame_(((pad_x, (ch - text_h) / 2), (text_w, text_h)))
+            x = pad_x + text_w + gap
+        else:
+            row_w = sum(w for w, _ in chips) + gap * (len(chips) - 1)
+            self.caption_field.setFrame_(((pad_x, ch - pad_y - text_h), (cw - 2 * pad_x, text_h)))
+            x = (cw - row_w) / 2
+        for chip, (width, height) in zip(self.chips, chips, strict=True):
+            y = (ch - height) / 2 if inline else pad_y
+            chip.setFrame_(((x, y), (width, height)))
+            chip.layer().setCornerRadius_(height / 2)
+            x += width + gap
+        Quartz.CATransaction.begin()
+        Quartz.CATransaction.setDisableActions_(True)
+        self.gloss.setFrame_(((0, 0), (cw, ch)))
+        self.shine.setFrame_(((CAPTION_RADIUS, ch - 2.0), (max(cw - 2 * CAPTION_RADIUS, 0), 1.0)))
+        Quartz.CATransaction.commit()
 
     def _caption(self, wanted: bool, pill_frame: Any, caption_frame: Any) -> None:
         (_x, _y), (cw, ch) = caption_frame
-        self.caption_field.setFrame_(((18, 10), (cw - 36, ch - 20)))
+        if wanted:
+            self._place_caption(cw, ch)
         self.bubble.contentView().setFrame_(((0, 0), (cw, ch)))
-        self.bubble.contentView().layer().setCornerRadius_(20.0)
+        self.bubble.contentView().layer().setCornerRadius_(CAPTION_RADIUS)
         if wanted and not self.caption_shown:
             self._grow(pill_frame, caption_frame)
         elif wanted:
@@ -640,9 +768,13 @@ class Pill:
 
         AppKit.NSAnimationContext.runAnimationGroup_completionHandler_(group, done)
 
-    def _origin(self, width: float, height: float, stage_w: float) -> tuple[float, float]:
+    def _origin(
+        self, width: float, height: float, stage_w: float, pill_y: float
+    ) -> tuple[float, float]:
         x, y = self.anchor
-        if self.position == "left":
+        if self.hanging:
+            pill = (x - width / 2, y - height)
+        elif self.position == "left":
             pill = (x, y - height / 2)
         elif self.position == "right":
             pill = (x - width, y - height / 2)
@@ -650,10 +782,12 @@ class Pill:
             pill = (x - width / 2, y)
         offset = Foundation.NSUserDefaults.standardUserDefaults().arrayForKey_(OFFSET_KEY) or (0, 0)
         left = pill[0] - (stage_w - width) / 2 + offset[0]
-        return (round(left), round(pill[1] - ROOM_PT + offset[1]))
+        return (round(left), round(pill[1] - pill_y + offset[1]))
 
-    def _frame_panel(self, width: float, height: float, stage_w: float, stage_h: float) -> None:
-        origin = self._origin(width, height, stage_w)
+    def _frame_panel(
+        self, width: float, height: float, stage_w: float, stage_h: float, pill_y: float
+    ) -> None:
+        origin = self._origin(width, height, stage_w, pill_y)
         self.panel.setFrame_display_((origin, (stage_w, stage_h)), True)
         self.container.setFrame_(((0, 0), (stage_w, stage_h)))
         self.container.contentView().setFrame_(((0, 0), (stage_w, stage_h)))

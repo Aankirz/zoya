@@ -11,7 +11,7 @@ from typing import Any
 
 PAGES = frozenset({"today", "history", "memory", "plan", "setup", "voice"})
 PANES = frozenset({"microphone", "accessibility", "screen", "automation"})
-PILL_POSITIONS = frozenset({"bottom", "left", "right"})
+PILL_POSITIONS = frozenset({"bottom", "left", "right", "notch"})
 MEMORY_ID = re.compile(r"[0-9a-f]{32}")
 MESSAGE_KEYS = frozenset({"cmd", "id", "args"})
 OPEN_HUB_NOTICE = "app.zoya.Zoya.openHub"

@@ -285,7 +285,7 @@ class Presence:
 
     def follow_pointer(self) -> None:
         screen = _pointer_screen()
-        self.pill.place(screen.visibleFrame())
+        self.pill.place(screen)
         if screen.localizedName() != self.screen_name:
             self.screen_name = screen.localizedName()
             print(f"overlay: on {self.screen_name}", file=sys.stderr, flush=True)
@@ -307,6 +307,10 @@ class Presence:
             self.pill.set_caption(message["text"], heard=False)
         elif kind == "user":
             self.pill.set_caption(message["text"], heard=True)
+        elif kind == "intent":
+            if self.base[0] != "listening":
+                return
+            self.pill.set_caption(message["text"], heard=True, chips=message.get("chips", ()))
         elif kind == "speech_done":
             self.speaking = False
         elif kind == "ring":

@@ -922,6 +922,7 @@ class VoiceLoop:
             return True
         self.ptt.blocks.append(block)
         if held and self.ptt.seconds < MAX_UTTERANCE_S:
+            self._speculate(self.ptt)
             return True
         ended, self.ptt = self.ptt, None
         ended.last_voice_at = arrival
@@ -969,11 +970,23 @@ class VoiceLoop:
             with self.stt_lock:
                 text = self.stt(samples)
             if (awaited or is_wake(text)) and is_usable_command(text):
-                segment.speculations += speculate.prepare(strip_wake(text))
+                command = strip_wake(text)
+                segment.speculations += speculate.prepare(command)
+                self._show_intent(segment, command)
         except Exception:  # noqa: BLE001 — a failed guess must never disturb the real utterance
             log.debug("partial transcription failed", exc_info=True)
         finally:
             self.partial_pending = False
+
+    def _show_intent(self, segment: Segment, command: str) -> None:
+        """Intent chips while fn+Shift is held (D127): the prepared route, shown and never run."""
+        if segment is not self.ptt:
+            return
+        decision = speculate.peek(command)
+        chips = overlay.intent_chips(decision) if decision else ()
+        if segment is self.ptt:
+            extra = {"role": "intent", "chips": overlay.CHIP_SEPARATOR.join(chips)}
+            events.emit(events.OverlayEvent(command, "listening", extra))
 
     def _command(self, segment: Segment, transcript: str | None = None) -> None:
         endpoint_ms = round((time.monotonic() - segment.last_voice_at) * MS_PER_S)

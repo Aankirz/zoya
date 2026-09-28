@@ -125,3 +125,18 @@ def test_confirm_pill_hides_a_secret_in_the_stake() -> None:
         events.ConfirmationEvent("t1", "I'm about to type the OTP 482913.")
     )
     assert "482913" not in json.dumps(message)
+
+
+def test_intent_chips_name_what_the_prepared_route_understood():
+    from zoya.router import RouteDecision
+
+    skill = RouteDecision("skill", "play", {"song": "Kesariya"}, skill="spotify_web")
+    assert overlay.intent_chips(skill) == ("spotify", "kesariya")
+    assert overlay.intent_chips(RouteDecision("orchestrator")) == ()
+
+
+def test_intent_chips_hide_a_secret_the_user_said():
+    from zoya.router import RouteDecision
+
+    typed = RouteDecision("fast", "notes_create", {"title": "my password is hunter2"})
+    assert "hunter2" not in " ".join(overlay.intent_chips(typed))

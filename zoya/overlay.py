@@ -88,6 +88,9 @@ STAKE_PREFIX = "I'm about to "
 LEVEL_EVERY_S = 0.08
 LEVEL_GAIN = 12.0
 STOP_KINDS = {"stop", "cancel"}
+CHIP_MAX_CHARS = 24
+CHIP_SEPARATOR = "\n"
+CHIP_ARGS = ("app_name", "app", "query", "title", "note_name", "url", "song", "item", "city")
 
 _child: subprocess.Popen | None = None
 _last_level = 0.0
@@ -198,6 +201,9 @@ def _overlay_message(event: events.OverlayEvent) -> dict[str, Any] | None:
     extra = event.extra
     if extra.get("role") == "user":
         return {"k": "user", "text": caption_text(event.text)}
+    if extra.get("role") == "intent":
+        chips = [c for c in extra.get("chips", "").split(CHIP_SEPARATOR) if c]
+        return {"k": "intent", "text": caption_text(event.text), "chips": chips}
     if "ring" in extra:
         return {"k": "ring", "rect": [float(v) for v in extra["ring"].split(",")]}
     if extra.get("speech") == "done":
@@ -205,6 +211,20 @@ def _overlay_message(event: events.OverlayEvent) -> dict[str, Any] | None:
     state = "acting" if extra.get("tool") else "thinking"
     step = caption_text(step_label(extra.get("tool") or event.text))
     return {"k": "state", "state": state, "step": step, "task": extra.get("task", "")}
+
+
+def intent_chips(decision: Any) -> tuple[str, ...]:
+    """What Zoya understood, from the route already prepared (D127): no model call of its own,
+    and only words; nothing here runs anything."""
+    if decision.route == "fast" and decision.tool:
+        kind = step_label(decision.tool).lower()
+    elif decision.route == "skill" and decision.skill:
+        kind = decision.skill.removesuffix("_web").replace("_", " ")
+    else:
+        return ()
+    noun = next((str(decision.args[k]) for k in CHIP_ARGS if decision.args.get(k)), "")
+    chips = (kind, caption_text(noun).lower()) if noun else (kind,)
+    return tuple(c if len(c) <= CHIP_MAX_CHARS else c[: CHIP_MAX_CHARS - 1] + "…" for c in chips)
 
 
 def step_label(step: str) -> str:

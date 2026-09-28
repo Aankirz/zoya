@@ -105,7 +105,7 @@ const COPY = {
   holdHint: "hold both, talk, let go.",
   pillCard: "the pill",
   pillPosition: "where i sit",
-  positions: { bottom: "bottom", left: "left", right: "right" },
+  positions: { bottom: "bottom", notch: "at the notch", left: "left", right: "right" },
   readingCard: "reading",
   largerText: "larger captions and text",
   easierLetters: "easier-to-read letters",
