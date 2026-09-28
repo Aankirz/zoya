@@ -3,7 +3,7 @@ import { DODO_WEBHOOK_PATH, handleDodo } from "./dodo";
 import { amzDate, signedPostHeaders } from "./sigv4";
 
 export type License = { id: number; active: boolean; capCents: number; spentCents: number };
-export type KeyChange = { keyHash: string; grantId: string; customerId: string; active: boolean; at: string };
+export type KeyChange = { keyHash: string | null; grantId: string; customerId: string; active: boolean; at: string };
 
 export interface Store {
   find(keyHash: string, month: string): Promise<License | null>;

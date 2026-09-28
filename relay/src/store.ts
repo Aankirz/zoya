@@ -41,13 +41,18 @@ export function neonStore(url: string): Store {
         await event;
         return;
       }
-      const license = sql`
+      const license = change.keyHash
+        ? sql`
         insert into licenses (key_hash, kind, active, monthly_cap_cents, dodo_grant_id, dodo_customer_id, dodo_event_at)
         values (${change.keyHash}, 'paid', ${change.active}, ${PAID_CAP_CENTS}, ${change.grantId}, ${change.customerId}, ${change.at})
         on conflict (key_hash) do update
         set active = excluded.active, dodo_event_at = excluded.dodo_event_at
         where licenses.kind = 'paid'
-          and (licenses.dodo_event_at is null or licenses.dodo_event_at <= excluded.dodo_event_at)`;
+          and (licenses.dodo_event_at is null or licenses.dodo_event_at <= excluded.dodo_event_at)`
+        : sql`
+        update licenses set active = ${change.active}, dodo_event_at = ${change.at}
+        where dodo_grant_id = ${change.grantId} and kind = 'paid'
+          and (dodo_event_at is null or dodo_event_at <= ${change.at})`;
       await sql.transaction([license, event]);
     },
   };

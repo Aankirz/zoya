@@ -7,8 +7,8 @@ Someone subscribes on Dodo. Dodo asks the relay for a key. The relay makes a nor
 | Dodo event (`POST /webhooks/dodo`) | What the relay does |
 | --- | --- |
 | `entitlement_grant.created`, license-key grant, status `Pending` | Makes a `zoya_` key, sends it to `POST {DODO_API_BASE_URL}/grants/{grant_id}/license-key`, stores its SHA-256 as an active `paid` license (cap 800 cents). Dodo emails the key. |
-| `entitlement_grant.delivered` (fulfilled, or restored after on-hold / pause) | Marks the key active. |
-| `entitlement_grant.revoked` (cancelled, expired, on hold after a failed renewal, paused, plan changed, manual) | Marks the key inactive. |
+| `entitlement_grant.delivered` (fulfilled, or restored after on-hold / pause) | Marks the key active. If the payload carries no key, the grant's stored key is marked active. |
+| `entitlement_grant.revoked` (cancelled, expired, on hold after a failed renewal, paused, plan changed, manual) | Marks the key inactive. If the payload carries no key, the grant's stored key is marked inactive. |
 | anything else | Acknowledged and ignored. |
 
 Dodo itself maps the subscription lifecycle to the grant: renewal and the `past_due` grace period keep the key; `on_hold`, `paused`, `cancelled` and `expired` revoke it; coming off hold or unpausing restores it ([License Keys → How Keys Are Issued](https://docs.dodopayments.com/features/license-keys)).
@@ -16,7 +16,8 @@ Dodo itself maps the subscription lifecycle to the grant: renewal and the `past_
 - **Signature.** Every request is checked against the `webhook-id`, `webhook-timestamp` and `webhook-signature` headers with HMAC-SHA256 over `{id}.{timestamp}.{body}` using `DODO_WEBHOOK_SECRET` (the `whsec_` prefix is stripped, the rest base64-decoded), with a 5-minute replay window. Bad or missing signature → `401`.
 - **Idempotency.** Each `webhook-id` is stored in `dodo_events` in the same transaction as the license change. A repeated `webhook-id` returns `200` and changes nothing. A failure is not recorded, so Dodo's retry runs it again.
 - **Ordering.** Each license row keeps the timestamp of the last Dodo event applied to it; an older event that arrives late is ignored.
-- **Retries of the fulfilment call.** If Dodo answers `409` (the grant already has a key), the relay acknowledges the event and does nothing else: the key Dodo holds reaches the relay through `entitlement_grant.delivered`.
+- **Retries of the fulfilment call.** If Dodo answers `409` (the grant already has a key), the relay acknowledges the event and does nothing else: the key Dodo holds reaches the relay through `entitlement_grant.delivered`. This is also how a key Dodo accepted survives a failed database write, so the endpoint must be subscribed to `delivered`.
+- **Fulfilment timeout.** The call to Dodo is abandoned after 10 seconds and the event answers `503`, so Dodo retries it.
 
 Only keys with `kind = 'paid'` are ever changed by a webhook. Beta keys from `npm run license` are untouched.
 

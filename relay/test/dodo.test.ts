@@ -23,7 +23,7 @@ const ENV: Env = {
 const MAC_APP_KEY_SHAPE = /^zoya_[A-Za-z0-9_-]{20,200}$/;
 const GRANT_ID = "entg_w0ZCJZgNXuNDdMVzvja6p";
 
-type Row = { active: boolean; at: string };
+type Row = { active: boolean; at: string; grantId: string };
 
 function fakeStore() {
   const rows = new Map<string, Row>();
@@ -43,7 +43,11 @@ function fakeStore() {
       events.add(webhookId);
       if (!change) return;
       changes.push(change);
-      rows.set(change.keyHash, { active: change.active, at: change.at });
+      if (change.keyHash) {
+        rows.set(change.keyHash, { active: change.active, at: change.at, grantId: change.grantId });
+        return;
+      }
+      for (const row of rows.values()) if (row.grantId === change.grantId) Object.assign(row, { active: change.active, at: change.at });
     },
   };
   return { store, rows, events, changes };
@@ -115,6 +119,8 @@ async function activate(store: Store) {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 describe("Dodo webhook signature", () => {
@@ -151,6 +157,14 @@ describe("Dodo webhook signature", () => {
     dodoApi();
     const old = Math.floor(Date.now() / 1000) - 6 * 60;
     const response = await send(store, await signedRequest(grantEvent("entitlement_grant.created", {}), "msg_1", SECRET_BYTES, old));
+    expect(response.status).toBe(401);
+  });
+
+  it("rejects a timestamp more than five minutes in the future", async () => {
+    const { store } = fakeStore();
+    dodoApi();
+    const future = Math.floor(Date.now() / 1000) + 6 * 60;
+    const response = await send(store, await signedRequest(grantEvent("entitlement_grant.created", {}), "msg_1", SECRET_BYTES, future));
     expect(response.status).toBe(401);
   });
 
@@ -240,5 +254,88 @@ describe("Dodo subscription lifecycle", () => {
     expect((await send(store, await signedRequest(subscription, "msg_b"))).status).toBe(200);
     expect(fetchMock).not.toHaveBeenCalled();
     expect(changes).toHaveLength(0);
+  });
+
+  it("a revoke whose payload carries no key still deactivates the grant's key", async () => {
+    const { store } = fakeStore();
+    const key = await activate(store);
+    const revoked = grantEvent("entitlement_grant.revoked", { status: "Revoked", license_key: null }, "2026-11-01T10:00:00Z");
+    expect((await send(store, await signedRequest(revoked, "msg_revoked"))).status).toBe(200);
+    expect(await licenseStatus(store, key)).toBe(401);
+  });
+
+  it("a restore whose payload carries no key still reactivates the grant's key", async () => {
+    const { store } = fakeStore();
+    const key = await activate(store);
+    const onHold = grantEvent("entitlement_grant.revoked", { status: "Revoked", license_key: null }, "2026-11-01T10:00:00Z");
+    const restored = grantEvent("entitlement_grant.delivered", { status: "Delivered", license_key: null }, "2026-11-03T10:00:00Z");
+    await send(store, await signedRequest(onHold, "msg_hold"));
+    await send(store, await signedRequest(restored, "msg_restored"));
+    expect(await licenseStatus(store, key)).toBe(200);
+  });
+
+  it("a fulfilment call that hangs is abandoned with 503 and not recorded", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const { store, events } = fakeStore();
+    const fetchMock = vi.fn(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => init.signal?.addEventListener("abort", () => reject(new Error("aborted")))),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const pending = send(store, await signedRequest(grantEvent("entitlement_grant.created", {}), "msg_hang"));
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect((await pending).status).toBe(503);
+    expect(events.has("msg_hang")).toBe(false);
+  });
+
+  it("concurrent deliveries of one created event store exactly one working key", async () => {
+    const { store, changes } = fakeStore();
+    const accepted: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        if (accepted.length) return new Response(null, { status: 409 });
+        accepted.push(JSON.parse(String(init.body)).key);
+        return Response.json({ status: "Delivered" });
+      }),
+    );
+    const event = grantEvent("entitlement_grant.created", {});
+    const responses = await Promise.all([send(store, await signedRequest(event, "msg_c")), send(store, await signedRequest(event, "msg_c"))]);
+    expect(responses.map((r) => r.status)).toEqual([200, 200]);
+    expect(changes).toHaveLength(1);
+    expect(await licenseStatus(store, accepted[0])).toBe(200);
+  });
+
+  it("a key Dodo accepted but the database missed starts working when Dodo's delivered event arrives", async () => {
+    const { store } = fakeStore();
+    const { issued } = dodoApi();
+    const recordEvent = store.recordEvent;
+    store.recordEvent = async () => {
+      throw new Error("neon down");
+    };
+    const created = grantEvent("entitlement_grant.created", {});
+    expect((await send(store, await signedRequest(created, "msg_created"))).status).toBe(503);
+    store.recordEvent = recordEvent;
+    dodoApi(409);
+    expect((await send(store, await signedRequest(created, "msg_created"))).status).toBe(200);
+    const key = issued[0].key;
+    expect(await licenseStatus(store, key)).toBe(401);
+    const delivered = grantEvent("entitlement_grant.delivered", { status: "Delivered", license_key: { key } }, "2026-10-01T10:00:05Z");
+    expect((await send(store, await signedRequest(delivered, "msg_delivered"))).status).toBe(200);
+    expect(await licenseStatus(store, key)).toBe(200);
+  });
+
+  it("never logs a license key or a Dodo secret", async () => {
+    const logs = vi.spyOn(console, "log").mockImplementation(() => {});
+    const { store } = fakeStore();
+    const key = await activate(store);
+    const revoked = grantEvent("entitlement_grant.revoked", { status: "Revoked", license_key: { key } }, "2026-11-01T10:00:00Z");
+    await send(store, await signedRequest(revoked, "msg_revoked"));
+    dodoApi(500);
+    await send(store, await signedRequest(grantEvent("entitlement_grant.created", {}), "msg_fail"));
+    const output = logs.mock.calls.flat().join("\n");
+    expect(output).toContain("dodo_applied");
+    for (const secret of [key, SECRET, base64(SECRET_BYTES), ENV.DODO_API_KEY]) expect(output).not.toContain(secret);
   });
 });

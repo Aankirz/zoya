@@ -12,6 +12,7 @@ const GRANT_CREATED = "entitlement_grant.created";
 const GRANT_DELIVERED = "entitlement_grant.delivered";
 const GRANT_REVOKED = "entitlement_grant.revoked";
 const ALREADY_FULFILLED = 409;
+const FULFIL_TIMEOUT_MS = 10_000;
 
 type Grant = {
   id: string;
@@ -76,11 +77,19 @@ export function newLicenseKey(): string {
 async function fulfil(env: Env, grantId: string): Promise<string | null> {
   const key = newLicenseKey();
   const base = env.DODO_API_BASE_URL.replace(/\/$/, "");
-  const response = await fetch(`${base}/grants/${encodeURIComponent(grantId)}/license-key`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${env.DODO_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ key }),
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FULFIL_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetch(`${base}/grants/${encodeURIComponent(grantId)}/license-key`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env.DODO_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ key }),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
   if (response.status === ALREADY_FULFILLED) return null;
   if (!response.ok) throw new FulfilmentError(response.status);
   return key;
@@ -91,14 +100,16 @@ function deliveredKey(grant: Grant): string | null {
   return typeof key === "string" && key ? key : null;
 }
 
-async function keyAndState(event: DodoEvent, env: Env): Promise<{ key: string; active: boolean } | null> {
+// A revoke or delivery without the key in its payload still names the grant, whose stored key it changes.
+async function keyAndState(event: DodoEvent, env: Env): Promise<{ key: string | null; active: boolean } | null> {
   const grant = event.data;
   if (grant.integration_type !== LICENSE_KEY_GRANT) return null;
   const key = deliveredKey(grant);
-  if (event.type === GRANT_REVOKED) return key ? { key, active: false } : null;
-  if (event.type !== GRANT_CREATED && event.type !== GRANT_DELIVERED) return null;
+  if (event.type === GRANT_REVOKED) return { key, active: false };
+  if (event.type === GRANT_DELIVERED) return { key, active: true };
+  if (event.type !== GRANT_CREATED) return null;
   if (key) return { key, active: true };
-  if (event.type !== GRANT_CREATED || grant.status !== PENDING) return null;
+  if (grant.status !== PENDING) return null;
   const issued = await fulfil(env, grant.id);
   return issued ? { key: issued, active: true } : null;
 }
@@ -107,7 +118,7 @@ export async function changeFor(event: DodoEvent, env: Env): Promise<KeyChange |
   const found = await keyAndState(event, env);
   if (!found) return null;
   return {
-    keyHash: await sha256Hex(found.key),
+    keyHash: found.key ? await sha256Hex(found.key) : null,
     grantId: event.data.id,
     customerId: event.data.customer_id,
     active: found.active,
