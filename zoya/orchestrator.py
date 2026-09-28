@@ -466,7 +466,7 @@ def run_skill(decision: RouteDecision, timings: dict[str, int]) -> str:
         harness.learn_pick(
             decision.text, harness.SkillMatch(decision.skill, decision.tool, decision.args)
         )
-    return safety.UNTRUSTED_TAG.sub("", spoken).strip()  # spoken to the user, not fed to a model
+    return safety.untag(spoken).strip()  # spoken to the user, not fed to a model
 
 
 def run_fast_tool(decision: RouteDecision) -> str:

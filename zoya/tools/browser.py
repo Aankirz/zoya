@@ -42,6 +42,7 @@ import json
 import logging
 import os
 import re
+import secrets
 import signal
 import socket
 import subprocess
@@ -91,12 +92,13 @@ CHROME_APP = "Chrome"
 CDP_VERSION_PATH = "/json/version"
 INTERNAL = "chrome://"
 # Submit controls, XPath in Playwright's selector engine (not page JS). A <button> with no type
-# inside a <form> submits it (HTML spec default).
+# inside a <form>, or tied to one with form=, submits it (HTML spec default).
 _LOWER = "translate(@type, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')"
 SUBMIT_CONTROL = (
     f"xpath=self::input[{_LOWER}='submit' or {_LOWER}='image']"
     f" | self::button[{_LOWER}='submit']"
-    f" | self::button[ancestor::form][not(@type) or not({_LOWER}='button' or {_LOWER}='reset')]"
+    f" | self::button[ancestor::form or @form]"
+    f"[not(@type) or not({_LOWER}='button' or {_LOWER}='reset')]"
 )
 # The target's form, else its third ancestor: where a price "near the target" would be.
 NEARBY = "xpath=(ancestor::form | ancestor::*[3])[last()]"
@@ -554,6 +556,7 @@ def _probe_locator(page: Any, locator: Any) -> Target:
         search_form=shape["searchForm"],
         date_container=shape["dateContainer"],
         link_path=shape["linkPath"],
+        form_path=shape["formPath"],
     )
     return Target(locator.element_handle(), facts, page.title(), url.netloc)
 
@@ -983,9 +986,19 @@ def fill_checked(locator: Any, text: str, field: str) -> None:
     locator.fill(text)
 
 
-DEFAULT_SUBMIT = (
-    "button:not([type=button]):not([type=reset]), input[type=submit i], input[type=image i]"
-)
+ENTER_MARK = "data-zoya-enter"
+KEY_EVENTS = {"keydown", "keypress", "keyup"}
+# The field's form owner (form= included), and its default button: the first submit button among
+# form.elements in tree order, wherever it sits. The button is marked so Playwright can probe it.
+DEFAULT_BUTTON_JS = """(e, [attribute, mark]) => { const f = e.form;
+  if (!f) return 'none';
+  const b = [...f.elements].find(x => (x.tagName === 'BUTTON' && x.type === 'submit')
+    || (x.tagName === 'INPUT' && (x.type === 'submit' || x.type === 'image')));
+  if (!b) return 'field';
+  b.setAttribute(attribute, mark);
+  return 'button'; }"""
+KEY_MARK_JS = """(e, [attribute, mark]) => {
+  for (const x of [e, e.form]) if (x) x.setAttribute(attribute, mark); }"""
 ENTER_REFUSED_SAY = (
     "Pressing Enter there would {say}. Click its button with browser_click instead, so the user "
     "can confirm."
@@ -994,17 +1007,51 @@ NO_ENTER_SAY = "That field has no button of its own to check, so I didn't press 
 
 
 def enter_target(page: Any, field: Any) -> Target | None:
-    """What Enter in `field` really presses: its form's default submit button, probed as a click,
-    or with no such button the field itself as the form's submit (HTML implicit submission).
-    None outside a form, so Enter is never pressed where a script decides what it does."""
-    form = field.locator("xpath=ancestor::form[1]")
-    if not form.count():
+    """What Enter in `field` really presses: its form's default button (the first submit button
+    among the form's own elements, form= ones included), probed as a click, or with none the field
+    itself as the form's submit (HTML implicit submission).
+
+    None outside a form, or when the field or its form has its own key handler (D148 G10): a
+    script decides what Enter does there, so the brain clicks the button instead."""
+    mark = secrets.token_hex(8)
+    found = field.evaluate(DEFAULT_BUTTON_JS, [ENTER_MARK, mark])
+    if found == "none" or _own_key_handler(page, field):
         return None
-    button = form.locator(DEFAULT_SUBMIT)
-    if button.count():
-        return _probe_locator(page, button.first)
+    if found == "button":
+        return _probe_locator(page, page.locator(f'[{ENTER_MARK}="{mark}"]').first)
     target = _probe_locator(page, field)
     return replace(target, facts=replace(target.facts, is_submit=True))
+
+
+def _own_key_handler(page: Any, field: Any) -> bool:
+    """True when the field or its form listens for keys itself (attribute, property or
+    addEventListener), read through CDP, which page scripts can't fake. Fails closed."""
+    mark = secrets.token_hex(8)
+    session = None
+    try:
+        field.evaluate(KEY_MARK_JS, [ENTER_MARK, mark])
+        session = page.context.new_cdp_session(page)
+        root = session.send("DOM.getDocument", {"depth": 0})["root"]["nodeId"]
+        found = session.send(
+            "DOM.querySelectorAll", {"nodeId": root, "selector": f'[{ENTER_MARK}="{mark}"]'}
+        )["nodeIds"]
+        if not found:
+            return True  # in a shadow root or gone: can't read it, so no Enter
+        for node in found:
+            remote = session.send("DOM.resolveNode", {"nodeId": node})["object"]["objectId"]
+            listeners = session.send(
+                "DOMDebugger.getEventListeners", {"objectId": remote, "depth": 0}
+            )["listeners"]
+            if any(listener["type"] in KEY_EVENTS for listener in listeners):
+                return True
+        return False
+    except (PlaywrightError, KeyError) as error:
+        log.warning("key handlers unreadable (%s): no Enter", type(error).__name__)
+        return True
+    finally:
+        if session is not None:
+            with contextlib.suppress(PlaywrightError):
+                session.detach()
 
 
 @tool
@@ -1067,8 +1114,18 @@ SECRET_FIELD_SAY = "That's a password or code field. Please type it yourself; I'
 # attribute (KNOWN_SAFE_CLICKS), the text of its form or third ancestor (NEARBY), and its box in
 # global screen points (SCREEN_RECT_JS) for the stage ring.
 SEARCH_FORM_JS = """(e => { const f = e.form || e.closest('form');
-  return !!f && f.method === 'get'
+  if (!f) return false;
+  const method = e.hasAttribute('formmethod') ? e.getAttribute('formmethod')
+    : (f.getAttribute('method') || 'get');
+  return method.trim().toLowerCase() === 'get'
     && !!f.querySelector('input[type=search i], [role=searchbox]'); })"""
+# Where a submit goes: the button's own formaction, else its form's action attribute (attributes,
+# not f.action, which an <input name="action"> inside the form would shadow).
+FORM_PATH_JS = """(e => { const f = e.form || e.closest('form');
+  if (!f && !e.hasAttribute('formaction')) return '';
+  const raw = e.hasAttribute('formaction') ? e.getAttribute('formaction')
+    : (f.getAttribute('action') || '');
+  try { return new URL(raw, document.baseURI).pathname; } catch { return ''; } })"""
 DATE_CONTAINER_JS = """(e => { const c = e.closest(
     '[role=grid], [role=dialog], dialog, table, [role=application]');
   if (!c) return '';
@@ -1086,6 +1143,7 @@ ELEMENT_SHAPE_JS = f"""e => ({{
   searchForm: {SEARCH_FORM_JS}(e),
   dateContainer: {DATE_CONTAINER_JS}(e),
   linkPath: {LINK_PATH_JS}(e),
+  formPath: {FORM_PATH_JS}(e),
 }})"""
 FOCUS_FACTS_JS = (
     """(() => {
@@ -1106,6 +1164,9 @@ FOCUS_FACTS_JS = (
     searchForm: SEARCH_FORM(e),
     dateContainer: DATE_CONTAINER(e),
     linkPath: LINK_PATH(e),
+    formPath: FORM_PATH(e),
+    text: (e.innerText || '').slice(0, LABEL_LIMIT),
+    attributes: ATTRIBUTES.map(a => e.getAttribute(a) || ''),
     near: (near.innerText || '').slice(0, NEARBY_LIMIT),
     rect: [screenX + r.left, screenY + (outerHeight - innerHeight) + r.top, r.width, r.height]
   });
@@ -1113,6 +1174,9 @@ FOCUS_FACTS_JS = (
     .replace("SEARCH_FORM", SEARCH_FORM_JS)
     .replace("DATE_CONTAINER", DATE_CONTAINER_JS)
     .replace("LINK_PATH", LINK_PATH_JS)
+    .replace("FORM_PATH", FORM_PATH_JS)
+    .replace("LABEL_LIMIT", str(NEARBY_MAX_CHARS))
+    .replace("ATTRIBUTES", json.dumps(LABEL_ATTRIBUTES))
 )
 
 
@@ -1264,8 +1328,9 @@ def _ref_probe(ref: str, approved: str) -> Target:
         )
     focused = _focused_facts(answers, ref)
     address = urlparse(url)
+    seen = [str(focused.get("text") or ""), *map(str, focused.get("attributes") or [])]
     facts = safety.ClickFacts(
-        labels=[label for label in (node.name, node.value) if label],
+        labels=[label for label in (node.name, node.value, *seen) if label.strip()],
         is_submit=bool(focused.get("submit")),
         path=address.path,
         nearby_text=focused.get("near") or _nearby_text(lines, index),
@@ -1277,6 +1342,7 @@ def _ref_probe(ref: str, approved: str) -> Target:
         search_form=bool(focused.get("searchForm")),
         date_container=str(focused.get("dateContainer") or ""),
         link_path=str(focused.get("linkPath") or ""),
+        form_path=str(focused.get("formPath") or ""),
     )
     title = _batch_value(answers[1], "title") or ""
     return Target(focused.get("rect"), facts, title, address.netloc)

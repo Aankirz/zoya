@@ -30,6 +30,7 @@ from functools import cache
 from pathlib import Path
 from textwrap import shorten
 from typing import Any
+from urllib.parse import urlparse
 
 from strands import tool
 from typesafe_sdk import Choice, Noul
@@ -140,7 +141,7 @@ class Outcome:
 
 
 def clean(text: str) -> str:
-    return safety.UNTRUSTED_TAG.sub("", " ".join(str(text).split()))[:LABEL_MAX_CHARS]
+    return safety.untag(" ".join(str(text).split()))[:LABEL_MAX_CHARS]
 
 
 def element_table(actions: list[dict[str, Any]]) -> Table:
@@ -217,6 +218,11 @@ def element_lines(table: Table) -> str:
     )
 
 
+def page_line(page: dict[str, Any]) -> str:
+    """The page's title and URL: page-controlled, so only ever inside the envelope (D148 G13)."""
+    return f"Page: {clean(page.get('title', ''))} ({page.get('url', '')})"
+
+
 def state_text(goal: str, page: dict[str, Any], history: list[dict[str, Any]], table: Table) -> str:
     recent = [
         {k: h.get(k) for k in ("action", "operation", "text", "page_changed")}
@@ -224,10 +230,10 @@ def state_text(goal: str, page: dict[str, Any], history: list[dict[str, Any]], t
     ]
     return (
         f"The user's goal: {goal}\n"
-        f"Page: {clean(page.get('title', ''))} ({page.get('url', '')})\n"
         f"Recent actions: {json.dumps(recent, ensure_ascii=False)}\n"
         + safety.wrap_untrusted(
-            f"Elements:\n{element_lines(table)}\n\nPage text:\n{page.get('text', '')}"
+            f"{page_line(page)}\nElements:\n{element_lines(table)}\n\n"
+            f"Page text:\n{page.get('text', '')}"
         )
     )
 
@@ -356,7 +362,13 @@ def _type(observed: dict[str, Any], action: dict[str, Any], text: str) -> None:
 
 
 def _select(observed: dict[str, Any], action: dict[str, Any]) -> None:
+    """Guard 2 on the chosen option's own text (D148 G12): a cart's "0 (Delete)" asks first."""
     value = action["value"]
+    risky = safety.risky_label([str(action.get("option", "")), str(value)])
+    if risky is not None:
+        host = urlparse(str(observed.get("url", ""))).netloc
+        chosen = safety.Action(risky.kind, risky.say, target=host)
+        safety.require_confirmation(chosen, current=lambda: chosen)
     browser.on_page(lambda page: locate(page, observed, action).select_option(value=value))
 
 
@@ -468,14 +480,14 @@ def run(goal: str, cancel: threading.Event, max_steps: int = WEB_MAX_STEPS) -> O
     return outcome
 
 
-DONE_SAY = "Done on the page. Steps: {steps}. It now shows: {title}."
+DONE_SAY = "Done on the page. Steps: {steps}. It now shows:\n{title}"
 HANDED_BACK = (
     "I couldn't finish that on the page by myself ({reason}). Steps so far: {steps}. Carry on with "
     "browser_read, browser_click and browser_type."
 )
 HANDED_BACK_ON_PAGE = (
-    "I couldn't finish that on the page by myself ({reason}). Steps so far: {steps}. The page is "
-    "now {title} ({url}); these are its controls, so carry on from here with browser_click and "
+    "I couldn't finish that on the page by myself ({reason}). Steps so far: {steps}. The page it "
+    "is on now and its controls are below, so carry on from here with browser_click and "
     "browser_type without browser_read, and don't open the site again or repeat these steps:\n"
     "{elements}"
 )
@@ -492,9 +504,7 @@ def hand_back(outcome: Outcome, steps: str) -> str:
     return HANDED_BACK_ON_PAGE.format(
         reason=outcome.reason,
         steps=steps,
-        title=clean(page.get("title", "")),
-        url=page.get("url", ""),
-        elements=safety.wrap_untrusted("\n".join(lines) or "none"),
+        elements=safety.wrap_untrusted("\n".join([page_line(page), *lines])),
     )
 
 
@@ -514,7 +524,7 @@ def browser_task(goal: str) -> str:
     steps = "; ".join(h["action"] for h in outcome.history) or "none"
     if outcome.done:
         title = clean(observe().get("title", "")) if outcome.steps else ""
-        return DONE_SAY.format(steps=steps, title=title or "the same page")
+        return DONE_SAY.format(steps=steps, title=safety.wrap_untrusted(title or "the same page"))
     return hand_back(outcome, steps)
 
 
@@ -530,7 +540,7 @@ SUPPORTED_QUESTION = (
     "Does the page Zoya's browser shows now, or the results of the tools she used in this task, "
     "support that the action the reply claims was completed really happened?"
 )
-CLAIM_STATE = "The assistant's reply: {reply!r}\nPage: {title} ({url})\n{page}"
+CLAIM_STATE = "The assistant's reply: {reply!r}\n{page}"
 HONEST_SAY = "I couldn't confirm that on the page. It now shows {title}."
 HONEST_TITLE_CHARS = 60
 CLAIM_TOOL_RESULT_CHARS = 600
@@ -555,9 +565,9 @@ def honest_reply(reply: str, tool_results: list[str] | None = None) -> str:
     answers = decisions.ask(
         CLAIM_STATE.format(
             reply=reply,
-            title=title,
-            url=page.get("url", ""),
-            page=safety.wrap_untrusted(evidence(page.get("text", ""), tool_results or [])),
+            page=safety.wrap_untrusted(
+                f"{page_line(page)}\n{evidence(page.get('text', ''), tool_results or [])}"
+            ),
         ),
         {
             "claims": Noul(instructions=CLAIMS_QUESTION),

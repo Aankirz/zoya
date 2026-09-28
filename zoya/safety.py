@@ -166,11 +166,14 @@ def risk_of(tool_name: str) -> RiskClass:
 
 # --- Text normalisation: labels and replies must survive look-alike tricks ----------------------
 
-# Letters that look Latin but aren't (Cyrillic, Greek). NFKC already folds fullwidth letters.
+# Letters that look Latin but aren't (Cyrillic, Greek, Armenian, Cherokee). NFKC already folds
+# fullwidth letters.
 CONFUSABLES = str.maketrans(
-    "аеорсхуіјѕԁһӏАВЕКМНОРСТХУІЈЅαβεικνορτυχΑΒΕΖΗΙΚΜΝΟΡΤΥΧ",
-    "aeopcxyijsdhlABEKMHOPCTXYIJSabeiknoptuxABEZHIKMNOPTYX",
+    "аеорсхуіјѕԁһӏАВЕКМНОРСТХУІЈЅαβεικνορτυχΑΒΕΖΗΙΚΜΝΟΡΤΥΧ" "օսոհցզաՕՍ" "ᎪᏴᏟᎠᎬᏀᎻᎥᎫᏦᏞᎷᏢᏒᏚᎢᏙᎳᎩᏃ",
+    "aeopcxyijsdhlABEKMHOPCTXYIJSabeiknoptuxABEZHIKMNOPTYX" "ounhgqwOU" "ABCDEGHiJKLMPRSTVWYZ",
 )
+# Blank letters and symbols that are not format characters but draw nothing: "B⠀uy", "Paㅤy".
+INVISIBLE = {"\u2800", "\u3164", "\u115f", "\u1160", "\uffa0"}
 LEET = str.maketrans("0134578@$", "oleastbas")
 CAMEL_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 LATIN_END = "\u0250"  # combining marks after these letters are accents
@@ -180,7 +183,9 @@ NON_WORD = re.compile(r"[^0-9a-zऀ-ॿ₹]+")
 def normalise(text: str) -> str:
     """Casefolded Latin words: fullwidth, look-alike letters and invisible characters removed."""
     folded = unicodedata.normalize("NFKC", text)
-    visible = "".join(ch for ch in folded if unicodedata.category(ch) != "Cf")  # zero-width etc.
+    visible = "".join(
+        ch for ch in folded if unicodedata.category(ch) != "Cf" and ch not in INVISIBLE
+    )  # zero-width etc.
     split = CAMEL_BOUNDARY.sub(
         " ", visible.translate(CONFUSABLES)
     )  # "btnPlaceOrder" → "btn Place Order"
@@ -205,15 +210,17 @@ RISKY_PHRASES: tuple[tuple[str, str, str], ...] = (
     ("purchase", r"(?:complete|confirm|finish) (?:your |the |my )?(?:booking|reservation)", "Book"),
     ("purchase", r"book(?: and pay| now)|reserve and pay", "Book"),
     ("purchase", r"transfer(?: money| funds)?", "Transfer"),
+    ("purchase", r"add (?:money|funds|cash)|top up|start (?:your |a |my )?free trial", "Pay"),
     # Hindi (Devanagari) and Hinglish: "ऑर्डर करें", "खरीदें", "भुगतान करें", "order karo".
     (
         "purchase",
-        r"ऑर्डर(?: \S+)?|खरीद\S*|भुगतान\S*|पे करें|order kar\w*|kharid\w*|bhugtan\w*|pay kar\w*",
+        r"[ऑआअ]र्डर(?: \S+)?|ख\u093c?रीद\S*|भुगतान\S*|(?:पे|पेमेंट|बुक) कर\S*|"
+        r"(?:order|book|payment|pay) (?:kar|de)\w*|khar(?:ee|i)d\w*|bhugta+n\w*",
         "Place order",
     ),
-    ("checkout", r"checkout|check out|proceed to checkout", "Check out"),
+    ("checkout", r"checkout|check out|proceed to checkout|चेकआउट\S*|चेक आउट", "Check out"),
     ("send", r"send(?: message| money)?", "Send"),
-    ("send", r"post|publish|भेज\S*|bhej\w*", "Post"),
+    ("send", r"post|publish|भेज\S*|पोस्ट\S*|bhej\w*", "Post"),
     (
         "delete",
         r"delete|remove|erase|trash|discard|हटा\S*|मिटा\S*|डिलीट\S*|hata\w*|mita\w*",
@@ -226,8 +233,25 @@ RISKY_PHRASES: tuple[tuple[str, str, str], ...] = (
     ("post", r"subscribe|subscribed|सब्सक्राइब\S*", "Subscribe"),
     ("post", r"like|comment|reply", "Post"),
 )
+# Everyday verbs that also name things ("Track order", "Books", "Share price"): risky only as the
+# control's first word, where they are the verb.
+LEADING_RISKY_PHRASES: tuple[tuple[str, str, str], ...] = (
+    (
+        "purchase",
+        r"order(?! (?:history|details|summary|status|id|number|no|tracking|list)(?: |$))",
+        "Place order",
+    ),
+    ("purchase", r"book", "Book"),
+    ("purchase", r"donate", "Donate"),
+    ("purchase", r"rent|recharge", "Pay"),
+    ("submit", r"upgrade|renew", "Subscribe"),
+    ("post", r"tweet|repost|retweet|share|follow", "Post"),
+)
 _RISKY = [
     (kind, re.compile(rf"(?:^| )(?:{pattern})(?: |$)"), say) for kind, pattern, say in RISKY_PHRASES
+] + [
+    (kind, re.compile(rf"^(?:{pattern})(?: |$)"), say)
+    for kind, pattern, say in LEADING_RISKY_PHRASES
 ]
 # Joined words with no case boundary ("buynow", "placeorder"), and letters spaced out ("P l a c e"):
 # long phrases only, so "pay" never matches "display" and "delete" never matches "Deleted items".
@@ -252,25 +276,43 @@ class RiskyLabel:
     say: str  # canonical action name spoken to the user, never raw page text
 
 
+SPACED_LETTERS = re.compile(r"(?<!\S)(?:\S ){2,}\S(?!\S)")  # "p a y", "s e n d"
+
+
+def label_hits(raw: str) -> list[RiskyLabel]:
+    """Every risky meaning of one label, in plain, de-leeted ("P@Y", "$END") and letter-joined
+    form."""
+    plain = normalise(raw)
+    leet = normalise(raw.casefold().translate(LEET))
+    variants = {plain, plain.translate(LEET), leet}
+    variants |= {SPACED_LETTERS.sub(lambda m: m.group().replace(" ", ""), v) for v in variants}
+    found = [
+        RiskyLabel(k, say)
+        for variant in variants
+        for k, pattern, say in _RISKY
+        if pattern.search(variant)
+    ]
+    squashed = plain.replace(" ", "")
+    found += [
+        RiskyLabel(k, say)
+        for k, needle, say in SQUASHED
+        if needle in squashed or needle in squashed.translate(LEET)
+    ]
+    return found
+
+
+def strongest(found: list[RiskyLabel]) -> RiskyLabel | None:
+    """A purchase wins: "Pay and send" must get the amount check."""
+    return next((hit for hit in found if hit.kind == "purchase"), found[0] if found else None)
+
+
 def risky_label(labels: list[str]) -> RiskyLabel | None:
     """Guard 2: does any label of the real click target mean pay/send/delete/submit?
 
-    Checked on every label source (text, aria-label, value, title), in plain and de-leeted form.
+    Checked on every label source (text, aria-label, value, title).
     One signal only: `click_risk` also asks on submit controls, unnamed targets and commerce pages.
     """
-    found: list[RiskyLabel] = []
-    for raw in labels:
-        plain = normalise(raw)
-        for variant in (plain, plain.translate(LEET)):
-            found += [RiskyLabel(k, say) for k, pattern, say in _RISKY if pattern.search(variant)]
-        squashed = plain.replace(" ", "")
-        found += [
-            RiskyLabel(k, say)
-            for k, needle, say in SQUASHED
-            if needle in squashed or needle in squashed.translate(LEET)
-        ]
-    # A purchase wins: "Pay and send" must get the amount check.
-    return next((hit for hit in found if hit.kind == "purchase"), found[0] if found else None)
+    return strongest([hit for raw in labels for hit in label_hits(raw)])
 
 
 MIN_NAME_CHARS = 2
@@ -291,7 +333,13 @@ COMMERCE_PATH_WORDS = {
     "transfer",
     "billing",
 }
-CURRENCY_AMOUNT = re.compile(r"(?:₹|\brs\.?|\binr\b|\$|€|£)\s*\d|\d\s*(?:rupees|inr)\b", re.I)
+CURRENCY_AMOUNT = re.compile(
+    r"(?:₹|\brs\.?|\binr\b|\bmrp\b|रु\.?|\$|€|£)\s*:?\s*\d|\d\s*(?:rupees?\b|inr\b|रु|/-)", re.I
+)
+# A total, not a price beside a product: the page is about to take money for what it adds up.
+TOTAL_WORDS = re.compile(r"\btotal\b|payable|you pay|to pay|कुल|amount due", re.I)
+# Where money moves next. Not "cart": adding to a cart from the cart page stays reversible (D75).
+CHECKOUT_PATH_WORDS = {"checkout", "payment", "payments", "pay", "buy", "order", "billing"}
 ACCESSIBLE_NAME = re.compile(r'^- \w+(?: "(.*)")?')
 LINK_MONEY_PATH_WORDS = {
     "cart",
@@ -321,6 +369,7 @@ class ClickFacts:
     search_form: bool = False
     date_container: str = ""
     link_path: str = ""
+    form_path: str = ""  # where the submit goes: the button's formaction, else its form's action
 
 
 def spoken_name(labels: list[str]) -> str:
@@ -363,7 +412,7 @@ REVERSIBLE_INTENTS: tuple[tuple[str, str, str], ...] = (
     ),
 )
 _REVERSIBLE = [
-    (intent, re.compile(rf"(?:^| )(?:{pattern})(?: |$)"), undo)
+    (intent, re.compile(rf"^(?:{pattern})(?: |$)"), undo)
     for intent, pattern, undo in REVERSIBLE_INTENTS
 ]
 # Hotel sites where Zoya stops at the payment page: a purchase click there is never asked, only
@@ -382,6 +431,9 @@ class Reversible:
 
 def reversible_click(facts: ClickFacts) -> Reversible | None:
     """D75 leg 1: every name this control publishes says the same reversible thing, on any host.
+
+    The reversible word must be the name's leading verb (D148 G5): "Donate and see details"
+    donates, it doesn't "see".
 
     `click_risk` consults this only after `risky_label` has found nothing, so money, sending,
     posting and deleting always ask, everywhere. Every label must match, so a control reading
@@ -414,14 +466,28 @@ SEARCH_SUBMIT_RISKY = re.compile(
 def search_submit(facts: ClickFacts) -> bool:
     """D138 (a): a GET search submit is D75 "navigate" only when every strict condition holds.
 
-    The form is method=GET and holds a searchbox or type=search field (the page fact), the
-    control's names carry no risky word, and the page is not on a cart, checkout or payment path.
+    The submit really goes by GET (the button's formmethod, else the form's method) and its form
+    holds a searchbox or type=search field (the page fact), the control's names carry no risky
+    word, and neither the page nor where the form goes (formaction, else action) is a cart,
+    checkout, payment or order path (D148 G1/G2).
     """
     if not (facts.is_submit and facts.search_form):
         return False
     if any(SEARCH_SUBMIT_RISKY.search(normalise(label)) for label in facts.labels):
         return False
-    return not set(normalise(facts.path).split()) & COMMERCE_PATH_WORDS
+    return not commerce_path(facts.path) and not commerce_path(facts.form_path)
+
+
+def commerce_path(path: str) -> bool:
+    return bool(set(normalise(path).split()) & COMMERCE_PATH_WORDS)
+
+
+def checkout_page(facts: ClickFacts) -> bool:
+    """D148: a checkout, payment or order path, or a currency amount beside a total."""
+    near = facts.nearby_text
+    return bool(set(normalise(facts.path).split()) & CHECKOUT_PATH_WORDS) or bool(
+        CURRENCY_AMOUNT.search(near) and TOTAL_WORDS.search(near)
+    )
 
 
 def payment_blocked_host(host: str) -> bool:
@@ -495,26 +561,44 @@ def click_risk(facts: ClickFacts) -> RiskyLabel | None:
     ponytail: a JS-handled <div> with a harmless name ("Continue") on a page with no amount and a
     neutral URL still passes.
     """
-    hit = risky_label(facts.labels)
-    if hit and hit.kind == "checkout" and (is_date_field(facts) or is_date_pick(facts)):
-        hit = None
+    hit = strongest(
+        [
+            found
+            for label in facts.labels
+            for found in label_hits(label)
+            if not (found.kind == "checkout" and date_clears(facts, label))
+        ]
+    )
     if hit and hit.kind == "purchase" and payment_blocked_host(facts.host):
         raise ConfirmationDeclined(PAYMENT_BLOCKED_SAY)
     if hit:
         return hit
     if facts.is_link and set(normalise(facts.link_path).split()) & LINK_MONEY_PATH_WORDS:
         return RiskyLabel("context", f"open {spoken_name(facts.labels) or 'this link'}")
+    name = spoken_name(facts.labels)
+    if facts.is_submit and not search_submit(facts) and checkout_page(facts):
+        return RiskyLabel("submit", f"submit {name or 'this form'}")  # D148: whatever its words
     if reversible_click(facts) is not None:
         return None
-    name = spoken_name(facts.labels)
     if not name:
         return RiskyLabel("unknown", "click a button with no name")
     if facts.is_submit:
         return RiskyLabel("submit", f"submit {name}")
-    path_words = set(normalise(facts.path).split())
-    if path_words & COMMERCE_PATH_WORDS or CURRENCY_AMOUNT.search(facts.nearby_text):
+    if commerce_path(facts.path) or CURRENCY_AMOUNT.search(facts.nearby_text):
         return RiskyLabel("context", f"click {name}")
     return None
+
+
+def date_clears(facts: ClickFacts, label: str) -> bool:
+    """D148 G6: the date rule clears a "check out" hit only in a label that itself names a date
+    (or on a date input or a picked calendar day), and never any other risky hit."""
+    if is_date_pick(facts):
+        return True
+    if not is_date_field(facts):
+        return False
+    return facts.input_type.casefold() in DATE_INPUT_TYPES or bool(
+        DATE_WORDS.search(normalise(label))
+    )
 
 
 # Native Mac apps (Phase 5): system and data-loss buttons a web page rarely has. Checked before
@@ -842,12 +926,25 @@ def classify_reply(text: str) -> Reply:
 
 # --- Untrusted content and secrets (§12.1, §12.2) ---------------------------------------------
 
-UNTRUSTED_TAG = re.compile(r"<\s*/?\s*untrusted_content\s*>", re.I)
+# Any tag naming the envelope, with junk inside it ("</untrusted_content x>", "< / untrusted content
+# >"); `untag` folds fullwidth brackets and strips zero-width characters before matching.
+UNTRUSTED_TAG = re.compile(r"<[^<>]{0,40}?untrusted[\W_]{0,5}content[^<>]{0,40}>", re.I)
+
+
+def untag(text: str, replacement: str = "") -> str:
+    """`text` with every envelope tag neutralised, repeated until none is left, so a nested tag
+    ("</untrusted_con</untrusted_content>tent>") can't rebuild itself."""
+    text = "".join(
+        ch for ch in unicodedata.normalize("NFKC", text) if unicodedata.category(ch) != "Cf"
+    )
+    while (cleaned := UNTRUSTED_TAG.sub(replacement, text)) != text:
+        text = cleaned
+    return text
 
 
 def wrap_untrusted(text: str) -> str:
     """Page/screen text as data. A page can't close the tag early to smuggle in instructions."""
-    return f"<untrusted_content>\n{UNTRUSTED_TAG.sub('[tag removed]', text)}\n</untrusted_content>"
+    return f"<untrusted_content>\n{untag(text, '[tag removed]')}\n</untrusted_content>"
 
 
 SECRET_FIELD = re.compile(

@@ -456,7 +456,7 @@ def _opened_checkout() -> str:
 def _selected_payment(page: Any) -> str:
     """The payment method Amazon pre-selected, as its row reads ("Visa ending in 1060")."""
     checked = page.locator("input[type=radio]:checked").locator(PAYMENT_ROW)
-    return safety.UNTRUSTED_TAG.sub("", _text(checked))[:PAYMENT_NAME_MAX_CHARS]
+    return safety.untag(_text(checked))[:PAYMENT_NAME_MAX_CHARS]
 
 
 def order_total(summary: str) -> str:
