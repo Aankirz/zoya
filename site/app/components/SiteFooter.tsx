@@ -1,4 +1,5 @@
 import { CONTACT_EMAIL, FOOTER } from "../copy";
+import { LEGAL_DOCS } from "../legal";
 import { FolderWordmark } from "./FolderWordmark";
 import { FolderIcon, TrashIcon } from "./Props";
 import { VisitorCount } from "./VisitorCount";
@@ -20,6 +21,13 @@ export function SiteFooter({ visitorCount }: { visitorCount?: number | null }) {
       <p>
         {FOOTER.iconsLead} <a href={FOOTER.iconsHref}>{FOOTER.iconsName}</a>
       </p>
+      <nav className="footer-legal" aria-label={FOOTER.legalLabel}>
+        {LEGAL_DOCS.map((doc) => (
+          <a key={doc.path} href={doc.path}>
+            {doc.label}
+          </a>
+        ))}
+      </nav>
       <p>{FOOTER.copyright}</p>
     </footer>
   );

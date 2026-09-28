@@ -1701,6 +1701,13 @@ a:hover {
   }
 }
 
+.footer-legal {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem 1.25rem;
+}
+
 .visitors {
   display: inline-flex;
   align-items: center;

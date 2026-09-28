@@ -234,5 +234,6 @@ export const FOOTER = {
   iconsLead: "icons by",
   iconsName: "rune icons",
   iconsHref: "https://www.runeicons.com",
+  legalLabel: "legal",
   copyright: "© zoya 2026",
 };
