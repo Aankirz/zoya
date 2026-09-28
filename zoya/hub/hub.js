@@ -527,14 +527,31 @@ function toast(text, onUndo) {
   return bar;
 }
 
-function softDelete(line, item, list) {
+function dismiss(bar) {
+  bar.classList.add("is-leaving");
+  after(bar).then(() => bar.remove());
+}
+
+function softDelete(line, item, list, group) {
   const place = line.nextSibling;
-  line.remove();
   let timer;
-  const undo = () => {
+  line.classList.add("is-leaving");
+  const gone = after(line).then(() => {
+    line.remove();
+    line.classList.remove("is-leaving");
+    group.hidden = list.children.length === 0;
+  });
+  const restore = async () => {
+    await gone;
+    group.hidden = false;
+    list.insertBefore(line, place?.parentNode === list ? place : null);
+    line.classList.add("is-returning");
+    after(line).then(() => line.classList.remove("is-returning"));
+  };
+  const undo = async () => {
     clearTimeout(timer);
-    bar.remove();
-    list.insertBefore(line, place);
+    dismiss(bar);
+    await restore();
     line.querySelector("button").focus();
   };
   const bar = toast(COPY.deleted(item.content), undo);
@@ -544,9 +561,9 @@ function softDelete(line, item, list) {
       timer = setTimeout(commit, UNDO_GRACE_MS);
       return;
     }
-    bar.remove();
+    dismiss(bar);
     if (!(await ask("deleteMemory", { memory: item.id }))) {
-      list.insertBefore(line, place);
+      await restore();
       toast(COPY.deleteFailed);
     }
   };
