@@ -43,6 +43,8 @@ PRICES_USD_PER_1M = {
 }
 JEV_USD_PER_1M = 0.042
 BLANK_PAGE = "about:blank"
+BLANK_URLS = {BLANK_PAGE, ""}
+NEW_TAB = "chrome://new"
 MARKER = "zoyaeval"
 RUN_ID = f"{secrets.randbelow(9000) + 1000}"
 NOTHING_LEFT = ("", "0")
@@ -70,6 +72,8 @@ class Run:
     error: str = ""
     leftover: str = ""
     tools: list[str] = field(default_factory=list)
+    tabs: int = 0
+    blank_tabs: int = 0
 
 
 class Meter:
@@ -187,6 +191,16 @@ def browser_url() -> str:
     return browser.ref_page_state()[0]
 
 
+def page_tabs() -> tuple[int, int]:
+    """Zoya's Chrome page targets after a task, and how many are blank (D150). Never launches."""
+    from zoya.tools import browser
+
+    if not browser.running():
+        return 0, 0
+    urls = [info.get("url", "") for info in browser._on_browser(browser._page_targets)]
+    return len(urls), sum(url in BLANK_URLS or url.startswith(NEW_TAB) for url in urls)
+
+
 def reset_browser() -> None:
     from zoya.tools import browser
 
@@ -261,6 +275,10 @@ def run_task(task: dict[str, Any], index: int) -> Run:
     meter.run = None
     if any("url" in check for check in task["checks"]):
         run.url = browser_url()
+    try:
+        run.tabs, run.blank_tabs = page_tabs()
+    except Exception as error:  # noqa: BLE001
+        print(f"  tab count failed: {error}", flush=True)
     run.failed_checks = failed_checks(task, run, token)
     run.success = not run.failed_checks and not run.error
     run.cents = round(run.cents, 3)
@@ -280,14 +298,15 @@ def table(label: str, runs: list[Run]) -> str:
     lines = [
         f"# Harness evaluation: {label}",
         "",
-        "| task | group | success | steps | LM calls | Jev calls | seconds | cents |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| task | group | success | steps | LM calls | Jev calls | seconds | cents "
+        "| tabs (blank) |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     for r in runs:
         mark = "yes" if r.success else "no"
         lines.append(
             f"| {r.id} | {r.group} | {mark} | {r.steps} | {r.model_calls} | {r.jev_calls} "
-            f"| {r.seconds} | {r.cents} |"
+            f"| {r.seconds} | {r.cents} | {r.tabs} ({r.blank_tabs}) |"
         )
     lines += ["", f"**All: {rate(runs)}**", ""]
     for group in dict.fromkeys(r.group for r in runs):

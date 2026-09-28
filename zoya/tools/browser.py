@@ -161,12 +161,28 @@ def _chrome_argv(port: int) -> list[str]:
     ]
 
 
+IN_USE_SAY = "Zoya's browser is already in use. Is another Zoya running?"
+PROFILE_LOCK = "SingletonLock"
+
+
+def _profile_holder() -> int | None:
+    """The live Chrome holding Zoya's profile (its `SingletonLock` reads "host-pid"), or None."""
+    try:
+        owner = os.readlink(BROWSER_PROFILE_DIR / PROFILE_LOCK)
+    except OSError:
+        return None
+    host, _, pid = owner.rpartition("-")
+    if host != socket.gethostname() or not pid.isdigit():
+        return None
+    return int(pid) if _alive(int(pid)) and _is_zoya_chrome(int(pid)) else None
+
+
 def _cdp_ready(process: subprocess.Popen[bytes], port: int) -> None:
     endpoint = f"http://{CDP_HOST}:{port}{CDP_VERSION_PATH}"
     deadline = time.monotonic() + CDP_READY_TIMEOUT_S
     while time.monotonic() < deadline:
         if process.poll() is not None:
-            raise ToolError("Zoya's browser is already in use. Is another Zoya running?")
+            raise ToolError(IN_USE_SAY)
         try:
             with urllib.request.urlopen(endpoint, timeout=CDP_PROBE_TIMEOUT_S):
                 return
@@ -185,6 +201,9 @@ def _chrome() -> int:
     if "chrome" not in _state:
         atexit.register(close)
     _reap_orphan()
+    if (holder := _profile_holder()) is not None:
+        log.warning("Zoya's Chrome profile is held by pid %d: not launching into it", holder)
+        raise ToolError(IN_USE_SAY)
     port = _free_port()
     process = subprocess.Popen(  # noqa: S603 — fixed binary, no shell
         _chrome_argv(port), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
