@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -192,3 +193,11 @@ def test_targets_must_be_declared_known_and_not_held_out() -> None:
     assert guard.check_targets([], ids, held) == ["declares no Autotune-Targets trailer"]
     assert guard.check_targets(["a", "zz"], ids, held) == ["targets unknown tasks ['zz']"]
     assert guard.check_targets(["h"], ids, held) == ["targets held-out tasks ['h']"]
+
+
+def test_the_day_program_names_every_guarded_path_and_the_trailer() -> None:
+    day = (Path(guard.__file__).with_name("day.md")).read_text(encoding="utf-8")
+    named = [*guard.REFUSED_FILES, *guard.REFUSED_PREFIXES, *guard.PROTECTED_CONSTANTS]
+    assert [name for name in named if name not in day] == []
+    assert "Autotune-Targets:" in day and "at most 3 outputs a day" in day
+    assert not Path(guard.__file__).with_name("program.md").exists()
