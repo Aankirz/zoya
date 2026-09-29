@@ -113,3 +113,30 @@ def test_product_and_grading_never_change_together() -> None:
 def test_a_gate_change_is_flagged_for_the_owner() -> None:
     violations, flags = pertask.guard_branch(diff("zoya/safety.py", "-x = 1", "+x = 2"))
     assert violations == [] and flags
+
+
+def test_public_row_keeps_no_page_or_spoken_text() -> None:
+    run = {
+        "id": "boat-newsletter",
+        "group": "no-code site",
+        "command": "sign up with owner@private.example",
+        "success": False,
+        "said": ["Hi Priya, your saved address is 12 Private Lane"],
+        "confirmations": ["Subscribe owner@private.example to the newsletter?"],
+        "url": "https://www.boat-lifestyle.com/account/orders?id=98765#x",
+        "failed_checks": ['{"confirm": "subscribe|sign ?up|submit|join"}'],
+        "error": "ValueError: page said Priya's card ends 4242",
+        "tools": ['browser_type {"text": "owner@private.example"}', "browser_task {}"],
+        "steps": 7,
+        "seconds": 41.2,
+        "cents": 1.3,
+    }
+    row = pertask.public_row(run)
+    text = repr(row)
+    for secret in ("Priya", "private", "4242", "Lane", "98765", "orders"):
+        assert secret not in text
+    assert row["host"] == "www.boat-lifestyle.com"
+    assert row["tools"] == ["browser_type", "browser_task"]
+    assert row["error_kind"] == "ValueError" and row["asked"] == 1
+    assert pertask.public_row({**run, "error": "over 300 s, stopped"})["error_kind"] == "timeout"
+    assert pertask.public_row({**run, "error": "it broke: Priya"})["error_kind"] == "error"

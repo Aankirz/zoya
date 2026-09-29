@@ -122,6 +122,37 @@ def _mean_cents(runs: list[Outcome]) -> float:
     return statistics.fmean(paid) if paid else math.inf
 
 
+def public_row(run: dict) -> dict:
+    """What of one harness run may leave the Mac for the public repo: an allowlist, never a
+    redaction. The evals run in the owner's signed-in Chrome, so any page or spoken text
+    (`said`, `confirmations`, tool inputs, full URLs, error messages) stays in logs/.
+    `failed_checks` are the task's own checks from tasks.json, already public."""
+    url = run.get("url", "")
+    host = re.match(r"^[a-z]+://([^/?#:@]+)", url)
+    return {
+        "id": run["id"],
+        "success": run["success"] is True,
+        "failed_checks": list(run.get("failed_checks", [])),
+        "error_kind": _error_kind(run.get("error", "")),
+        "tools": [str(tool).split(" ", 1)[0] for tool in run.get("tools", [])],
+        "asked": len(run.get("confirmations", [])),
+        "host": host.group(1) if host else "",
+        "steps": run.get("steps", 0),
+        "seconds": run.get("seconds", 0.0),
+        "cents": run.get("cents", 0.0),
+    }
+
+
+def _error_kind(error: str) -> str:
+    """'TimeoutError' from 'TimeoutError: <message>'; the harness's own timeout is kept as is."""
+    if not error:
+        return ""
+    if error.startswith("over ") and error.endswith(" s, stopped"):
+        return "timeout"
+    kind = error.split(":", 1)[0]
+    return kind if re.fullmatch(r"[A-Za-z_][\w.]*", kind) else "error"
+
+
 def guard_branch(diff: str) -> tuple[list[str], list[str]]:
     """(violations, flags) for `git diff main...BRANCH`. Any violation: never evaluated.
     A flag: evaluated, and the morning report puts it first for the owner to read line by line."""

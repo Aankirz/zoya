@@ -1,6 +1,6 @@
 # Autotune v2: triage at night, engineering by day, per-task verdicts
 
-Status: proposal. Prototype of the riskiest piece (keep rule + branch guard):
+Status: proposal. Prototype of the riskiest pieces (keep rule, branch guard, public allowlist):
 `evals/autotune/pertask.py`, tested in `tests/autotune/test_pertask.py` (stdlib, never imports zoya).
 
 ## 1. Diagnosis: why v1 kept nothing
@@ -27,9 +27,7 @@ Status: proposal. Prototype of the riskiest piece (keep rule + branch guard):
 6. **Invalid tasks count as failures.** goodreads-search hits a sign-in wall.
    boat-newsletter *can* pass as written. Its only check is `confirm`, matched against the
    question asked (`run.py:223-224`), and "Cancelled" is just the harness's D96 cancel
-   (`run.py:154-159`, `safety.py:1168`). 3/18 did pass. The other 15 need their `confirmations`
-   field read: either nothing was asked or the wrong control was asked about. That is triage,
-   not tuning.
+   (`run.py:154-159`, `safety.py:1168`). 3/18 did pass; the other 15 need triage, not tuning.
 
 ## 2. The v2 loop
 
@@ -48,17 +46,20 @@ without the owner.
    of the worktree and must pass `pytest -q`. Then the tasks it targets run 3 times and every
    other task runs once as a sentinel. `pertask.reruns` asks for 2 more runs of any sentinel
    that broke; `pertask.verdict` decides (§3).
-4. **Triage.** For every FAIL/FLAKY task, write `triage-DATE.md` with class, pass history, and
-   a signature (first failed check + error + last tool). It also carries the evidence already in
-   the Run JSON (`run.py:56-76`): `failed_checks`, `said`, `confirmations`, the last 5 `tools`,
-   `url` and `error`. Emails other than `harness@example.com` and runs of 10 or
-   more digits are redacted, because the evals run in the owner's signed-in Chrome.
-5. **Publish.** Push the triage and verdicts to the data-only branch `autotune/data`. That is
-   the only push the night makes.
+4. **Triage, in two files.** The repo is public and the evals run in the owner's signed-in
+   Chrome, so page text never leaves the Mac. Redacting it would be a guess, so v2 uses an
+   allowlist instead.
+   - `logs/autotune/evidence-DATE.md` (gitignored, local only) holds the full Run JSON of every
+     FAIL/FLAKY task (`run.py:56-76`): `said`, `confirmations`, tool inputs, `url`, `error`.
+   - `triage-DATE.md` (public) holds only what `pertask.public_row` lets through: task id,
+     class, pass history, `failed_checks` (the task's own checks, already public in
+     `tasks.json`), exception type, tool *names*, number of asks, URL host, steps, seconds, cents.
+5. **Publish.** Push `triage-DATE.md` and the verdicts to the data-only branch `autotune/data`.
+   That is the only push the night makes. Everything in it is metadata about public tasks.
 
 **Day (cloud sessions, spare credit, Linux)**
 
-A session reads the latest `autotune/data`, clusters failures by cause (flipkart-search and
+A session reads the latest `autotune/data` and the code, clusters failures by cause (flipkart-search and
 boat-buy look like one "search control" cluster), and turns each cluster into exactly one of:
 
 - **Task fix** on `autotune/task-<id>`: retire or rewrite an invalid task (goodreads-search),
@@ -69,7 +70,11 @@ boat-buy look like one "search control" cluster), and turns each cluster into ex
   its target tasks. Cloud can't import zoya, so the Mac's night run is its test run.
 - **Knob patch**, still vetted by `surface.check_patch` (`surface.py:85`), when the evidence
   points at a constant.
-- **Park it**, with the reason recorded.
+- **Park it**, with the reason recorded, or **ask for evidence**: name a task and field, and
+  the owner reads it in the local evidence file and pastes what is safe to share.
+
+Reproducing a failure needs no private data: tasks target public sites, and page fixtures come
+from `record_web.py`, which "only loads pages" (`record_web.py:1-5`).
 
 The session opens a draft PR, and the next night's verdict goes into its description.
 Improvements reach main only when the owner merges.
@@ -87,9 +92,7 @@ Near-deterministic tasks make per-task history the noise model (`pertask.verdict
 - **FLAKY tasks are reported, not judged.** Making one stable is itself a fix target.
 - History resets per task when its `tasks.json` entry changes.
 
-"Recommend" means "ready for the owner", not "kept". Night 1's best experiment, open_url with
-the full URL (5.33, cheaper), was discarded with no record of which tasks moved. v2 records that
-per task, and a wikipedia-open gain would point a brief at `fast.py:103-107`.
+"Recommend" means "ready for the owner", not "kept".
 
 ## 4. Safety
 
@@ -108,6 +111,10 @@ per task, and a wikipedia-open gain would point a brief at `fast.py:103-107`.
 
   A `zoya/safety.py` change can be legitimate (b7e2e08 narrowed a false ask), so it is
   *flagged* and goes first in the report for a line-by-line read.
+- **No private data reaches the public repo.** The only file the night publishes is built
+  from `public_row`, an allowlist (a test plants a name, an email, a card tail and an account
+  URL in every free-text field and checks none come through). Draft PRs and briefs are written
+  from that file and the code, so they carry no page text either.
 - **Human review happens twice.** (1) *Before a candidate runs on the Mac*, the owner runs
   `python -m evals.autotune queue BRANCH`. That prints the guard result and diffstat and pins
   the branch's current SHA in the gitignored `logs/autotune/queue.tsv`. Cloud sessions can't
@@ -128,16 +135,16 @@ agent's own spend was extra). For the no-code group:
 | 3 candidates | ~48 | 51 |
 | **night** | **~60** | **≈ 64** |
 
-That is about a third of night 1's eval spend, with **no nightly Claude agent**. Triage and
-patching move to cloud credit. The rest of the $10 buys a census of all 30 tasks. Other
-groups' per-run cost is unmeasured and gets read from the ledger after the first census.
+That is a third of night 1's eval spend, with **no nightly Claude agent**; triage and patching
+move to cloud credit. The rest of the $10 buys a census of all 30 tasks (other groups' cost is
+unmeasured until then).
 `AUTOTUNE_BUDGET_CENTS` still caps everything (`loop.py:34-35`).
 
 ## 6. File-by-file plan
 
 | file | change |
 | --- | --- |
-| `evals/autotune/pertask.py` | **add** (prototype here): `classify`, `reruns`, `verdict`, `guard_branch` |
+| `evals/autotune/pertask.py` | **add** (prototype here): `classify`, `reruns`, `verdict`, `guard_branch`, `public_row` |
 | `evals/autotune/score.py` | **delete** `decide`, `_shape`, `_cents_per_success` (`:43-90`); keep `load`, `summarize` |
 | `evals/autotune/ledger.py` | `COLUMNS` → `utc, night, ref, commit, task_id, success, cents, seconds, signature`; `spent_cents` unchanged |
 | `evals/autotune/loop.py` | `init` → `sync` (fetch, `checkout -B autotune origin/main`); **add** `census`, `queue`, `verify`, `triage`; **delete** `try_patch` and baseline.json (`:200-217`, `:283-324`); `report` reads history + verdicts |
@@ -153,8 +160,8 @@ groups' per-run cost is unmeasured and gets read from the ledger after the first
 
 1. `pytest tests/autotune` passes on Linux, and nothing under `evals/autotune` imports zoya.
 2. `sync` makes the worktree HEAD equal to `origin/main` every night.
-3. One census night produces a per-task history and a redacted `triage-DATE.md` on
-   `autotune/data`.
+3. One census night produces a per-task history, a local evidence file, and a
+   `triage-DATE.md` on `autotune/data` whose rows are exactly `public_row`'s fields.
 4. `guard_branch` refuses each case in `test_pertask.py`, and the night never runs an unqueued
    or moved branch.
 5. A cloud session turns that triage into at least one draft PR. The next night gives it a
@@ -166,8 +173,7 @@ groups' per-run cost is unmeasured and gets read from the ledger after the first
 
 ## 7. Alternatives rejected
 
-- **Widen v1's surface** (more constants, tool docstrings): search-control discovery and login
-  walls are still out of reach, and the +1-mean bar stays unreachable (§1.2).
+- **Widen v1's surface:** search controls and login walls stay out of reach (§1.2).
 - **More repeats or a significance test on the group mean:** triples the spend to re-measure
   tasks whose outcome is already known. Per-task history is the cheaper noise model.
 - **A night agent that writes `zoya/` code and auto-keeps it:** runs unreviewed code in the
@@ -179,5 +185,8 @@ groups' per-run cost is unmeasured and gets read from the ledger after the first
   problem.
 - **Per-site fixes or skills** for flipkart and boAt: forbidden (`test_no_site_hardcoding.py`),
   and skills are being retired.
+- **Redact page text and publish it, or use a private data repo:** redaction can't know every
+  name or address on a signed-in page. A private repo adds a second place to manage for
+  evidence the owner can paste on demand.
 - **Auto-merging "recommended" branches:** saves one click but removes the only human check on
   gate changes.
