@@ -102,3 +102,23 @@ def test_grade_imports_only_the_standard_library() -> None:
         for alias in node.names
     }
     assert not any(name.split(".")[0] in {"zoya", "evals"} for name in imported), imported
+
+
+NIGHT_1_FAILURES = {
+    "flipkart-search",
+    "goodreads-search",
+    "imdb-search",
+    "boat-buy",
+    "boat-newsletter",
+    "wikipedia-open",
+}
+
+
+def test_six_held_out_tasks_spread_over_the_three_groups() -> None:
+    tasks = grade.load_tasks().values()
+    held = [task for task in tasks if task.get("held_out")]
+    assert all(task["held_out"] is True for task in tasks if "held_out" in task)
+    assert len(held) == 6
+    groups = [task["group"] for task in held]
+    assert {groups.count(group) for group in set(groups)} == {2} and len(set(groups)) == 3
+    assert not {task["id"] for task in held} & NIGHT_1_FAILURES

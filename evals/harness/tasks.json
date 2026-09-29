@@ -29,6 +29,7 @@
  {
   "id": "bandcamp-search",
   "group": "no-code site",
+  "held_out": true,
   "command": "search bandcamp for lofi hip hop",
   "checks": [
    {
@@ -82,6 +83,7 @@
  {
   "id": "boat-price",
   "group": "no-code site",
+  "held_out": true,
   "command": "how much do the boAt Airdopes 141 cost on boat-lifestyle.com",
   "checks": [
    {
@@ -150,6 +152,7 @@
  {
   "id": "hotel-search",
   "group": "former skill",
+  "held_out": true,
   "command": "find hotels in Goa on booking.com from 17 to 19 October for two adults",
   "checks": [
    {
@@ -175,6 +178,7 @@
  {
   "id": "youtube-channel",
   "group": "former skill",
+  "held_out": true,
   "command": "open the MrBeast channel on youtube",
   "checks": [
    {
@@ -310,6 +314,7 @@
  {
   "id": "calendar-event",
   "group": "mac app",
+  "held_out": true,
   "command": "add a calendar event called {token} tomorrow at 3 pm",
   "checks": [
    {
@@ -357,6 +362,7 @@
  {
   "id": "finder-folder",
   "group": "mac app",
+  "held_out": true,
   "command": "create a folder called {token} on my desktop",
   "checks": [
    {
