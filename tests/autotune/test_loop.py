@@ -9,6 +9,7 @@ from __future__ import annotations
 import ast
 import json
 import shlex
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -557,3 +558,65 @@ def test_nothing_under_evals_autotune_imports_zoya() -> None:
             else:
                 continue
             assert not any(name.split(".")[0] == "zoya" for name in names), source
+
+
+# --- the night script -----------------------------------------------------------------------------
+
+SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "autotune-night.sh"
+STEPS = ("sync", "census", "verify", "triage", "publish", "report")
+
+
+def test_the_night_script_parses_and_runs_no_agent() -> None:
+    assert subprocess.run(["bash", "-n", str(SCRIPT)]).returncode == 0
+    text = SCRIPT.read_text()
+    assert "claude" not in text.replace("claude.ai", "")
+    assert "exec caffeinate -i" in text and "STOP_HOUR=7" in text and "gzip -f" in text
+
+
+def night_script(repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """The real script and package in the temporary repo, with a caffeinate that just runs."""
+    (repo / "scripts").mkdir()
+    shutil.copy2(SCRIPT, repo / "scripts" / SCRIPT.name)
+    (repo / "evals" / "autotune").symlink_to(Path(loop.__file__).parent)
+    (repo / ".venv" / "bin").mkdir(parents=True)
+    (repo / ".venv" / "bin" / "python").symlink_to(sys.executable)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "caffeinate").write_text('#!/bin/sh\n[ "$1" = "-i" ] && shift\nexec "$@"\n')
+    (bin_dir / "caffeinate").chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}:{Path(sys.executable).parent}:/usr/bin:/bin")
+    monkeypatch.delenv("AUTOTUNE_CAFFEINATED", raising=False)
+    return repo / "scripts" / SCRIPT.name
+
+
+def test_the_night_script_runs_every_step_in_order(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    script = night_script(repo, tmp_path, monkeypatch)
+
+    done = subprocess.run(["bash", str(script), "--now"], capture_output=True, text=True)
+
+    assert done.returncode == 0, done.stdout + done.stderr
+    started = [line.split()[1] for line in done.stdout.splitlines() if " starts " in line]
+    assert started == list(STEPS)
+    assert [call[1].split("-")[0] for call in eval_calls(repo)] == ["census"]
+    git(repo, "fetch", "-q", "origin")
+    assert len(data_files(repo)) == 2
+    (log,) = (repo / "logs" / "autotune").glob("night-*.log")
+    assert "report: " in log.read_text()
+
+
+def test_the_night_script_stops_at_a_failed_sync_and_still_reports(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    push_main(repo, "chore: break the check", {"BROKEN": "yes"})
+    script = night_script(repo, tmp_path, monkeypatch)
+
+    done = subprocess.run(["bash", str(script), "--now"], capture_output=True, text=True)
+
+    assert done.returncode == 1
+    started = [line.split()[1] for line in done.stdout.splitlines() if " starts " in line]
+    assert started == ["sync", "report"]
+    assert eval_calls(repo) == []
+    (report,) = (repo / "logs" / "autotune").glob("report-*.md")
+    assert "The night stopped at sync" in report.read_text()
