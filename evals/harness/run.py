@@ -11,7 +11,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import secrets
 import subprocess
 import sys
@@ -24,10 +23,11 @@ from typing import Any
 os.environ["HF_HUB_OFFLINE"] = "1"
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from evals.harness import grade  # noqa: E402
 from zoya import decisions, safety, speech  # noqa: E402
 from zoya.config import ECHO_TAIL_S, LOG_DIR, load_env  # noqa: E402
 
-TASKS_FILE = Path(__file__).with_name("tasks.json")
+TASKS_FILE = grade.TASKS_FILE
 OUT_DIR = LOG_DIR / "harness"
 TASK_LIMIT_S = 300.0
 STOP_GRACE_S = 30.0
@@ -211,24 +211,7 @@ def reset_browser() -> None:
 
 
 def failed_checks(task: dict[str, Any], run: Run, token: str) -> list[str]:
-    heard = " ".join(run.said)
-    asked = " ".join(run.confirmations)
-    failed = []
-    for check in task["checks"]:
-        pattern = {k: v.replace("{token}", token) for k, v in check.items() if isinstance(v, str)}
-        if "said" in check:
-            ok = len(re.findall(pattern["said"], heard, re.I)) >= check.get("min", 1)
-        elif "not_said" in check:
-            ok = not re.search(pattern["not_said"], heard, re.I)
-        elif "confirm" in check:
-            ok = bool(re.search(pattern["confirm"], asked, re.I))
-        elif "url" in check:
-            ok = bool(re.search(pattern["url"], run.url, re.I))
-        else:
-            ok = bool(re.search(pattern["match"], shell(pattern["shell"]), re.I))
-        if not ok:
-            failed.append(json.dumps(check, ensure_ascii=False))
-    return failed
+    return grade.failed_checks(task, run.said, run.confirmations, run.url, token, shell)
 
 
 def execute(command: str, run: Run) -> None:
@@ -326,14 +309,11 @@ def table(label: str, runs: list[Run]) -> str:
 def regrade(label: str, saved: str) -> int:
     """Checks that read the transcript (said, asked, url) graded again; shell checks keep their
     recorded result."""
-    tasks = {t["id"]: t for t in json.loads(TASKS_FILE.read_text(encoding="utf-8"))}
+    tasks = grade.load_tasks(TASKS_FILE)
     runs = []
     for raw in json.loads((OUT_DIR / f"{saved}.json").read_text(encoding="utf-8")):
         run = Run(**raw)
-        task = tasks[run.id]
-        replayable = {**task, "checks": [c for c in task["checks"] if "shell" not in c]}
-        kept_shell = [c for c in run.failed_checks if '"shell"' in c]
-        run.failed_checks = failed_checks(replayable, run, "") + kept_shell
+        run.failed_checks = grade.regrade(tasks[run.id], raw)
         run.success = not run.failed_checks and not run.error
         runs.append(run)
     report = table(label, runs)
