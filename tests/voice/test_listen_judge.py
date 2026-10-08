@@ -40,6 +40,7 @@ def test_real_commands_still_run_hands_free(heard, channel):
         "I'm just showing how this part works",
         "there's the settings page",
         "he said he'd be late again",
+        "and then it opens the page and reads it out",
         "मुझे ये करना है",
         "accha theek hai main dekh leta hoon",
         "from the station",

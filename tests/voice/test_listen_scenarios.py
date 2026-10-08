@@ -9,7 +9,6 @@ from tests.voice.sim import run_script
 
 # Fails on the code this simulator was written against; each fix removes its names.
 KNOWN_FAILING = {
-    "after wake: Hindi news anchor on TV",
     "push-to-talk cancel while she speaks",
 }
 

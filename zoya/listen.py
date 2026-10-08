@@ -17,6 +17,7 @@ class Channel(StrEnum):
     FOLLOW_UP = "follow_up"
 
 
+BRAIN_ROUTE = "orchestrator"
 TRUSTED = {Channel.PUSH_TO_TALK, Channel.ANSWER}
 MIN_VOICED_FRACTION = 0.2
 MIN_COMMAND_WORDS = 2
@@ -108,10 +109,17 @@ def junk_reason(text: str, channel: Channel, voiced_fraction: float) -> str:
     return ""
 
 
+def is_rule_command(command: str) -> bool:
+    """A zero-latency rule names an action. The rules' plain "ask the brain" verdict (any
+    sentence with "and", any question) says nothing about who was spoken to."""
+    decision = match_rules(command)
+    return decision is not None and decision.route != BRAIN_ROUTE
+
+
 def is_request(text: str) -> bool:
     """Shaped like something to do or answer: a rule, a question, an imperative, a request."""
     command = clean_command(text)
-    if match_rules(command) is not None or command.rstrip().endswith("?"):
+    if is_rule_command(command) or text.rstrip().endswith("?"):
         return True
     spoken = words(command)
     while spoken and spoken[0] in LEADING_LINKS:
@@ -142,7 +150,7 @@ def judge(text: str, channel: Channel, voiced_fraction: float = 1.0) -> Verdict:
     command = clean_command(text)
     spoken = words(command)
     has_number = any(word.isdigit() for word in spoken)
-    if len(words(text)) < MIN_COMMAND_WORDS and not has_number and match_rules(command) is None:
+    if len(words(text)) < MIN_COMMAND_WORDS and not has_number and not is_rule_command(command):
         return Verdict(False, "fragment")
     if not is_request(text):
         return Verdict(False, "not_a_request")
