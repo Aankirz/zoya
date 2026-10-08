@@ -218,6 +218,11 @@ def _look(frame: dict) -> tuple:
     return tuple(json.dumps(frame.get(key)) for key in VISUAL_KEYS)
 
 
+def _differs(frame: dict, before: dict) -> bool:
+    """A new look, or a move that wasn't running (a blink changes no frame or size)."""
+    return _look(frame) != _look(before) or bool(set(frame["busy"]) - set(before["busy"]))
+
+
 def _moving(frame: dict, previous: dict) -> bool:
     return bool(frame["busy"]) or frame["contexts"] > 0 or _look(frame) != _look(previous)
 
@@ -249,7 +254,7 @@ def _changes(frames: list[dict], before: dict) -> tuple[dict | None, dict | None
         if first is None:
             if frame["t"] - frames[0]["t"] > FIRST_LIMIT_S:
                 return None, None, 0
-            if moving and _look(frame) != _look(before):
+            if moving and _differs(frame, before):
                 first, last, count = frame, frame, index + 1
             continue
         quiet = 0 if moving else quiet + 1
@@ -281,6 +286,7 @@ def measure(step: Step, sent: dict, frames: list[dict], end: float, latency: dic
         row.update({"visual": True, "frames": count})
         row["first_ms"] = round((first["next"] - start) * 1000, 1)
         row["total_ms"] = round((last["next"] - start) * 1000, 1)
+        row["motion_ms"] = round((last["next"] - first["next"]) * 1000, 1)
     if step.sound and step.sound not in LOOPED and first is not None:
         for name, ms in latency.items():
             onset = start * 1000 + BLOCK_MS / 2 + ms
@@ -305,6 +311,7 @@ COLUMNS = (
     "first frame ms",
     "frames",
     "settled ms",
+    "motion ms",
     "sound",
     "skew high",
     "skew low",
@@ -315,6 +322,7 @@ def table(rows: list[dict]) -> str:
     lines = ["| " + " | ".join(COLUMNS) + " |", "|" + "---|" * len(COLUMNS)]
     for r in rows:
         cells = [r["step"], r["kind"], r["states"], r["first_ms"], r["frames"], r["total_ms"]]
+        cells.append(r.get("motion_ms"))
         cells += [r["sound"], r.get("skew_high_ms", ""), r.get("skew_low_ms", "")]
         lines.append("| " + " | ".join("—" if c is None else str(c) for c in cells) + " |")
     return "\n".join(lines)
@@ -374,8 +382,48 @@ def main() -> int:
     return _report(args.out, sent)
 
 
+JUMP_PT = 1.0
+SPIKE = 0.2
+
+
+def _pill_spot(frame: dict) -> tuple[float, float] | None:
+    if frame["panel"] is None:
+        return None
+    x, y = frame["panel"][0] + frame["pill"][0], frame["panel"][1] + frame["pill"][1]
+    return x + frame["pill"][2] / 2, y
+
+
+def _alphas(frame: dict) -> list[float]:
+    return [(frame[key] or [0.0] * 5)[4] for key in ("panel", "glow", "cursor")]
+
+
+def _spike(before: dict, frame: dict, after: dict) -> bool:
+    trio = zip(_alphas(before), _alphas(frame), _alphas(after), strict=True)
+    return any(min(a, c) - b > SPIKE or b - max(a, c) > SPIKE for a, b, c in trio)
+
+
+def audit(frames: list[dict], dark: bool) -> list[str]:
+    """Frame by frame: a wrong-theme frame, the pill's anchored spot moving (a jump), or a
+    window's opacity spiking or dipping for a frame (a flash)."""
+    issues = []
+    for index, frame in enumerate(frames):
+        at = f"{frame['t']:.3f}"
+        if frame.get("dark", dark) != dark:
+            issues.append(f"{at} wrong theme")
+        if 0 < index < len(frames) - 1 and _spike(frames[index - 1], frame, frames[index + 1]):
+            issues.append(f"{at} flash")
+        spot, last = _pill_spot(frame), _pill_spot(frames[index - 1]) if index else None
+        if spot and last and max(abs(a - b) for a, b in zip(spot, last, strict=True)) > JUMP_PT:
+            issues.append(f"{at} jump {last} → {spot}")
+    return issues
+
+
 def _report(out: Path, sent: list[dict]) -> int:
     rows = analyse(out / "probe.jsonl", sent)
+    frames, _messages = _load(out / "probe.jsonl")
+    issues = audit(frames, bool(frames and frames[0].get("dark")))
+    (out / "audit.txt").write_text(f"{len(frames)} frames\n" + "\n".join(issues) + "\n")
+    print(f"audit: {len(frames)} frames, {len(issues)} issues", *issues[:20], sep="\n")
     (out / "rows.json").write_text(json.dumps({"sent": sent, "rows": rows}, indent=1))
     (out / "table.md").write_text(table(rows) + "\n")
     print(table(rows))

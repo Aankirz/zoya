@@ -11,7 +11,7 @@ import CoreText
 import objc
 import Quartz
 
-from zoya.overlay_pill import accessibility, loop, oklch, register_fonts
+from zoya.pill_style import accessibility, loop, oklch, register_fonts
 
 ROWS: tuple[tuple[str, str, str], ...] = (
     ("today", "today", "sun.max"),

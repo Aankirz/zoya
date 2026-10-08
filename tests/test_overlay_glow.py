@@ -45,7 +45,14 @@ def test_the_overlay_process_is_left_out_of_every_capture(monkeypatch):
     assert 4242 in screen.own_pids()
 
 
-def test_under_reduce_motion_the_glow_holds_still_and_the_cursor_jumps(monkeypatch):
+def _run_loop(seconds: float) -> None:
+    import Foundation
+
+    until = Foundation.NSDate.dateWithTimeIntervalSinceNow_(seconds)
+    Foundation.NSRunLoop.currentRunLoop().runUntilDate_(until)
+
+
+def test_under_reduce_motion_the_glow_holds_still_and_the_cursor_cross_fades(monkeypatch):
     from zoya.overlay_app import _panel
     from zoya.overlay_glow import Glow
 
@@ -57,4 +64,6 @@ def test_under_reduce_motion_the_glow_holds_still_and_the_cursor_jumps(monkeypat
     glow._glide((-5000.0, -5000.0))
     assert tuple(glow.cursor.frame().origin) == glow._origin((-5000.0, -5000.0))
     glow.update("stopped", "")
+    assert glow.panel.alphaValue() == 0.0 and glow.cursor.alphaValue() == 0.0
+    _run_loop(0.4)
     assert not glow.panel.isVisible() and not glow.cursor.isVisible()

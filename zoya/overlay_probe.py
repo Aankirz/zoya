@@ -77,6 +77,12 @@ def _tint(view: Any) -> list[float]:
     ]
 
 
+def _dark(window: Any) -> bool:
+    names = [AppKit.NSAppearanceNameAqua, AppKit.NSAppearanceNameDarkAqua]
+    best = window.effectiveAppearance().bestMatchFromAppearancesWithNames_(names)
+    return best == AppKit.NSAppearanceNameDarkAqua
+
+
 class Probe(AppKit.NSObject):
     def setUp_(self, presence: Any) -> Any:  # noqa: N802 — NSObject init style
         self.presence = presence
@@ -87,7 +93,13 @@ class Probe(AppKit.NSObject):
 
     def snapshot(self) -> dict[str, Any]:
         pill, glow = self.presence.pill, self.presence.glow
-        layers = [*pill.eyes, pill.eyes_box, pill.bubble.layer(), pill.pill.layer()]
+        layers = [
+            *pill.eyes,
+            pill.eyes_box,
+            pill.face.layer(),
+            pill.bubble.layer(),
+            pill.pill.layer(),
+        ]
         layers += [layer for layer in (glow.edge,) if layer is not None]
         return {
             "state": pill.state,
@@ -102,6 +114,7 @@ class Probe(AppKit.NSObject):
             "cursor": _window(glow.cursor),
             "rings": len(self.presence.rings),
             "windows": sum(1 for w in AppKit.NSApp().windows() if w.isVisible()),
+            "dark": _dark(pill.panel),
             "busy": _busy(layers),
             "contexts": len(self.contexts),
         }

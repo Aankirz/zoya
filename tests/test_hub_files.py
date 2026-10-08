@@ -2,7 +2,7 @@ import re
 
 import pytest
 
-from zoya.overlay_pill import oklch
+from zoya.pill_style import oklch
 
 hub = pytest.importorskip("zoya.hub")
 
