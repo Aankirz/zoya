@@ -172,6 +172,7 @@ class Task:
     shared: bool = False  # another task ran alongside: every announcement carries the name
     spent_usd: float = 0.0  # all agents of this task together (orchestrator.TaskLimits)
     cancel: CancelSignal = field(default_factory=CancelSignal)
+    last_said_at: float | None = None
     paused_by: set[str] = field(default_factory=set)  # foreground task ids holding a GUI pause
 
     def __post_init__(self) -> None:
@@ -560,6 +561,8 @@ def say(text: str, task: Task | None = None) -> None:
     task = task or current()
     if not text.strip():
         return
+    if task is not None:
+        task.last_said_at = time.monotonic()
     if task is None or not task.shared:
         mark_active(task)
         speech.narrate(text)

@@ -39,9 +39,11 @@ from strands.models.openai_responses import OpenAIResponsesModel
 from strands.tools.executors import SequentialToolExecutor
 from strands.types.exceptions import EventLoopException
 
-from zoya import aws, clarify, events, harness, hub_data, safety, speculate, speech, tasks
+from zoya import aws, clarify, events, harness, hub_data, progress, safety, speculate, speech, tasks
 from zoya.agents import web_loop
 from zoya.config import (
+    BRAIN_PLANNING_REASONING_EFFORT,
+    BRAIN_QUICK_REASONING_EFFORT,
     BRAIN_STEP_REASONING_EFFORT,
     LOG_DIR,
     MAX_TOOL_CALLS_PER_TASK,
@@ -53,7 +55,7 @@ from zoya.config import (
     UNKNOWN_MODEL_PRICE_USD_PER_1M,
 )
 from zoya.prompts import ORCHESTRATOR_PROMPT
-from zoya.router import RouteDecision, clean_command, route
+from zoya.router import RouteDecision, clean_command, match_rules, route
 from zoya.tools import ToolError, browser, collect_tools, memory, watch_abandon
 from zoya.tools.memory import recent_corrections
 
@@ -74,7 +76,6 @@ SKILL_DEADLINE = "skill_deadline"
 SKILL_FALLBACK = "skill_fallback"  # a skill action failed; the brain retried with that skill
 MAX_CONVERSATION_TURNS = 6  # follow-ups keep context; older turns drop to bound token cost
 OLD_RESULT_MAX_CHARS = 300  # a finished turn's tool results, as follow-ups see them
-ACK = "On it."
 QUICK_QUESTION = re.compile(r"^(?:what|who|when|where|why|how|which|is|are|was|does|do)\b", re.I)
 SENTENCE_END = re.compile(r"(?<=[.!?।])\s+")
 
@@ -269,6 +270,7 @@ def build_orchestrator(
     messages: list[Any] | None = None,
     callback_handler: Any = None,
     skill: str = "",
+    effort: str = BRAIN_PLANNING_REASONING_EFFORT,
 ) -> Agent:
     """A fresh Agent per task (AUDIT B6), seeded with recent conversation for follow-ups."""
     from zoya.models import brain_planning_model
@@ -276,7 +278,7 @@ def build_orchestrator(
     prompt, tools, plugins = brain_inputs(skill)
     limits = TaskLimits(os.environ.get("BRAIN_MODEL", ""), cost_cap_usd)
     return Agent(
-        model=brain_planning_model(cache_key=harness.cache_key(skill)),
+        model=brain_planning_model(cache_key=harness.cache_key(skill), effort=effort),
         system_prompt=prompt,
         tools=tools,
         plugins=plugins,
@@ -379,6 +381,7 @@ def run_orchestrator(command: str, timings: dict[str, int] | None = None, skill:
         messages=list(history),
         callback_handler=_speak_stream(sentences, spoken, held),
         skill=skill,
+        effort=reasoning_effort(command),
     )
     if timings is not None:
         timings[STREAMED] = 1
@@ -522,23 +525,28 @@ def run_fast_tool(decision: RouteDecision) -> str:
     return tools[decision.tool](**decision.args)
 
 
-def acknowledge(decision: RouteDecision) -> str:
-    """What Zoya says the moment a slow task starts ("" for none): the brain's first sentence is
-    1.5 s+ away and a web task's 10 s+, and users notice silence, not latency
-    (https://getstream.io/blog/speculative-tool-calling-voice/). Quick questions and fast tools
-    answer before an acknowledgement would finish."""
-    command = clean_command(decision.text)
-    brain = decision.route == "orchestrator" or (decision.route == "skill" and not decision.tool)
-    if not brain or QUICK_QUESTION.match(command):
-        return ""
-    return ACK
+def say_first_line(text: str) -> bool:
+    """A command that will take a while hears what Zoya understood at once (A5); fast tools and
+    stops answer before a first line would finish."""
+    quick = match_rules(text)
+    if quick is not None and quick.route in ("fast", "stop"):
+        return False
+    line = progress.early_line(text)
+    if line:
+        tasks.say(line)
+    return bool(line)
+
+
+def reasoning_effort(command: str) -> str:
+    """A question is answered, not planned: no reasoning before its first word (D88 keeps
+    planning effort for tasks)."""
+    if QUICK_QUESTION.match(clean_command(command)):
+        return BRAIN_QUICK_REASONING_EFFORT
+    return BRAIN_PLANNING_REASONING_EFFORT
 
 
 def _execute(decision: RouteDecision, timings: dict[str, int]) -> tuple[str, bool]:
     started = time.monotonic()
-    if ack := acknowledge(decision):
-        tasks.say(ack)
-        timings["ack_ms"] = round((time.monotonic() - started) * MS_PER_S)
     stage = "orchestrator_ms" if decision.route == "orchestrator" else "tool_ms"
     try:
         if decision.route == "ask":
@@ -609,10 +617,16 @@ def handle_command(text: str, pre_timings: dict[str, int] | None = None) -> Comm
     safety.begin_task(task_id)
     tabs_before = browser.task_tabs()
     with trace.get_tracer("zoya").start_as_current_span("zoya.command") as span:
-        decision = ask_first(text) or speculate.commit(text) or route(text)
+        asked = ask_first(text)
+        first_line = asked is None and say_first_line(text)
+        decision = asked or speculate.commit(text) or route(text)
         timings = {**(pre_timings or {}), **decision.timings_ms}
+        if first_line:
+            timings["first_line"] = 1
         events.emit(events.TaskEvent(task_id, "started", text, decision.route))
-        spoken, ok = _execute(decision, timings)
+        working = task if decision.route in ("orchestrator", "skill") else None
+        with progress.heartbeat(working):
+            spoken, ok = _execute(decision, timings)
         # Fast path target is router + tool (Done-when #2); speech is queued, not waited on.
         timings["total_ms"] = round((time.monotonic() - started) * MS_PER_S)
         span.set_attributes({f"zoya.{k}": v for k, v in timings.items()})
