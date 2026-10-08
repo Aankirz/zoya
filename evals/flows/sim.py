@@ -23,7 +23,7 @@ ASK_LIMIT_MS = 2_000
 FIRST_WORD_TARGET_MS = 1_000
 LONG_COMMAND_MS = 1_500
 SHORT_REPLY_WORDS = 15
-GENERIC_ACKS = frozenset({"On it.", "Okay.", "One moment.", "Sure."})
+GENERIC_ACKS = frozenset({"On it.", "Okay.", "One moment.", "Sure.", "Still working on it."})
 STOPPED = "Okay, stopped."
 
 
