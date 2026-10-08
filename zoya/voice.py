@@ -487,26 +487,43 @@ class Segment:
         return np.concatenate(self.blocks[-max(1, int(seconds / BLOCK_S)) :])
 
 
+@dataclass(frozen=True)
+class Models:
+    vad: Callable[[np.ndarray], float]
+    spot: Callable[[np.ndarray], str]
+    stt: Callable[[np.ndarray], str]
+    turn: Callable[[np.ndarray], bool] | None
+
+
+def load_models() -> Models:
+    spot = (
+        load_cpu_spotter()
+        if SPOTTER_ENGINE == "faster-whisper"
+        else load_whisper(WAKE_MODEL, language="en", initial_prompt="Zoya")
+    )
+    # Multilingual (Hinglish → Devanagari, D42), but only English/Hindi are accepted.
+    stt = load_whisper(
+        STT_MODEL_REPO, allowed_languages=STT_LANGUAGES, min_avg_logprob=MIN_AVG_LOGPROB
+    )
+    turn = load_smart_turn() if ENDPOINT_MODE == "smart_turn" else None
+    return Models(StreamingVad(), spot, stt, turn)
+
+
 class VoiceLoop:
     ptt_woke_at = 0.0
 
     def __init__(
-        self, wake_enabled: bool = True, test_wake: bool = False, record_clips: bool = False
+        self,
+        wake_enabled: bool = True,
+        test_wake: bool = False,
+        record_clips: bool = False,
+        models: Models | None = None,
     ) -> None:
         self.wake_enabled = wake_enabled
         self.test_wake = test_wake
         self.record_clips = record_clips
-        self.vad = StreamingVad()
-        self.spot = (
-            load_cpu_spotter()
-            if SPOTTER_ENGINE == "faster-whisper"
-            else load_whisper(WAKE_MODEL, language="en", initial_prompt="Zoya")
-        )
-        # Multilingual (Hinglish → Devanagari, D42), but only English/Hindi are accepted.
-        self.stt = load_whisper(
-            STT_MODEL_REPO, allowed_languages=STT_LANGUAGES, min_avg_logprob=MIN_AVG_LOGPROB
-        )
-        self.turn = load_smart_turn() if ENDPOINT_MODE == "smart_turn" else None
+        models = models or load_models()
+        self.vad, self.spot, self.stt, self.turn = models.vad, models.spot, models.stt, models.turn
         self.mic: queue.Queue[tuple[float, np.ndarray]] = queue.Queue()
         self.pre_roll: deque[np.ndarray] = deque(maxlen=int(PRE_ROLL_S / BLOCK_S))
         self.recent: deque[np.ndarray] = deque(maxlen=int(STOP_WINDOW_S / BLOCK_S))
