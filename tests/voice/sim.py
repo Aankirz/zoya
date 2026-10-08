@@ -29,7 +29,8 @@ BLOCK = voice.VAD_BLOCK
 BLOCK_S = voice.BLOCK_S
 VOICE_LEVEL = 0.1
 SILENCE_LEVEL = 0.0002
-MARK = 1e-6  # block[0] = sound number × MARK, block[1] = block position × MARK
+MARK = 1e-6  # per slot: sound number × MARK, then its block position × MARK
+MARK_SLOTS = 2  # at most two sounds overlap in one block (the user over Zoya's echo)
 SECONDS_PER_WORD = 0.32
 MIN_SOUND_S = 0.35
 ECHO_KEPT = 0.1  # what AEC3 leaves of Zoya's own voice (D62: ~20 dB)
@@ -144,8 +145,8 @@ class FakeCanceller:
 
     def process(self, block: np.ndarray, _counts: object) -> np.ndarray:
         self.last_mic = block
-        sound = self.sim.sound_of(block)
-        kept = ECHO_KEPT if sound is not None and sound.speaker == ZOYA else USER_KEPT
+        speakers = {sound.speaker for sound, _position in self.sim.marks(block)}
+        kept = ECHO_KEPT if speakers == {ZOYA} else USER_KEPT
         return block * kept
 
     def other_audio_playing(self) -> bool:
@@ -181,41 +182,43 @@ class Simulator:
 
     # --- fake audio --------------------------------------------------------------------
 
-    def sound_of(self, block: np.ndarray) -> Sound | None:
-        number = round(float(block[0]) / MARK)
-        return self.sounds[number - 1] if 0 < number <= len(self.sounds) else None
+    def marks(self, block: np.ndarray) -> list[tuple[Sound, int]]:
+        """The sounds mixed into this block, with each one's block position."""
+        found = []
+        for slot in range(0, MARK_SLOTS * 2, 2):
+            number = round(float(block[slot]) / MARK)
+            if 0 < number <= len(self.sounds):
+                found.append((self.sounds[number - 1], round(float(block[slot + 1]) / MARK)))
+        return found
 
     def _block(self, start: float) -> np.ndarray:
         block = np.full(BLOCK, SILENCE_LEVEL, np.float32)
-        block[:2] = 0.0
-        for number, sound in enumerate(self.sounds, 1):
-            if sound.at <= start < sound.end:
-                position = int((start - sound.at) / BLOCK_S)
-                block[2:] = LEVELS[sound.speaker]
-                block[0], block[1] = number * MARK, position * MARK
-                break
+        block[: MARK_SLOTS * 2] = 0.0
+        playing = [(n, s) for n, s in enumerate(self.sounds, 1) if s.at <= start < s.end]
+        for slot, (number, sound) in enumerate(playing[:MARK_SLOTS]):
+            position = int((start - sound.at) / BLOCK_S)
+            block[slot * 2], block[slot * 2 + 1] = number * MARK, position * MARK
+        if playing:
+            block[MARK_SLOTS * 2 :] = sum(LEVELS[s.speaker] for _n, s in playing[:MARK_SLOTS])
         return block
 
     def is_voiced(self, block: np.ndarray) -> bool:
-        sound = self.sound_of(block)
-        if sound is None:
-            return False
-        position = round(float(block[1]) / MARK)
-        return position % VOICED_CYCLE < sound.voiced * VOICED_CYCLE
+        return any(
+            position % VOICED_CYCLE < sound.voiced * VOICED_CYCLE
+            for sound, position in self.marks(block)
+        )
 
     def vad(self, block: np.ndarray) -> float:
         return 0.9 if self.is_voiced(block) else 0.05
 
     def heard(self, samples: np.ndarray, spot: bool) -> str:
         """Words of each sound in proportion to the blocks of it in `samples`, in order."""
-        seen: dict[int, list[int]] = {}
+        seen: dict[Sound, list[int]] = {}
         for block in samples[: len(samples) // BLOCK * BLOCK].reshape(-1, BLOCK):
-            number = round(float(block[0]) / MARK)
-            if number:
-                seen.setdefault(number, []).append(round(float(block[1]) / MARK))
+            for sound, position in self.marks(block):
+                seen.setdefault(sound, []).append(position)
         parts = []
-        for number, positions in seen.items():
-            sound = self.sounds[number - 1]
+        for sound, positions in seen.items():
             text = sound.spot if spot and sound.spot is not None else sound.text
             parts.append(_span(text, min(positions), max(positions), sound.length))
         return " ".join(part for part in parts if part)

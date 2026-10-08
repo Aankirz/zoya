@@ -130,6 +130,8 @@ ANSWER_MERGE_S = 1.5
 EXPIRED_CONFIRMATION = "That confirmation has expired, so nothing was done."
 # wake.wav is 0.40 s and 4 of its 28 VAD blocks (128 ms) read as speech; one short word is ~0.3 s.
 ECHO_MAX_VOICED_S = 0.25
+REPLY_ECHO_TAIL_S = 0.2  # a room's echo of her voice has died away by then
+USER_LEAD_BLOCKS = 2  # keep the canceller's one-block delay plus one block before the user's voice
 
 # --- Parsers (tested: tests/test_voice_spotter.py) ------------------------------------
 
@@ -474,6 +476,15 @@ class Segment:
     over_earcon: bool = False  # started while (or just after) an earcon played
     speculations: int = 0  # partial routes started for this utterance
     channel: listen.Channel = listen.Channel.WAKE
+    user_blocks: int = 0  # blocks that were the user's own voice, not Zoya's echo
+    user_from: int | None = None  # index of the first of them
+
+    def note_user(self, is_user: bool) -> None:
+        if not is_user:
+            return
+        self.user_blocks += 1
+        if self.user_from is None:
+            self.user_from = len(self.blocks) - 1
 
     @property
     def seconds(self) -> float:
@@ -665,6 +676,7 @@ class VoiceLoop:
             if voiced:
                 self.segment = Segment([*self.pre_roll, block], arrival)
                 self.segment.began_while_busy = self._zoya_talking()
+                self.segment.note_user(self._users_voice(voiced))
                 self.segment.over_earcon = self._own_sound(arrival)
                 if time.monotonic() < self.awaiting_command_until or safety.awaiting_reply():
                     self.segment.woke_at = time.monotonic()  # already awake: this is the command
@@ -672,6 +684,7 @@ class VoiceLoop:
                     self.segment.channel = self.window
             return
         self.segment.blocks.append(block)
+        self.segment.note_user(self._users_voice(voiced))
         if voiced:
             self.segment.last_voice_at = arrival
             self.segment.voiced_blocks += 1
@@ -696,6 +709,36 @@ class VoiceLoop:
         self.loudness.append(loudness)
         loud_enough = loudness >= max(background * SPEECH_OVER_BACKGROUND, MIN_SPEECH_RMS)
         return loud_enough and self.vad(block) >= VAD_THRESHOLD
+
+    def _users_voice(self, voiced: bool) -> bool:
+        """This voiced block is the user, not Zoya: she is quiet, or the echo canceller kept
+        most of it while she spoke (D62's onset test)."""
+        if not voiced:
+            return False
+        if self.onset and self.onset.voiced:
+            return True
+        quiet_for = time.monotonic() - self.last_spoke_at
+        return not speech.is_speaking() and quiet_for >= REPLY_ECHO_TAIL_S
+
+    def _keep_users_part(self, segment: Segment) -> bool:
+        """A segment that began over Zoya's speech: keep it from where the user's own voice
+        starts, or drop it as her echo."""
+        if segment.user_from is None or segment.user_blocks * BLOCK_S < ECHO_MAX_VOICED_S:
+            return False
+        start = max(0, segment.user_from - USER_LEAD_BLOCKS)
+        segment.blocks = segment.blocks[start:]
+        segment.voiced_blocks, segment.began_while_busy = segment.user_blocks, False
+        segment.user_from = segment.user_from - start
+        _log_voice({"event": "reply_over_speech", "user_ms": round(segment.seconds * MS_PER_S)})
+        return True
+
+    def _reply_window(self) -> bool:
+        """Zoya has finished and a no-wake-word window is (or is about to be) open."""
+        if speech.is_speaking():
+            return False
+        if self.follow_up_pending:
+            self._open_follow_up()
+        return time.monotonic() < self.awaiting_command_until
 
     def _segment_ended(self, segment: Segment, arrival: float) -> bool:
         silence = arrival - segment.last_voice_at
@@ -797,6 +840,11 @@ class VoiceLoop:
 
     def _on_segment_end(self, segment: Segment) -> None:
         if segment.woke_at is not None:
+            self._command(segment)
+            return
+        if segment.began_while_busy and self._reply_window() and self._keep_users_part(segment):
+            segment.awaited, segment.woke_at = True, time.monotonic()
+            segment.channel = self.window
             self._command(segment)
             return
         if self._zoya_talking() or segment.began_while_busy or not self.wake_enabled:
@@ -1016,7 +1064,7 @@ class VoiceLoop:
 
     def _command(self, segment: Segment, transcript: str | None = None) -> None:
         endpoint_ms = round((time.monotonic() - segment.last_voice_at) * MS_PER_S)
-        if segment.awaited and segment.began_while_busy:
+        if segment.awaited and segment.began_while_busy and not self._keep_users_part(segment):
             # Started while Zoya (any task) was speaking: her own words at the mic. Owner's run:
             # her re-prompt "I need a clear answer." was dispatched as a command (V3).
             _log_voice({"event": "echo_dropped", "reason": "speech"})
