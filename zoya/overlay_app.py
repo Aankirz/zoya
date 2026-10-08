@@ -17,7 +17,7 @@ import Foundation
 import Quartz
 from PyObjCTools import AppHelper
 
-from zoya import config, hotkey, hub_data, overlay_probe, pill_motion, sparkle
+from zoya import config, hotkey, hub_data, overlay_probe, pill_beats, pill_motion, sparkle
 from zoya.hub import Hub
 from zoya.hub_bridge import OPEN_HUB_NOTICE
 from zoya.overlay_glow import Glow
@@ -281,6 +281,7 @@ class Presence:
         )
         self.latencies_ms: list[float] = []
         self.screen_name = ""
+        self.doors = pill_beats.Doors()
         self.view = ("", "", "")
         self.settings(hub_data.settings())
         self.follow_pointer()
@@ -311,7 +312,9 @@ class Presence:
         if kind == "level":
             self.pill.set_level(float(message.get("v", 0.0)))
             return
-        if kind == "state":
+        if kind == "beat":
+            self.pill.beat()
+        elif kind == "state":
             self._state(message)
         elif kind in ("zoya", "user", "intent", "speech_done"):
             self._caption(kind, message)
@@ -323,6 +326,8 @@ class Presence:
             self.latencies_ms.append((time.time() - message["t"]) * 1000)
 
     def _state(self, message: dict[str, Any]) -> None:
+        if not self.doors.admit(message):
+            return
         self.speaking = False
         self.base = (message["state"], message.get("step", ""), message.get("task", ""))
         self.stake = message.get("stake", "")
