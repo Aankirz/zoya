@@ -12,6 +12,7 @@ https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-OTLPEn
 
 from __future__ import annotations
 
+import contextvars
 import json
 import logging
 import os
@@ -38,7 +39,7 @@ from strands.models.openai_responses import OpenAIResponsesModel
 from strands.tools.executors import SequentialToolExecutor
 from strands.types.exceptions import EventLoopException
 
-from zoya import aws, events, harness, hub_data, safety, speculate, speech, tasks
+from zoya import aws, clarify, events, harness, hub_data, safety, speculate, speech, tasks
 from zoya.agents import web_loop
 from zoya.config import (
     BRAIN_STEP_REASONING_EFFORT,
@@ -46,12 +47,14 @@ from zoya.config import (
     MAX_TOOL_CALLS_PER_TASK,
     MODEL_PRICES_USD_PER_1M,
     PER_TASK_COST_CAP_USD,
+    SKILL_ACTION_DEADLINE_S,
+    SKILL_ACTION_POLL_S,
     TIMING_LOG,
     UNKNOWN_MODEL_PRICE_USD_PER_1M,
 )
 from zoya.prompts import ORCHESTRATOR_PROMPT
 from zoya.router import RouteDecision, clean_command, route
-from zoya.tools import ToolError, browser, collect_tools, memory
+from zoya.tools import ToolError, browser, collect_tools, memory, watch_abandon
 from zoya.tools.memory import recent_corrections
 
 log = logging.getLogger(__name__)
@@ -67,6 +70,7 @@ IDLE_MESSAGE = "Nothing is running."
 OPEN_APP_FALLBACK = "open_app_fallback"
 DECLINED = "confirmation_declined"  # the safety gate already played cancel and spoke
 STREAMED = "brain"  # the brain ran and spoke as it streamed
+SKILL_DEADLINE = "skill_deadline"
 SKILL_FALLBACK = "skill_fallback"  # a skill action failed; the brain retried with that skill
 MAX_CONVERSATION_TURNS = 6  # follow-ups keep context; older turns drop to bound token cost
 OLD_RESULT_MAX_CHARS = 300  # a finished turn's tool results, as follow-ups see them
@@ -457,7 +461,7 @@ def run_skill(decision: RouteDecision, timings: dict[str, int]) -> str:
     if not decision.tool:
         return run_orchestrator(decision.text, timings, decision.skill)
     try:
-        spoken = harness.run_action(decision.tool, decision.args)
+        spoken = run_action_in_time(decision.tool, decision.args, timings)
     except ToolError as error:
         if decision.tool not in harness.action_tools():
             raise  # a plain tool's answer is final ("I can't remember card numbers")
@@ -469,6 +473,43 @@ def run_skill(decision: RouteDecision, timings: dict[str, int]) -> str:
             decision.text, harness.SkillMatch(decision.skill, decision.tool, decision.args)
         )
     return safety.untag(spoken).strip()  # spoken to the user, not fed to a model
+
+
+def run_action_in_time(action: str, args: dict[str, Any], timings: dict[str, int]) -> str:
+    """A skill action gets SKILL_ACTION_DEADLINE_S to finish or reach a confirmation; past it, the
+    action is abandoned (its next browser or Mac step refuses) and the brain takes over (A2)."""
+    flag, box = threading.Event(), {}
+
+    def work() -> None:
+        watch_abandon(flag)
+        try:
+            box["spoken"] = harness.run_action(action, args)
+        except BaseException as error:  # noqa: BLE001 — handed back to the task thread below
+            box["error"] = error
+
+    worker = threading.Thread(
+        target=contextvars.copy_context().run, args=(work,), name="zoya-skill-action", daemon=True
+    )
+    worker.start()
+    if not _join_unless_late(worker):
+        flag.set()
+        timings[SKILL_DEADLINE] = 1
+        raise ToolError(f"{action} took longer than {SKILL_ACTION_DEADLINE_S:.0f} s")
+    if "error" in box:
+        raise box["error"]
+    return box["spoken"]
+
+
+def _join_unless_late(worker: threading.Thread) -> bool:
+    """True when the action ended. A confirmation it opened holds the floor: then it waits on."""
+    deadline = time.monotonic() + SKILL_ACTION_DEADLINE_S
+    asking = False
+    while worker.is_alive():
+        asking = asking or safety.pending_task_id() == safety.current_task_id()
+        if not asking and time.monotonic() >= deadline:
+            return False
+        worker.join(SKILL_ACTION_POLL_S)
+    return True
 
 
 def run_fast_tool(decision: RouteDecision) -> str:
@@ -500,6 +541,8 @@ def _execute(decision: RouteDecision, timings: dict[str, int]) -> tuple[str, boo
         timings["ack_ms"] = round((time.monotonic() - started) * MS_PER_S)
     stage = "orchestrator_ms" if decision.route == "orchestrator" else "tool_ms"
     try:
+        if decision.route == "ask":
+            return decision.args["question"], True
         if decision.route == "stop":
             return STOPPED_MESSAGE, True
         if decision.route == "skill":
@@ -538,6 +581,14 @@ def _execute(decision: RouteDecision, timings: dict[str, int]) -> tuple[str, boo
         timings[stage] = round((time.monotonic() - started) * MS_PER_S)
 
 
+def ask_first(text: str) -> RouteDecision | None:
+    """A post, message, buy or reminder missing its required detail: one question, no action."""
+    question = clarify.missing_detail(text)
+    if question is None:
+        return None
+    return RouteDecision("ask", args={"question": question.text}, source="clarify", text=text)
+
+
 def cancelled_reply() -> str:
     """ "Okay, stopped." only when the user stopped; any other cancel is a failure that says so."""
     signal = cancel_signal()
@@ -558,7 +609,7 @@ def handle_command(text: str, pre_timings: dict[str, int] | None = None) -> Comm
     safety.begin_task(task_id)
     tabs_before = browser.task_tabs()
     with trace.get_tracer("zoya").start_as_current_span("zoya.command") as span:
-        decision = speculate.commit(text) or route(text)
+        decision = ask_first(text) or speculate.commit(text) or route(text)
         timings = {**(pre_timings or {}), **decision.timings_ms}
         events.emit(events.TaskEvent(task_id, "started", text, decision.route))
         spoken, ok = _execute(decision, timings)
@@ -579,7 +630,7 @@ def handle_command(text: str, pre_timings: dict[str, int] | None = None) -> Comm
     streamed = STREAMED in timings
     if (not streamed or not ok) and not declined and not stopped_by_name:
         tasks.say(spoken)  # the orchestrator already spoke as it streamed
-    if decision.route in ("fast", "skill") and not streamed:
+    if decision.route in ("fast", "skill", "ask") and not streamed:
         remember_turn(text, spoken)
     result = CommandResult(task_id, decision, spoken, ok, timings)
     _close_task_tabs(tabs_before)
@@ -598,7 +649,7 @@ MEMORY_TOOLS = {"memory_add", "memory_search"}
 def worth_capturing(decision: RouteDecision) -> bool:
     """A remembered fact is already stored, and stopping is not an outcome."""
     return (
-        decision.route != "stop"
+        decision.route not in ("stop", "ask")
         and decision.skill != "memory"
         and (decision.tool not in MEMORY_TOOLS)
     )

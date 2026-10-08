@@ -8,13 +8,33 @@ speakable message when they fail.
 
 from __future__ import annotations
 
+import contextvars
 import importlib
 import pkgutil
+import threading
 from typing import Any
+
+ABANDONED_MESSAGE = "That step ran out of time, so I stopped it."
 
 
 class ToolError(Exception):
     """A tool failure whose message is safe and polite to say out loud."""
+
+
+_abandoned: contextvars.ContextVar[threading.Event | None] = contextvars.ContextVar(
+    "zoya_abandoned_action", default=None
+)
+
+
+def watch_abandon(flag: threading.Event) -> None:
+    """Called inside a skill action's own context: once `flag` is set, its next step refuses."""
+    _abandoned.set(flag)
+
+
+def check_abandoned() -> None:
+    flag = _abandoned.get()
+    if flag is not None and flag.is_set():
+        raise ToolError(ABANDONED_MESSAGE)
 
 
 def collect_tools(*packages: str) -> list[Any]:

@@ -76,7 +76,7 @@ from zoya.config import (
     CHROME_SHUTDOWN_TIMEOUT_S,
     ORDER_LIMIT_ENV,
 )
-from zoya.tools import ToolError
+from zoya.tools import ToolError, check_abandoned
 from zoya.tools.fast import normalise_url
 
 log = logging.getLogger(__name__)
@@ -118,6 +118,7 @@ _state: dict[str, Any] = {}
 
 
 def _on_browser[T](call: Callable[[], T]) -> T:
+    check_abandoned()
     try:
         return _executor.submit(call).result(timeout=BROWSER_ACTION_TIMEOUT_S + WORKER_SLACK_S)
     except concurrent.futures.TimeoutError as error:

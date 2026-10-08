@@ -164,6 +164,8 @@ CONFIRMATION_LOG = LOG_DIR / "confirmations.log"  # local copy of the audit log
 SCREEN_CAPTURE_TIMEOUT_S = 3.0  # ScreenCaptureKit completion handlers (D23)
 SCREENSHOT_JPEG_QUALITY = 0.8  # readable text at a fraction of a PNG's bytes
 BROWSER_PROFILE_DIR = Path.home() / ".zoya" / "chrome-profile"  # D11 dedicated profile
+SKILL_ACTION_DEADLINE_S = 6.5
+SKILL_ACTION_POLL_S = 0.1
 BROWSER_ACTION_TIMEOUT_S = 15.0  # every Playwright call (navigation, click, read)
 BROWSER_TEXT_MAX_CHARS = 6000  # page text handed to the brain
 
