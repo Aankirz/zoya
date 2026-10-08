@@ -10,7 +10,6 @@ from tests.voice.sim import run_script
 # Fails on the code this simulator was written against; each fix removes its names.
 KNOWN_FAILING = {
     "log: answer begun over the end of her question",
-    "push-to-talk while she speaks",
     "short answer over her last word",
     "answer over her question",
     "after wake: Hindi news anchor on TV",

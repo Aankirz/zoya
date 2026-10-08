@@ -931,11 +931,9 @@ class VoiceLoop:
             return False
         if self.ptt is None:
             if self._zoya_busy() and not safety.awaiting_reply():  # keys answer a confirmation
-                if self._task_running():
-                    speech.cancel()  # keys cut speech; tasks go on ("Zoya, stop" ends them)
-                else:
-                    orchestrator.stop_task()  # the keys interrupt Zoya, like Wispr's fn key
+                speech.cancel()  # keys cut speech; tasks go on ("Zoya, stop" ends them)
                 audio.engine().silence_all()
+                _log_voice({"event": "ptt_cut_speech", "tasks": len(tasks.running())})
             self.ptt = Segment(
                 [*self.pre_roll, block],
                 arrival,
