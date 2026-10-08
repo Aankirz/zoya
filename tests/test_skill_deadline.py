@@ -1,4 +1,4 @@
-"""A2: a slow skill action hands over to the brain within 8 s, and never asks after it is dropped."""
+"""A2: a slow skill action hands over to the brain within 8 s and never asks once dropped."""
 
 import threading
 import time
