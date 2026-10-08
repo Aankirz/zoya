@@ -21,15 +21,18 @@ from __future__ import annotations
 
 import contextvars
 import difflib
+import json
 import logging
 import queue
 import re
+import sys
 import threading
 import time
 import uuid
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from strands.hooks import AfterToolCallEvent, BeforeToolCallEvent, HookProvider, HookRegistry
@@ -38,9 +41,11 @@ from zoya import events
 from zoya.config import (
     ANNOUNCE_POLL_S,
     GUI_PAUSE_MAX_S,
+    LOG_DIR,
     MAX_TASKS,
     RESOURCE_WAIT_MAX_S,
     SAME_SPEAKER_WINDOW_S,
+    TIMING_LOG,
 )
 
 log = logging.getLogger(__name__)
@@ -72,6 +77,90 @@ GUI_TOOLS = {"computer_task", "click", "type_text", "key", "scroll", "ax_press",
 BROWSER_PREFIXES = ("browser_", "open_url")
 
 
+@dataclass(frozen=True)
+class CancelCause:
+    by_user: bool
+    source: str
+    reason: str
+    chain: tuple[str, ...]
+
+
+OWN_MODULES = ("zoya.tasks", "threading")
+CALLER_CHAIN_DEPTH = 6
+
+
+def caller_chain(skip_modules: tuple[str, ...] = OWN_MODULES) -> tuple[str, ...]:
+    """module.function:line of the frames that led here, innermost first, own frames skipped."""
+    frame, chain = sys._getframe(1), []
+    while frame is not None and len(chain) < CALLER_CHAIN_DEPTH:
+        module = frame.f_globals.get("__name__", "?")
+        if not module.startswith(skip_modules):
+            chain.append(f"{module}.{frame.f_code.co_name}:{frame.f_lineno}")
+        frame = frame.f_back
+    return tuple(chain)
+
+
+class CancelSignal(threading.Event):
+    """A stop flag that remembers who set it. Strands only reads it; `stop_by_user` is the one
+    setter that means "the user stopped", and a bare `set()` from anywhere else is recorded as
+    a cancel the user never asked for."""
+
+    def __init__(self, owner: str = "") -> None:
+        super().__init__()
+        self.owner = owner
+        self.cause: CancelCause | None = None
+
+    def set(self) -> None:
+        self._record(by_user=False, reason="set without a stop")
+        super().set()
+
+    def stop_by_user(self, reason: str) -> None:
+        self._record(by_user=True, reason=reason)
+        super().set()
+
+    def clear(self) -> None:
+        self.cause = None
+        super().clear()
+
+    @property
+    def by_user(self) -> bool:
+        return self.cause is not None and self.cause.by_user
+
+    def _record(self, by_user: bool, reason: str) -> None:
+        if self.cause is not None:
+            return
+        chain = caller_chain()
+        self.cause = CancelCause(by_user, chain[0] if chain else "?", reason, chain)
+        log_cancel(self.owner, self.cause)
+
+
+def log_cancel(owner: str, cause: CancelCause) -> None:
+    """Every cancel lands in logs/zoya.log and logs/timing.log with who set it (A1)."""
+    log.warning(
+        "cancel %s by_user=%s source=%s reason=%s chain=%s",
+        owner or "-",
+        cause.by_user,
+        cause.source,
+        cause.reason,
+        " < ".join(cause.chain),
+    )
+    record = {
+        "at": datetime.now(UTC).isoformat(timespec="milliseconds"),
+        "event": "cancel",
+        "task_id": owner,
+        "by_user": cause.by_user,
+        "source": cause.source,
+        "reason": cause.reason,
+        "chain": list(cause.chain),
+    }
+    try:
+        LOG_DIR.mkdir(exist_ok=True)
+        with TIMING_LOG.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record) + "\n")
+    except OSError as error:
+        log.warning("cancel record not written (%s)", type(error).__name__)
+
+
 @dataclass(eq=False)
 class Task:
     id: str
@@ -82,8 +171,11 @@ class Task:
     step: str = "starting"
     shared: bool = False  # another task ran alongside: every announcement carries the name
     spent_usd: float = 0.0  # all agents of this task together (orchestrator.TaskLimits)
-    cancel: threading.Event = field(default_factory=threading.Event)
+    cancel: CancelSignal = field(default_factory=CancelSignal)
     paused_by: set[str] = field(default_factory=set)  # foreground task ids holding a GUI pause
+
+    def __post_init__(self) -> None:
+        self.cancel.owner = self.id
 
     def spoken_name(self) -> str:
         return self.name[:1].upper() + self.name[1:]
@@ -279,9 +371,11 @@ def _queue_offer_after_stop() -> None:
 
 
 def _stop_one(task: Task) -> str:
+    """Only `orchestrator.stop_task` reaches here, and every caller of that is a user action: a
+    spoken stop, the push-to-talk keys, the menu or pill Stop, or quit. The chain says which."""
     from zoya import safety
 
-    task.cancel.set()
+    task.cancel.stop_by_user("stop")
     safety.cancel_pending(task.id)
     events.emit(events.TaskEvent(task.id, "cancelled", task.command, "orchestrator"))
     return task.name

@@ -60,6 +60,7 @@ TOKENS_PER_PRICE_UNIT = 1_000_000
 MS_PER_S = 1000
 LOG_COMMAND_MAX_CHARS = 60
 STOPPED_MESSAGE = "Okay, stopped."
+CUT_SHORT_MESSAGE = "Sorry, that got cut off before I finished. Please ask me again."
 GENERIC_FAILURE = "Sorry, something went wrong. Please try again."
 LIMIT_MESSAGE = "I've stopped this task because it was taking too many steps."
 IDLE_MESSAGE = "Nothing is running."
@@ -205,7 +206,7 @@ def last_tool_results(messages: list[Any], count: int) -> list[str]:
 
 # --- Orchestrator -----------------------------------------------------------------
 
-_cancel = threading.Event()  # outside a Task Manager task (tests, evals); tasks have their own
+_cancel = tasks.CancelSignal("outside-a-task")  # tests, evals, the REPL; tasks have their own
 _conversation: list[list[Any]] = []  # recent turns, each the messages one run added
 
 
@@ -431,7 +432,8 @@ def _remember_interrupted(command: str, spoken: list[str]) -> None:
     to playback); a half-heard last sentence is kept whole.
     """
     heard = " ".join(spoken) or "(nothing yet)"
-    remember_turn(command, f"{heard} [interrupted by the user]")
+    why = "interrupted by the user" if cancel_signal().by_user else "cut off before it finished"
+    remember_turn(command, f"{heard} [{why}]")
 
 
 def remember_turn(command: str, reply: str) -> None:
@@ -520,8 +522,10 @@ def _execute(decision: RouteDecision, timings: dict[str, int]) -> tuple[str, boo
         timings[DECLINED] = 1  # the gate played cancel and said what happened
         said = str(declined)
         return (safety.CANCELLED_SAY if said == safety.ALREADY_DECLINED else said), False
-    except (KeyboardInterrupt, TaskCancelled):
+    except KeyboardInterrupt:
         return STOPPED_MESSAGE, False
+    except TaskCancelled:
+        return cancelled_reply(), False
     except Exception as error:  # noqa: BLE001 — never crash on a command; say so politely
         from zoya.models import relay_failure
 
@@ -532,6 +536,16 @@ def _execute(decision: RouteDecision, timings: dict[str, int]) -> tuple[str, boo
         return GENERIC_FAILURE, False
     finally:
         timings[stage] = round((time.monotonic() - started) * MS_PER_S)
+
+
+def cancelled_reply() -> str:
+    """ "Okay, stopped." only when the user stopped; any other cancel is a failure that says so."""
+    signal = cancel_signal()
+    if signal.by_user:
+        return STOPPED_MESSAGE
+    cause = signal.cause
+    log.warning("task cancelled without a user stop: %s", cause or "no cause recorded")
+    return CUT_SHORT_MESSAGE
 
 
 def handle_command(text: str, pre_timings: dict[str, int] | None = None) -> CommandResult:
@@ -554,7 +568,7 @@ def handle_command(text: str, pre_timings: dict[str, int] | None = None) -> Comm
         span.set_attributes({"zoya.route": decision.route, "zoya.tool": decision.tool or ""})
     outcome = "stop" if decision.route == "stop" or spoken == STOPPED_MESSAGE else "success"
     declined = DECLINED in timings
-    stopped_by_name = task is not None and task.cancel.is_set()  # the stop already spoke for it
+    stopped_by_name = task is not None and task.cancel.by_user  # the stop already spoke for it
     if not declined and not stopped_by_name:
         shared_done = ok and task is not None and task.shared and outcome == "success"
         events.emit(
@@ -630,7 +644,7 @@ def stop_task(name: str = "") -> str:
         return tasks.stop(name)
     said = tasks.stop_last()
     if not tasks.running():
-        _cancel.set()
+        _cancel.stop_by_user("stop with no task running")
         safety.cancel_pending()  # outside tasks: whatever confirmation waits ends with no token
     speech.cancel()
     return said or STOPPED_MESSAGE
