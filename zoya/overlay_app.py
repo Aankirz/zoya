@@ -17,7 +17,7 @@ import Foundation
 import Quartz
 from PyObjCTools import AppHelper
 
-from zoya import config, hotkey, hub_data, sparkle
+from zoya import config, hotkey, hub_data, overlay_probe, sparkle
 from zoya.hub import Hub
 from zoya.hub_bridge import OPEN_HUB_NOTICE
 from zoya.overlay_glow import Glow
@@ -458,6 +458,8 @@ def run(controls_only: bool = False) -> int:
     if presence is not None:
         controls.hub.on_settings = presence.settings
         presence.on_status = controls.hub.set_status
+    if presence is not None and os.environ.get(overlay_probe.PROBE_ENV):
+        controls.probe = overlay_probe.install(presence)
     threading.Thread(
         target=_read_stdin, args=(presence,), name="overlay-stdin", daemon=True
     ).start()
