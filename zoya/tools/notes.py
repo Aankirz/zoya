@@ -7,10 +7,12 @@ macOS's Automation prompt for Notes (AUDIT B12, error -1743) — the owner must 
 
 from __future__ import annotations
 
+import subprocess
 from html import escape
 
 from strands import tool
 
+from zoya.config import NOTES_COLD_START_TIMEOUT_S, OSASCRIPT_TIMEOUT_S
 from zoya.tools import ToolError
 from zoya.tools.fast import osascript
 
@@ -42,6 +44,17 @@ end tell
 end run"""
 
 
+def notes_running() -> bool:
+    found = subprocess.run(["pgrep", "-xq", "Notes"], check=False, timeout=OSASCRIPT_TIMEOUT_S)
+    return found.returncode == 0
+
+
+def _notes(script: str, *args: str) -> str:
+    """A cold Notes launch with iCloud sync takes longer than OSASCRIPT_TIMEOUT_S (A4)."""
+    timeout = OSASCRIPT_TIMEOUT_S if notes_running() else NOTES_COLD_START_TIMEOUT_S
+    return osascript(script, *args, timeout=timeout)
+
+
 def _title_from(text: str) -> str:
     first_line = text.strip().splitlines()[0] if text.strip() else ""
     return first_line[:TITLE_MAX_CHARS].rstrip()
@@ -61,7 +74,7 @@ def notes_create(body: str, title: str = "") -> str:
     if not text:
         raise ToolError("What should the note say?")
     heading = title.strip() or _title_from(text)
-    osascript(CREATE_SCRIPT, heading, _html(heading, text))
+    _notes(CREATE_SCRIPT, heading, _html(heading, text))
     return f"Saved to Notes: {text}"
 
 
@@ -71,7 +84,7 @@ def notes_search(query: str) -> str:
     term = query.strip()
     if not term:
         raise ToolError("What should I search your notes for?")
-    names = [name for name in osascript(SEARCH_SCRIPT, term).split(NAME_SEPARATOR) if name]
+    names = [name for name in _notes(SEARCH_SCRIPT, term).split(NAME_SEPARATOR) if name]
     if not names:
         return f"I found no notes about {term}."
     top = names[:MAX_SEARCH_RESULTS]
@@ -84,7 +97,7 @@ def notes_append(note_name: str, text: str) -> str:
     addition = text.strip()
     if not note_name.strip() or not addition:
         raise ToolError("Which note, and what should I add?")
-    matched = osascript(APPEND_SCRIPT, note_name.strip(), f"<div>{escape(addition)}</div>")
+    matched = _notes(APPEND_SCRIPT, note_name.strip(), f"<div>{escape(addition)}</div>")
     if not matched:
         raise ToolError(f"I couldn't find a note called {note_name}.")
     return f"Added to {matched}: {addition}"

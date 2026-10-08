@@ -80,6 +80,7 @@ MODEL_MAX_RETRIES = 1
 # Fast-path tools.
 AWS_CALL_TIMEOUT_S = 2
 OSASCRIPT_TIMEOUT_S = 5
+NOTES_COLD_START_TIMEOUT_S = 20.0
 APP_LOOKUP_TIMEOUT_S = 2
 
 # --- Phase 2 -------------------------------------------------------------------

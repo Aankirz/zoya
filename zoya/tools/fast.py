@@ -33,11 +33,11 @@ def _run(argv: list[str], timeout: float = OSASCRIPT_TIMEOUT_S) -> subprocess.Co
     )
 
 
-def osascript(script: str, *args: str) -> str:
+def osascript(script: str, *args: str, timeout: float = OSASCRIPT_TIMEOUT_S) -> str:
     """Run AppleScript; user text goes in as argv (`on run argv`), never spliced into code."""
     check_abandoned()
     try:
-        result = _run(["osascript", "-e", script, *args])
+        result = _run(["osascript", "-e", script, *args], timeout=timeout)
     except subprocess.TimeoutExpired as error:
         raise ToolError(
             "The Mac took too long to answer. If it asked for permission, please allow it."
