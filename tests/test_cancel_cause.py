@@ -28,8 +28,8 @@ class CancellingAgent:
 @pytest.fixture
 def quiet(monkeypatch, tmp_path):
     said: list[str] = []
-    monkeypatch.setattr(tasks, "TIMING_LOG", tmp_path / "timing.log")
-    monkeypatch.setattr(tasks, "LOG_DIR", tmp_path)
+    monkeypatch.setattr(tasks, "TIMING_LOG", tmp_path / "timing.log", raising=False)
+    monkeypatch.setattr(tasks, "LOG_DIR", tmp_path, raising=False)
     monkeypatch.setattr(speech, "narrate", said.append)
     monkeypatch.setattr(orchestrator, "_log_timing", lambda *_: None)
     monkeypatch.setattr(orchestrator.browser, "task_tabs", lambda: frozenset())

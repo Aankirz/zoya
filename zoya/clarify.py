@@ -42,7 +42,7 @@ BUY = re.compile(
 REMINDER = re.compile(r"^(?:set|add|create|make)\s+(?:a\s+|an?\s+new\s+)?reminder$", _I)
 
 POST_QUESTION = "What should the post say?"
-POST_TOPIC_QUESTION = "What should the post say? Or I can draft one about {topic}."
+POST_TOPIC_QUESTION = "Should I draft a post about {topic}, or tell me what it should say?"
 WHO_AND_WHAT = "Who should I send it to, and what should it say?"
 WHO_QUESTION = "Who should I send that to?"
 WHAT_QUESTION = "What should the message to {who} say?"

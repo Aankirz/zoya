@@ -7,7 +7,7 @@ from zoya.clarify import missing_detail
 ASKS = {
     "post on LinkedIn": "What should the post say?",
     "tweet something about the monsoon": (
-        "What should the post say? Or I can draft one about the monsoon."
+        "Should I draft a post about the monsoon, or tell me what it should say?"
     ),
     "publish a post on my blog": "What should the post say?",
     "send a message to Priya": "What should the message to Priya say?",

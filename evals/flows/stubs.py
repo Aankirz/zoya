@@ -19,8 +19,23 @@ def install(sim: Simulator) -> None:
     _quiet_side_effects(sim)
     _logs(sim)
     _tools(sim)
+    _scaled_clocks(sim)
     if not sim.live:
         _offline_models(sim)
+
+
+def _scaled_clocks(sim: Simulator) -> None:
+    """Zoya's own timers run on the simulator's clock, so a scaled run keeps their meaning."""
+    from zoya import orchestrator, progress
+
+    for module, name in (
+        (progress, "PROGRESS_SILENCE_S"),
+        (progress, "FIRST_STEP_LINE_S"),
+        (progress, "PROGRESS_POLL_S"),
+        (orchestrator, "SKILL_ACTION_DEADLINE_S"),
+        (orchestrator, "SKILL_ACTION_POLL_S"),
+    ):
+        sim.patches.set(module, name, getattr(module, name) * sim.scale)
 
 
 def _speech(sim: Simulator) -> None:
