@@ -9,21 +9,9 @@ from tests.voice.sim import run_script
 
 # Fails on the code this simulator was written against; each fix removes its names.
 KNOWN_FAILING = {
-    "log: narration after a bare 'Zoya' wake",
-    "log: naming the hotkey after a wake",
-    "log: wake word plus a remark",
-    "log: garbled Hindi after a wake",
     "log: answer begun over the end of her question",
-    "'yes' answers her question",
-    "push-to-talk one word 'Namaste'",
-    "after wake: demo narration",
-    "follow-up: side conversation in Hindi",
     "push-to-talk while she speaks",
     "short answer over her last word",
-    "after wake: podcast in the room",
-    "one breath: a remark",
-    "follow-up: side talk in English",
-    "push-to-talk one word 'lights'",
     "answer over her question",
     "after wake: Hindi news anchor on TV",
     "push-to-talk cancel while she speaks",
