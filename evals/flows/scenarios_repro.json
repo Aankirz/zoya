@@ -1,0 +1,6 @@
+[
+  {"id": "a1", "category": "repro", "turns": [
+    {"say": "from Amazon.", "internal_cancel_at_s": 0.5, "expect": {"not_stopped": true}}]},
+  {"id": "a2", "category": "repro", "turns": [
+    {"say": "Tweet something about Bangalore.", "hang_actions_s": 24.0, "expect": {"asks": true}}]}
+]
