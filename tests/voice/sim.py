@@ -88,6 +88,8 @@ class Trace:
     earcons: list[tuple[float, str]] = field(default_factory=list)
     log: list[dict] = field(default_factory=list)
     said: list[str] = field(default_factory=list)
+    ducked: bool = False  # other apps still ducked when the script ended
+    ended_at: float = 0.0
 
     def events(self, name: str) -> list[dict]:
         return [record for record in self.log if record.get("event") == name]
@@ -303,6 +305,7 @@ class Simulator:
             index += 1
             if until is None:
                 end = max(end, max(s.end for s in self.sounds) + TAIL_S)
+        self.trace.ducked, self.trace.ended_at = self.ducked, self.clock.now
         return self.trace
 
 

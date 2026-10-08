@@ -628,7 +628,6 @@ class VoiceLoop:
             self._end_barge_in()
 
     def _barge_in(self, arrival: float, other_audio: bool) -> None:
-        self.barge_in_until = time.monotonic() + BARGE_IN_HOLD_S
         action = "none"
         if speech.is_speaking():
             audio.engine().set_speech_gain(BARGE_IN_SPEECH_GAIN)
@@ -636,6 +635,8 @@ class VoiceLoop:
         elif other_audio:
             audio.duck()  # kill-safe duck path; restored by the idle check once the hold ends
             action = "duck"
+        if action != "none":
+            self.barge_in_until = time.monotonic() + BARGE_IN_HOLD_S
         # The voice began ~(BARGE_IN_ONSET_BLOCKS + mic delay) blocks before this block arrived.
         drop_ms = round((time.monotonic() - arrival) * MS_PER_S)
         _log_voice(
@@ -1115,7 +1116,7 @@ class VoiceLoop:
             audio.restore()
         elif not segment.awaited:
             self._await_command()
-        elif self.awaiting_command_until:
+        elif self.awaiting_command_until and verdict.reason not in NOT_ADDRESSED:
             self.awaiting_command_until += segment.seconds + stt_ms / MS_PER_S
 
     def _answer_mode(self) -> bool:
