@@ -154,13 +154,20 @@ def meter_model_class(cls: Any) -> None:
     cls.stream = stream
 
 
-def web_step(state: str, answers: decisions.Answers) -> WebStep:
+def request_text(state: Any, questions: Any) -> str:
+    """The whole Jev request as sent: state plus every question, for its size."""
+    shown = state if isinstance(state, str) else json.dumps(state, ensure_ascii=False)
+    asked = {name: q.model_dump(exclude_none=True) for name, q in questions.items()}
+    return shown + json.dumps(asked, ensure_ascii=False)
+
+
+def web_step(sent: str, answers: decisions.Answers) -> WebStep:
     operation = answers.pick("operation")
     name = operation.name if operation else "-"
     target = answers.pick(f"{name.lower()}_target") if operation else None
     return WebStep(
-        elements=len(re.findall(r"^\[\d+\]", state, re.M)),
-        state_chars=len(state),
+        elements=len(set(re.findall(r"\[(\d+)\]", sent))),
+        state_chars=len(sent),
         operation=name if answers else f"unavailable: {answers.reason[:60]}",
         operation_confidence=round(operation.confidence, 2) if operation else 0.0,
         target=target.name if target else "",
@@ -179,14 +186,15 @@ def install_meters() -> None:
         meter_model_class(cls)
     original_ask = decisions.ask
 
-    def ask(state: str, questions: Any, *args: Any, **kwargs: Any) -> decisions.Answers:
+    def ask(state: Any, questions: Any, *args: Any, **kwargs: Any) -> decisions.Answers:
+        sent = request_text(state, questions)
         Meter.add("jev_calls")
-        Meter.add("cents", len(state) / CHARS_PER_TOKEN * JEV_USD_PER_1M / PER_MILLION * 100)
+        Meter.add("cents", len(sent) / CHARS_PER_TOKEN * JEV_USD_PER_1M / PER_MILLION * 100)
         answers = original_ask(state, questions, *args, **kwargs)
         if "operation" in questions:
             Meter.add("jev_web_calls")
-            Meter.add("jev_state_chars", len(state))
-            Meter.pending_steps.append(web_step(state, answers))
+            Meter.add("jev_state_chars", len(sent))
+            Meter.pending_steps.append(web_step(sent, answers))
         return answers
 
     decisions.ask = ask
@@ -547,6 +555,7 @@ def main() -> int:
     parser.add_argument("--set", choices=("dev", "heldout"), required=True)
     parser.add_argument("--only", default="")
     parser.add_argument("--regrade", default="", help="grade a saved LABEL.json again, offline")
+    parser.add_argument("--loop", choices=("a", "b"), default="b", help="S4 candidate loop")
     args = parser.parse_args()
     if args.regrade:
         return regrade(args.label, args.regrade, args.set)
@@ -556,6 +565,10 @@ def main() -> int:
     aws.load_provider_secrets()
     profile = Path(tempfile.mkdtemp(prefix="zoya-s4web-"))
     install_headless_browser(profile)
+    if args.loop == "a":
+        from zoya.agents import web_loop, web_loop_a
+
+        web_loop.run = web_loop_a.run
     install_meters()
     install_voice()
     quiet_side_effects()
