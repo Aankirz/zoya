@@ -83,12 +83,25 @@ def test_a_valid_pick_returns_the_observed_action_itself():
     assert decision is not None and decision.action is action
 
 
-def test_below_the_threshold_nothing_acts():
+def test_a_low_confidence_pick_still_acts_but_a_low_confidence_done_does_not():
     page = recorded(RECORDED[0])
     table = web_loop.element_table(page["actions"])
-    key = next(iter(table.targets["CLICK"]))
+    key, action = next(iter(table.targets["CLICK"].items()))
     offered = web_loop.operations_offered(table, page)
-    assert web_loop.decide(answers("CLICK", key, confidence=0.5), table, offered) is None
+    decision = web_loop.decide(answers("CLICK", key, confidence=0.3), table, offered)
+    assert decision is not None and decision.action is action
+    assert web_loop.decide(answers("DONE", confidence=0.5), table, offered) is None
+
+
+def test_a_field_is_listed_by_its_own_name_not_its_open_click():
+    field = {"node": 7, "role": "searchbox", "label": "Search docs", "value": ""}
+    actions = [
+        {"node": 3, "role": "link", "label": "Home", "kind": "click", "value": ""},
+        {**field, "kind": "fill"},
+        {**field, "kind": "click", "label": "Open Search docs"},
+    ]
+    lines = web_loop.element_lines(web_loop.element_table(actions)).splitlines()
+    assert lines[1] == "[2] searchbox Search docs · empty (CLICK, TYPE_TEXT)"
 
 
 @pytest.mark.parametrize(
@@ -202,6 +215,29 @@ def test_a_page_that_never_renders_is_asked_about_once_the_wait_runs_out(monkeyp
     monkeypatch.setattr(decisions, "ask", lambda *_a, **_k: decisions.unavailable("stop here"))
     outcome = web_loop.Outcome()
     assert web_loop.step("goal", outcome) is False and outcome.reason.startswith("Jev unavailable")
+
+
+def test_a_control_it_could_not_reach_is_told_to_jev_and_does_not_spin(monkeypatch):
+    import threading
+
+    page = recorded(RECORDED[0])
+    key = next(iter(web_loop.element_table(page["actions"]).targets["CLICK"]))
+    states: list[str] = []
+
+    def ask(state: str, _questions: Any, *_a: Any, **_k: Any) -> decisions.Answers:
+        states.append(state)
+        return answers("CLICK", key)
+
+    def covered(*_a: Any, **_k: Any) -> str:
+        raise web_loop.StalePage("that control is covered or off screen")
+
+    monkeypatch.setattr(web_loop, "observe", lambda: page)
+    monkeypatch.setattr(decisions, "ask", ask)
+    monkeypatch.setattr(web_loop, "execute", covered)
+    outcome = web_loop.run("goal", threading.Event())
+    assert len(states) == web_loop.WEB_NO_PROGRESS_STEPS < web_loop.WEB_STALE_RETRIES
+    assert "could not click" in states[-1] and "covered" in states[-1]
+    assert not outcome.done and outcome.steps == 0
 
 
 @pytest.mark.parametrize("path", RECORDED, ids=lambda p: p.stem)

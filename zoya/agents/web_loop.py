@@ -12,8 +12,8 @@ What Zoya adds or keeps:
 - A CLICK goes through `browser.click_checked` on the real element: Guard 2, the D101 subject,
   the spoken confirmation and the unconfirmed-order check, exactly as `browser_click` (D92).
 - Typing goes through `browser.fill_checked`, which refuses password and code fields.
-- Jev unavailable, or under JEV_STEP_CONFIDENCE, ends the loop; the language-model path takes over
-  on the same page (D90).
+- Jev unavailable, BLOCKED, a DONE under JEV_STEP_CONFIDENCE, or a page that stops changing ends
+  the loop; the language-model path takes over on the same page (D90).
 
 API: https://docs.typesafe.ai/introduction/quickstart (state + batched Choice questions).
 """
@@ -156,7 +156,13 @@ def element_table(actions: list[dict[str, Any]]) -> Table:
             continue
         if node not in index_of:
             index_of[node] = str(len(elements) + 1)
-            elements.append({"index": index_of[node], "role": action["role"], "options": 0})
+            elements.append(
+                {
+                    "index": index_of[node],
+                    "described": describe({**action, "kind": ""}),
+                    "options": 0,
+                }
+            )
         element = elements[int(index_of[node]) - 1]
         key = index_of[node]
         if operation == "SELECT":
@@ -204,17 +210,19 @@ def questions(table: Table, page: dict[str, Any]) -> dict[str, Choice]:
 
 
 def element_lines(table: Table) -> str:
-    """The element table as Jev reads it: index, role, label, value and the operations offered."""
-    lines: dict[str, tuple[str, list[str]]] = {}
+    """The element table as Jev reads it: index, role, label, value and the operations offered.
+    Each element is named by its first observed action, so a field reads as itself, never as the
+    "Open …" click the snapshot adds beside it."""
+    operations: dict[str, list[str]] = {}
     for operation, candidates in table.targets.items():
-        for key, action in candidates.items():
-            index = key.split(":")[0]
-            described, operations = lines.setdefault(index, (describe({**action, "kind": ""}), []))
-            if operation not in operations:
-                operations.append(operation)
+        for key in candidates:
+            offered = operations.setdefault(key.split(":")[0], [])
+            if operation not in offered:
+                offered.append(operation)
     return "\n".join(
-        f"[{index}] {described} ({', '.join(operations)})"
-        for index, (described, operations) in sorted(lines.items(), key=lambda item: int(item[0]))
+        f"[{e['index']}] {e['described']} ({', '.join(operations[e['index']])})"
+        for e in table.elements
+        if e["index"] in operations
     )
 
 
@@ -239,20 +247,20 @@ def state_text(goal: str, page: dict[str, Any], history: list[dict[str, Any]], t
 
 
 def decide(answers: decisions.Answers, table: Table, offered: list[str]) -> Decision | None:
-    """Jev's answer as a decision on an observed action, or None (unsure, or not an offered
-    choice). Only the head the operation names can act; the other heads are discarded."""
+    """Jev's answer as a decision on an observed action, or None (not an offered choice, or a
+    DONE Jev isn't sure of). Only the head the operation names can act; the other heads are
+    discarded. An input is Jev's best pick at any confidence, as in jev-ultrafast: a choice among
+    many offered elements is rarely confident, and Guard 2 still checks every click."""
     operation = answers.pick("operation")
     if operation is None or operation.name not in offered:
         return None
-    if operation.confidence < JEV_STEP_CONFIDENCE:
+    if operation.name == "DONE" and operation.confidence < JEV_STEP_CONFIDENCE:
         return None
     candidates = table.targets.get(operation.name)
     if candidates is None:
         return Decision(operation.name, None, operation.confidence)
     target = answers.pick(f"{operation.name.lower()}_target")
     if target is None or target.name not in candidates:
-        return None
-    if target.confidence < JEV_STEP_CONFIDENCE:
         return None
     return Decision(operation.name, candidates[target.name], operation.confidence)
 
@@ -438,7 +446,19 @@ def step(goal: str, outcome: Outcome) -> bool:
     if decision.operation == "BLOCKED":
         outcome.reason = "nothing on the page moves the goal forward"
         return False
-    did = execute(decision, observed, goal, outcome.history, outcome)
+    try:
+        did = execute(decision, observed, goal, outcome.history, outcome)
+    except StalePage as refused:
+        outcome.history.append(
+            {
+                "action": f"could not {decision.operation.lower()} "
+                f"{clean((decision.action or {}).get('label', ''))}: {refused}",
+                "operation": decision.operation,
+                "text": None,
+                "page_changed": False,
+            }
+        )
+        raise
     outcome.steps += 1
     after = observe()
     outcome.page = after
@@ -470,7 +490,7 @@ def run(goal: str, cancel: threading.Event, max_steps: int = WEB_MAX_STEPS) -> O
             stale = 0
         except StalePage as changed:
             stale += 1
-            if stale >= WEB_STALE_RETRIES:
+            if stale >= WEB_STALE_RETRIES or _stuck(outcome.history):
                 outcome.reason = str(changed)
                 return outcome
         except ToolError as error:
