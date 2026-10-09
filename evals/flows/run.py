@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import random
 import sys
 from pathlib import Path
 from typing import Any
@@ -61,8 +62,21 @@ EXPECT = {
 FRESH_PROMPT = (
     "Write {n} different things a new user might say to a Mac voice assistant in their first "
     "week. Vary apps, sites, topics, phrasing, length and language (some Hinglish). Never name "
-    "the same app or site twice. Spread them over these categories: {categories}."
+    "the same app or site twice. Spread them over these categories: {categories}. Do not reuse "
+    "or lightly reword any of these earlier sentences: {used}."
 )
+
+
+USED_SENTENCES_MAX = 120
+
+
+def used_sentences() -> str:
+    """Every sentence an earlier fresh run already used, so the next run writes new ones."""
+    used = []
+    for report in sorted(OUT_DIR.glob("*.json")):
+        turns = json.loads(report.read_text("utf-8")).get("turns", [])
+        used += [turn["say"] for turn in turns if turn.get("set") == "fresh"]
+    return json.dumps(used[-USED_SENTENCES_MAX:])
 
 
 class FreshScenario(BaseModel):
@@ -82,7 +96,10 @@ def fresh(n: int) -> list[dict[str, Any]]:
 
     config.load_env()
     agent = Agent(model=get_model("router"), callback_handler=None)
-    prompt = FRESH_PROMPT.format(n=n, categories=json.dumps(CATEGORIES))
+    picked = random.sample(list(CATEGORIES), k=min(n, len(CATEGORIES)))
+    prompt = FRESH_PROMPT.format(
+        n=n, categories=json.dumps({k: CATEGORIES[k] for k in picked}), used=used_sentences()
+    )
     batch = agent(prompt, structured_output_model=FreshBatch).structured_output
     return [_scenario(i, item) for i, item in enumerate(batch.scenarios[:n])]
 
