@@ -200,6 +200,7 @@ MEMORY_PROFILE_MAX_TOKENS = 250
 # memory_search hands every memory to the brain up to this many (D147): a memory averages ~80
 # characters (~20 tokens), so 150 is ~3k tokens, about $0.0006 a search on gpt-5.6-luna.
 MEMORY_INLINE_MAX = 150
+JEV_LIVE_FACT_CONFIDENCE = 0.5
 ALERTS_TOPIC_ARN = "arn:aws:sns:ap-south-1:567487920371:zoya-alerts"  # trusted contact (Flow 10)
 PLACES_MAX_RESULTS = 3
 # Done-when #5 test run only (coordinator): `python -m zoya.main --order-limit 300` sets this env

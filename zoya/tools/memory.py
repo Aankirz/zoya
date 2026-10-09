@@ -22,15 +22,17 @@ import threading
 import time
 import unicodedata
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import cache
 from typing import Any
 
 from strands import tool
 
-from zoya import aws, events
+from zoya import aws, events, memory_rules, tasks
 from zoya.config import (
     APP_BUNDLE,
+    JEV_LIVE_FACT_CONFIDENCE,
     JEV_STEP_CONFIDENCE,
     MEMORY_INLINE_MAX,
     MEMORY_LOCAL_FILE,
@@ -314,23 +316,51 @@ def local_matches(query: str, items: list[dict[str, str]]) -> list[str]:
     return [content for *_, content in sorted(scored, reverse=True)[:MEMORY_SEARCH_LIMIT]]
 
 
-# --- Tools -------------------------------------------------------------------------------------
+# --- Saving: live facts stay at the source, new replaces old, every save is said (D163) -------
+
+DATED_RECORDS = {"order_history", "activity"}
+LIVE_SKIPPED = "That changes, so I won't save it. I'll check it fresh next time."
+ALREADY_SAVED = "I already remember that."
+SAVED_LINE = "Remembered: {text}"
+UPDATED_LINE = "Updated: {text} (was {old})"
+FORGOT_LINE = "Okay, forgotten: {text}"
+RESTORED_LINE = "Okay, forgotten. Back to: {old}"
+FORGET_FAILED = "I couldn't forget that just now. You can delete it in the Hub."
+SPOKEN_MAX_CHARS = 120
+ANNOUNCE_KEEP = 20
+FORGET_THAT = re.compile(
+    r"^(?:(?:no|nahi|nahin|wait|actually|oh|arre|ok|okay|hey|zoya|never mind|sorry)\s+)*"
+    r"(?:please\s+)?(?:"
+    r"forget (?:that|it|this|what i (?:just )?said)|(?:don'?t|do not) (?:remember|save|keep) "
+    r"(?:that|it|this)|(?:ye|yeh|ise|isko|woh|wo|use|usko)?\s*(?:bhool ja(?:o|iye|na)?|"
+    r"mat yaad rakh(?:o|na|iye)?|yaad mat rakh(?:o|na|iye)?)|"
+    r"(?:इसे|ये|यह|वो|उसे)?\s*(?:भूल जाओ|भूल जाइए|याद मत रखो|याद मत रखना|मत याद रखो)"
+    r")(?:\s+please)?$"
+)
+PUNCTUATION = re.compile(r"[,.!?।]+")
 
 
-def remember(content: str, category: str = "preference") -> str:
-    """Save one memory. Raises ToolError when it holds a secret. Used by tools and auto-save."""
-    text = " ".join(content.split())[:MAX_MEMORY_CHARS]
-    if not text:
-        raise ToolError("What should I remember?")
-    if secret_reason(text):
-        raise ToolError(REJECTED)
-    kind = category if category in CATEGORIES else "preference"
-    item = {
+@dataclass(frozen=True)
+class Undo:
+    item: dict[str, str]
+    replaced: tuple[dict[str, str], ...]
+
+
+_said_lock = threading.Lock()
+_announce: dict[str, list[str]] = {}
+_undoable: Undo | None = None
+
+
+def _new_item(text: str, kind: str) -> dict[str, str]:
+    return {
         "id": uuid.uuid4().hex,
         "at": datetime.now(UTC).isoformat(timespec="seconds"),
         "category": kind,
         "content": text,
     }
+
+
+def _store(item: dict[str, str]) -> None:
     _save_local(item)
     threading.Thread(target=_put_dynamodb, args=(item,), daemon=True).start()
     started = time.monotonic()
@@ -339,26 +369,145 @@ def remember(content: str, category: str = "preference") -> str:
         client = _supermemory()
         if client is not None:
             client.add(
-                content=text,
+                content=item["content"],
                 custom_id=item["id"],
                 container_tag=MEMORY_USER_TAG,
                 dreaming="instant",
-                metadata={"category": kind},
+                metadata={"category": item["category"]},
             )
             where = "in memory"
     except Exception as error:  # noqa: BLE001 — the local and DynamoDB copies still hold it
         log.warning("Supermemory add failed (%s)", type(error).__name__)
     log.info("memory_add %s in %d ms", where, round((time.monotonic() - started) * 1000))
-    return f"Saved {where}: {text}"
+
+
+def _spoken(text: str) -> str:
+    if len(text) <= SPOKEN_MAX_CHARS:
+        return text
+    return text[:SPOKEN_MAX_CHARS].rsplit(" ", 1)[0] + "…"
+
+
+def _task_key() -> str:
+    task = tasks.current()
+    return task.id if task is not None else ""
+
+
+def _announced(line: str) -> str:
+    with _said_lock:
+        _announce.setdefault(_task_key(), []).append(line)
+        while len(_announce) > ANNOUNCE_KEEP:
+            del _announce[next(iter(_announce))]
+    return line
+
+
+def take_announcements(spoken: str = "") -> str:
+    """This task's save lines, said once at its end; any already in `spoken` are left out."""
+    with _said_lock:
+        lines = _announce.pop(_task_key(), [])
+    heard = unicodedata.normalize("NFKC", spoken)
+    return " ".join(
+        line for line in dict.fromkeys(lines) if unicodedata.normalize("NFKC", line) not in heard
+    )
+
+
+LIVE_STATE = "The user asked their voice assistant to remember: {text!r}"
+LIVE_QUESTION = (
+    "Is this a changing fact about the world or about a moment (a delivery date, a price, a "
+    "balance, today's weather, a one-time appointment, how someone feels right now), rather than "
+    "a lasting fact about the user?"
+)
+
+
+def _live_by_jev(text: str) -> bool:
+    """Jev sees only the fact. Unavailable or unsure means it is kept."""
+    from typesafe_sdk import Noul
+
+    from zoya import decisions
+
+    question = {"live": Noul(instructions=LIVE_QUESTION)}
+    answers = decisions.ask(LIVE_STATE.format(text=text), question)
+    return bool(answers) and answers.noul("live") >= JEV_LIVE_FACT_CONFIDENCE
+
+
+def live_fact(text: str) -> str | None:
+    """Why `text` is a changing fact that stays at its source, or None. The local rules first; Jev
+    only for what they would keep (it caught phrasings the rules missed on the held-out sets)."""
+    if reason := memory_rules.live_reason(text):
+        return reason
+    return "jev" if _live_by_jev(text) else None
+
+
+def _same_text(left: str, right: str) -> bool:
+    return " ".join(left.casefold().split()) == " ".join(right.casefold().split())
+
+
+def remember(content: str, category: str = "preference") -> str:
+    """Save one memory and return the one line that says so. Raises ToolError on a secret.
+
+    A changing fact is not saved; a fact that contradicts an older one replaces it; the line is
+    said at the end of the task, and "forget that" on the next turn undoes it.
+    """
+    global _undoable
+    text = " ".join(content.split())[:MAX_MEMORY_CHARS]
+    if not text:
+        raise ToolError("What should I remember?")
+    if secret_reason(text):
+        raise ToolError(REJECTED)
+    kind = category if category in CATEGORIES else "preference"
+    if kind in DATED_RECORDS:
+        _store(_new_item(text, kind))
+        return f"Saved: {text}"
+    if reason := live_fact(text):
+        log.info("memory not saved: a live fact (%s)", reason)
+        return _announced(LIVE_SKIPPED)
+    existing = _read_local()
+    if any(_same_text(i.get("content", ""), text) for i in existing):
+        return _announced(ALREADY_SAVED)
+    old = memory_rules.superseded(text, kind, existing)
+    item = _new_item(text, kind)
+    _store(item)
+    replaced = tuple(i for i in old if forget(i["id"]))
+    with _said_lock:
+        _undoable = Undo(item, replaced)
+    if replaced:
+        was = memory_rules.short_value(replaced[0]["content"])
+        return _announced(UPDATED_LINE.format(text=_spoken(text), old=_spoken(was)))
+    return _announced(SAVED_LINE.format(text=_spoken(text)))
+
+
+def _plain(command: str) -> str:
+    return " ".join(PUNCTUATION.sub(" ", command.casefold().replace("’", "'")).split())
+
+
+def next_turn(command: str) -> str | None:
+    """A new command. "Forget that" right after a save undoes exactly that save (and puts back a
+    memory it replaced) and returns the line to say; anything else closes the window: None."""
+    global _undoable
+    with _said_lock:
+        last, _undoable = _undoable, None
+    if last is None or not FORGET_THAT.match(_plain(command)):
+        return None
+    if not forget(last.item["id"]):
+        return FORGET_FAILED
+    for old in last.replaced:
+        _store(old)
+    if last.replaced:
+        return RESTORED_LINE.format(old=_spoken(last.replaced[0]["content"]))
+    return FORGOT_LINE.format(text=_spoken(last.item["content"]))
+
+
+# --- Tools -------------------------------------------------------------------------------------
 
 
 @tool
 def memory_add(content: str, category: str = "preference") -> str:
-    """Remember a fact about the user for later (usual groceries, favourite brands, addresses,
-    contacts, routines, and corrections like "I meant Rahul Verma"). Never passwords, OTPs or cards.
+    """Remember a lasting fact about the user (favourite brands, addresses, contacts, routines,
+    and corrections like "I meant Rahul Verma"). Never passwords, OTPs or cards. Changing facts
+    (a delivery date, a price, today's weather, a one-time appointment) are not kept: read them
+    fresh from the app or site. Zoya says each save herself at the end; don't repeat it.
 
     Args:
-        content: The fact in one sentence, e.g. "Usual groceries: 2 L Amul milk, 12 eggs".
+        content: The fact in one sentence, e.g. "Home address: 12 Lake View Road, Pune".
         category: preference | contact | address | order_history | routine | correction.
     """
     said = remember(content, category)
@@ -451,6 +600,21 @@ def _profile_lines(items: list[dict[str, str]]) -> list[str]:
 def user_profile() -> str:
     """The newest preferences and facts from memory.json, capped. One file read, no network."""
     return profile_block(_profile_lines(_read_local()))
+
+
+PICKED = "[From Zoya's memory, picked for this request: {lines}]"
+
+
+def relevant_block(request: str, items: list[dict[str, str]] | None = None) -> str:
+    """Over MEMORY_INLINE_MAX memories: the few that matter for `request` and aren't already in
+    the profile, as one line for the request (D168 #5). The local keyword search, no network."""
+    items = _read_local() if items is None else items
+    if len(items) <= MEMORY_INLINE_MAX:
+        return ""
+    shown = profile_block(_profile_lines(items))
+    rest = [i for i in items if i.get("content") and i["content"] not in shown]
+    picks = [line for line in local_matches(request, rest) if not secret_reason(line)]
+    return PICKED.format(lines="; ".join(picks)) if picks else ""
 
 
 # --- Learning from what Zoya does (Phase H) -------------------------------------------------------
