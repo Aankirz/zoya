@@ -110,5 +110,51 @@
       "The AQI in Delhi is 310 right now",
       "My parents land at 6 am tomorrow"
     ]
+  },
+  "held_out_2": {
+    "stable": [
+      "My sister-in-law Noor is a pharmacist",
+      "I'm gluten intolerant",
+      "Mere shohar ka naam Imran hai",
+      "I go to the gym on Mondays, Wednesdays and Fridays",
+      "My accountant is Mr. Agarwal",
+      "I like window seats on long flights",
+      "Hamara flat Gachibowli mein hai",
+      "My favourite poet is Faiz Ahmed Faiz",
+      "My son's birthday is on 3 September",
+      "I never drink tea after 8 pm",
+      "मुझे गज़लें पसंद हैं",
+      "My yoga studio is in Jubilee Hills",
+      "My cousin Sameer lives in Riyadh",
+      "I usually shop at Lulu Mall on weekends",
+      "Mera electrician Salim hai",
+      "I'm a night owl",
+      "My bank is HDFC",
+      "I speak Urdu at home",
+      "Our family dinner is at 8 every Sunday",
+      "Always tell me the price before you buy anything"
+    ],
+    "changing": [
+      "My Nykaa parcel was delivered to the wrong flat",
+      "Silver is at 92 rupees a gram",
+      "Aaj Hyderabad mein bahut umas hai",
+      "My eye check-up is on Wednesday at 11",
+      "Our train is late by 20 minutes",
+      "My water bill this month is 640",
+      "Traffic on Necklace Road is jammed",
+      "Parso meri sister aa rahi hai",
+      "My savings account has 52,000 in it",
+      "It's hailing in Gachibowli",
+      "Tata Motors is trading at 980",
+      "Mera Amazon order parso aayega",
+      "The bakery downstairs shuts early tonight",
+      "Zaid has a fever today",
+      "The Uber is 3 minutes away",
+      "कल सुबह बहुत ठंड होगी",
+      "Imran's flight from Jeddah is delayed",
+      "Ayesha owes me 2,000 for the shopping",
+      "The power is out in our block",
+      "My parcel will reach by Monday"
+    ]
   }
 }
