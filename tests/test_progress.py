@@ -24,9 +24,14 @@ def test_the_first_line_says_what_was_understood(command, line):
     assert progress.early_line(command).startswith(line)
 
 
-@pytest.mark.parametrize("command", ["what time does the pharmacy close?", "hmm", "thanks"])
-def test_questions_and_fragments_get_no_canned_first_line(command):
+@pytest.mark.parametrize("command", ["how are you today?", "what's that?", "hmm", "thanks"])
+def test_small_talk_and_fragments_get_no_first_line(command):
     assert progress.early_line(command) == ""
+
+
+def test_a_factual_question_is_repeated_back_while_it_is_looked_up():
+    line = progress.early_line("what time does the pharmacy on my street close?")
+    assert line == "Checking: what time does the pharmacy on your street close."
 
 
 def test_a_question_is_answered_without_planning_effort():

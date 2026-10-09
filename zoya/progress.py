@@ -46,14 +46,19 @@ TEMPLATES = [
     (re.compile(r"^(?:write|draft|make|create)\s+(?P<x>.+)$", _I), "Writing {x}."),
     (re.compile(r"^(?:book|reserve)\s+(?P<x>.+)$", _I), "Looking for {x}."),
 ]
+QUESTION_MIN_WORDS = 5
+QUESTION_MAX_WORDS = 12
+ABOUT_ZOYA = re.compile(r"\b(?:you|your|yourself|zoya)\b", _I)
 YOURS = {"my": "your", "me": "you", "i": "you", "i'm": "you're", "mine": "yours", "myself": "you"}
 
 
 def early_line(command: str) -> str:
     """The first thing said for a command that will take a while, or "" when none fits."""
     text = clean_command(command)
-    if not text or QUESTION.match(text):
+    if not text:
         return ""
+    if QUESTION.match(text):
+        return _question_line(text)
     for pattern, line in TEMPLATES:
         if match := pattern.match(text):
             what = match.groupdict().get("x") or ""
@@ -61,9 +66,18 @@ def early_line(command: str) -> str:
     return ""
 
 
-def _yours(phrase: str) -> str:
+def _question_line(text: str) -> str:
+    """A factual question repeated back while it is looked up; small talk to Zoya gets none,
+    since her answer is quicker than a repeat would be."""
+    words = text.strip(" ?.!").split()
+    if len(words) < QUESTION_MIN_WORDS or ABOUT_ZOYA.search(text):
+        return ""
+    return f"Checking: {_yours(' '.join(words), QUESTION_MAX_WORDS)}."
+
+
+def _yours(phrase: str, limit: int = ACK_MAX_WORDS) -> str:
     words = [YOURS.get(word.lower(), word) for word in phrase.strip(" .!?").split()]
-    return " ".join(words[:ACK_MAX_WORDS])
+    return " ".join(words[:limit])
 
 
 def step_line(step: str) -> str:
