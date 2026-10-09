@@ -109,6 +109,7 @@ ONE_BREATH_MIN_S = 1.2  # longer utterances get a turbo wake check if base.en mi
 MAX_COMPRESSION_RATIO = 2.4  # Whisper's own threshold for repetitive output
 MIN_AVG_LOGPROB = -0.7
 STT_LANGUAGES = frozenset({"en", "hi"})
+HINGLISH_PROMPT = "Haan, Spotify khol do aur mera playlist bajao. Mummy ko message bhejo."
 MAX_TRANSCRIPT_WORDS = 60  # 15 s of speech at most (MAX_UTTERANCE_S)
 RUNAWAY_REPEATS = 4
 MIN_COMMAND_WORDS = 2
@@ -534,9 +535,12 @@ def load_models() -> Models:
         if SPOTTER_ENGINE == "faster-whisper"
         else load_whisper(WAKE_MODEL, language="en", initial_prompt="Zoya")
     )
-    # Multilingual (Hinglish → Devanagari, D42), but only English/Hindi are accepted.
+    # Multilingual, but only English/Hindi are accepted.
     stt = load_whisper(
-        STT_MODEL_REPO, allowed_languages=STT_LANGUAGES, min_avg_logprob=MIN_AVG_LOGPROB
+        STT_MODEL_REPO,
+        allowed_languages=STT_LANGUAGES,
+        min_avg_logprob=MIN_AVG_LOGPROB,
+        initial_prompt=HINGLISH_PROMPT,
     )
     turn = load_smart_turn() if ENDPOINT_MODE == "smart_turn" else None
     return Models(StreamingVad(), spot, stt, turn)

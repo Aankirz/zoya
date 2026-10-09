@@ -34,6 +34,7 @@ import soundfile as sf  # noqa: E402
 
 from tests.evals.spotter_compare import CLIP_ROOT  # noqa: E402
 from zoya.config import STT_MODEL_REPO  # noqa: E402
+from zoya.voice import HINGLISH_PROMPT  # noqa: E402
 
 RATE = 16000
 MS_PER_S = 1000
@@ -55,7 +56,6 @@ SENTENCES = {
 }
 HINGLISH = {5, 6, 10, 11, 12, 13}
 FIXTURE_HINGLISH = {"05", "06", "09", "14", "18"}
-HINGLISH_PROMPT = "Haan, Spotify khol do aur mera playlist bajao. Mummy ko message bhejo."
 VARIANTS = {
     "auto (current)": {},
     "language=hi": {"language": "hi"},
@@ -252,5 +252,60 @@ def main() -> int:
     return 0
 
 
+PROMPT_WORDS = {"spotify", "khol", "playlist", "bajao", "mummy", "bhejo", "haan", "mera"}
+NOISE_LEVELS = (0.002, 0.01, 0.05)
+NOISE_S = 2.0
+
+
+def junk_audio() -> dict[str, np.ndarray]:
+    """Audio that must transcribe to nothing useful: noise, earcons, side talk with no command."""
+    from tests.evals.spotter_compare import NEGATIVES, PRIVATE
+    from zoya.config import SOUNDS_DIR
+
+    rng = np.random.default_rng(0)
+    clips = {
+        f"noise {level}": (rng.standard_normal(int(NOISE_S * RATE)) * level).astype("f4")
+        for level in NOISE_LEVELS
+    }
+    clips["silence"] = np.zeros(int(NOISE_S * RATE), np.float32)
+    for path in sorted(SOUNDS_DIR.glob("*.wav")):
+        samples, rate = sf.read(path, dtype="float32")
+        mono = samples if samples.ndim == 1 else samples.mean(axis=1)
+        positions = np.arange(0, len(mono), rate / RATE)
+        clips[f"earcon {path.stem}"] = np.interp(positions, np.arange(len(mono)), mono).astype("f4")
+    for folder, numbers in NEGATIVES.items():
+        for number in numbers:
+            if (folder, number) not in PRIVATE:
+                samples, _rate = sf.read(CLIP_ROOT / folder / f"{number:03d}.wav", dtype="float32")
+                clips[f"{folder}/{number}"] = samples
+    return clips
+
+
+def leak() -> int:
+    """Does the Hinglish prompt make turbo invent its words on junk? (Whisper prompt leakage.)"""
+    from zoya.voice import MIN_AVG_LOGPROB, STT_LANGUAGES, load_whisper
+
+    plain = load_whisper(STT_MODEL_REPO, STT_LANGUAGES, MIN_AVG_LOGPROB)
+    prompted = load_whisper(
+        STT_MODEL_REPO, STT_LANGUAGES, MIN_AVG_LOGPROB, initial_prompt=HINGLISH_PROMPT
+    )
+    rows = {}
+    for name, samples in junk_audio().items():
+        rows[name] = {"plain": plain(samples), "prompted": prompted(samples)}
+    report = {}
+    for variant in ("plain", "prompted"):
+        texts = [row[variant] for row in rows.values()]
+        report[variant] = {
+            "clips": len(texts),
+            "non_empty": sum(bool(t) for t in texts),
+            "prompt_words_leaked": sum(bool(PROMPT_WORDS & set(tokens(t))) for t in texts),
+        }
+    print(json.dumps(report, indent=1))
+    saved = json.loads(RESULTS.read_text())
+    saved["leak"] = {"summary": report, "rows": rows}
+    RESULTS.write_text(json.dumps(saved, indent=1, ensure_ascii=False))
+    return 0
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(leak() if sys.argv[1:] == ["leak"] else main())

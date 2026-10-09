@@ -1102,5 +1102,189 @@
     "ms": 759
    }
   ]
+ },
+ "leak": {
+  "summary": {
+   "plain": {
+    "clips": 42,
+    "non_empty": 19,
+    "prompt_words_leaked": 0
+   },
+   "prompted": {
+    "clips": 42,
+    "non_empty": 17,
+    "prompt_words_leaked": 0
+   }
+  },
+  "rows": {
+   "noise 0.002": {
+    "plain": "Thank you.",
+    "prompted": ""
+   },
+   "noise 0.01": {
+    "plain": "",
+    "prompted": "!"
+   },
+   "noise 0.05": {
+    "plain": "",
+    "prompted": ""
+   },
+   "silence": {
+    "plain": "Thank you.",
+    "prompted": ""
+   },
+   "earcon add-to-cart": {
+    "plain": "",
+    "prompted": ""
+   },
+   "earcon blocked": {
+    "plain": "",
+    "prompted": ""
+   },
+   "earcon cancel": {
+    "plain": "",
+    "prompted": ""
+   },
+   "earcon checkpoint": {
+    "plain": "",
+    "prompted": ""
+   },
+   "earcon complete": {
+    "plain": "",
+    "prompted": ""
+   },
+   "earcon error": {
+    "plain": "",
+    "prompted": ""
+   },
+   "earcon mention": {
+    "plain": "",
+    "prompted": ""
+   },
+   "earcon processing": {
+    "plain": "Thank you.",
+    "prompted": "!"
+   },
+   "earcon progress-step": {
+    "plain": "",
+    "prompted": ""
+   },
+   "earcon purchase": {
+    "plain": "",
+    "prompted": ""
+   },
+   "earcon queued": {
+    "plain": "",
+    "prompted": ""
+   },
+   "earcon release": {
+    "plain": "",
+    "prompted": ""
+   },
+   "earcon stop": {
+    "plain": "",
+    "prompted": ""
+   },
+   "earcon success": {
+    "plain": "",
+    "prompted": ""
+   },
+   "earcon wake": {
+    "plain": "",
+    "prompted": ""
+   },
+   "earcon warning": {
+    "plain": "",
+    "prompted": ""
+   },
+   "wake_clips_session2/14": {
+    "plain": "Now starting with the negatives.",
+    "prompted": "Now starting with the negatives."
+   },
+   "wake_clips_session2/15": {
+    "plain": "",
+    "prompted": ""
+   },
+   "wake_clips_session2/16": {
+    "plain": "So yeah.",
+    "prompted": "So yeah."
+   },
+   "wake_clips_session2/17": {
+    "plain": "Zoe is coming.",
+    "prompted": "Zoe is coming."
+   },
+   "wake_clips_session2/18": {
+    "plain": "Hey Sonia!",
+    "prompted": "Hey Sonia."
+   },
+   "wake_clips_session2/19": {
+    "plain": "I bought soya milk today.",
+    "prompted": "I bought soya milk today."
+   },
+   "wake_clips_session2/20": {
+    "plain": "",
+    "prompted": ""
+   },
+   "wake_clips_session2/21": {
+    "plain": "",
+    "prompted": "Heesh yaar."
+   },
+   "wake_clips_session2/22": {
+    "plain": "Let's go to the store",
+    "prompted": "Let's go to the store."
+   },
+   "wake_clips_session2/23": {
+    "plain": "What time is the meeting?",
+    "prompted": "What time is the meeting?"
+   },
+   "wake_clips_session2/24": {
+    "plain": "Call Sonia later.",
+    "prompted": "Call Sonia later."
+   },
+   "wake_clips_session2/25": {
+    "plain": "Open the window.",
+    "prompted": "Open the window."
+   },
+   "wake_clips_session2/26": {
+    "plain": "Good morning.",
+    "prompted": "Good morning."
+   },
+   "wake_clips_session2/27": {
+    "plain": "",
+    "prompted": ""
+   },
+   "wake_clips_session2/28": {
+    "plain": "सुया चंक्स आर हिल्थी",
+    "prompted": "Soya chunks are healthy."
+   },
+   "wake_clips/13": {
+    "plain": "Hey Siri!",
+    "prompted": ""
+   },
+   "wake_clips/14": {
+    "plain": "",
+    "prompted": ""
+   },
+   "wake_clips/16": {
+    "plain": "",
+    "prompted": ""
+   },
+   "wake_clips/18": {
+    "plain": "Zoe said,",
+    "prompted": "Zoe said,"
+   },
+   "wake_clips/19": {
+    "plain": "so yeah okay",
+    "prompted": ""
+   },
+   "wake_clips/20": {
+    "plain": "Sonia called",
+    "prompted": "Sonia called."
+   },
+   "wake_clips/21": {
+    "plain": "Good morning.",
+    "prompted": "Good morning."
+   }
+  }
  }
 }

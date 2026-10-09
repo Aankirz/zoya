@@ -1770,5 +1770,448 @@
     "dispatched": 0
    }
   }
+ },
+ "prompt-realtime": {
+  "summary": {
+   "wake_to_earcon_p50_ms": 312,
+   "wake_to_earcon_p90_ms": 379,
+   "wakes": "21/21",
+   "missed": [],
+   "false_wakes": [
+    "wake_clips/18"
+   ],
+   "negatives": 24,
+   "stops": "8/10",
+   "stop_p50_ms": 58
+  },
+  "clips": {
+   "wake_clips_session2/1": {
+    "woke": true,
+    "earcon_ms": 324,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips_session2/2": {
+    "woke": true,
+    "earcon_ms": 252,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips_session2/3": {
+    "woke": true,
+    "earcon_ms": 243,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips_session2/4": {
+    "woke": true,
+    "earcon_ms": 255,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips_session2/5": {
+    "woke": true,
+    "earcon_ms": 238,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips_session2/6": {
+    "woke": true,
+    "earcon_ms": 255,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips_session2/7": {
+    "woke": true,
+    "earcon_ms": 253,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips_session2/8": {
+    "woke": true,
+    "earcon_ms": 379,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips_session2/9": {
+    "woke": true,
+    "earcon_ms": 987,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips_session2/10": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips_session2/11": {
+    "woke": true,
+    "earcon_ms": 244,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips_session2/12": {
+    "woke": true,
+    "earcon_ms": 269,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips_session2/13": {
+    "woke": true,
+    "earcon_ms": 335,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips_session2/14": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips_session2/15": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips_session2/16": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips_session2/17": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips_session2/18": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips_session2/19": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips_session2/20": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips_session2/21": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips_session2/22": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips_session2/23": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips_session2/24": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips_session2/25": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips_session2/26": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips_session2/27": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips_session2/28": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips_session2/29": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips_session2/30": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips/1": {
+    "woke": true,
+    "earcon_ms": 327,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips/2": {
+    "woke": true,
+    "earcon_ms": 290,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips/3": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips/4": {
+    "woke": true,
+    "earcon_ms": 312,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips/5": {
+    "woke": true,
+    "earcon_ms": 342,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips/6": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips/7": {
+    "woke": true,
+    "earcon_ms": 325,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips/8": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips/9": {
+    "woke": true,
+    "earcon_ms": 272,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips/10": {
+    "woke": true,
+    "earcon_ms": 366,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips/11": {
+    "woke": true,
+    "earcon_ms": 297,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips/12": {
+    "woke": true,
+    "earcon_ms": 371,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips/13": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips/14": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips/15": {
+    "woke": true,
+    "earcon_ms": 606,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 1
+   },
+   "wake_clips/16": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips/17": {
+    "woke": true,
+    "earcon_ms": 282,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 1
+   },
+   "wake_clips/18": {
+    "woke": true,
+    "earcon_ms": 339,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips/19": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips/20": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "wake_clips/21": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "stop_clips/1": {
+    "woke": true,
+    "earcon_ms": 266,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "stop_clips/2": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": true,
+    "stop_ms": 61,
+    "dispatched": 0
+   },
+   "stop_clips/3": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": true,
+    "stop_ms": 56,
+    "dispatched": 0
+   },
+   "stop_clips/4": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": true,
+    "stop_ms": 93,
+    "dispatched": 0
+   },
+   "stop_clips/5": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": true,
+    "stop_ms": 57,
+    "dispatched": 0
+   },
+   "stop_clips/6": {
+    "woke": true,
+    "earcon_ms": 241,
+    "stopped": false,
+    "stop_ms": null,
+    "dispatched": 0
+   },
+   "stop_clips/7": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": true,
+    "stop_ms": 55,
+    "dispatched": 0
+   },
+   "stop_clips/8": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": true,
+    "stop_ms": 58,
+    "dispatched": 0
+   },
+   "stop_clips/9": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": true,
+    "stop_ms": 61,
+    "dispatched": 0
+   },
+   "stop_clips/10": {
+    "woke": false,
+    "earcon_ms": null,
+    "stopped": true,
+    "stop_ms": 54,
+    "dispatched": 0
+   }
+  }
  }
 }
