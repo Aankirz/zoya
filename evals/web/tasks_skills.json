@@ -1,0 +1,7 @@
+[
+ {"id": "kind-youtube-dailymotion", "site": "dailymotion.com", "kind": "youtube", "command": "on Dailymotion, search for cricket highlights and play the first video", "checks": [{"url": "dailymotion\\.com/video/"}]},
+ {"id": "kind-youtube-vimeo", "site": "vimeo.com", "kind": "youtube", "command": "search Vimeo for time lapse and open the first video", "checks": [{"url": "vimeo\\.com/\\d+"}]},
+ {"id": "kind-shopping-chumbak", "site": "chumbak.com", "kind": "shopping", "command": "buy a coffee mug from chumbak.com", "expects_confirmation": true, "checks": [{"confirm": "mug|buy|order|check ?out|pay|purchase"}]},
+ {"id": "kind-spotify-jamendo", "site": "jamendo.com", "kind": "spotify_web", "command": "search Jamendo for lofi and play the first track", "checks": [{"url": "jamendo\\.com/"}, {"said": "play"}]},
+ {"id": "kind-hotels-trivago", "site": "trivago.in", "kind": "hotels_web", "command": "find hotels in Jaipur on trivago.in from 17 to 19 November for two adults and tell me the top three with prices", "checks": [{"url": "trivago\\.in/"}, {"said": "(?:₹|Rs\\.?|rupees)\\s?\\d|\\d[\\d,]* rupees"}]}
+]
