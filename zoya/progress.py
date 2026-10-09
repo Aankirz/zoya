@@ -25,6 +25,20 @@ from zoya.router import QUESTION, clean_command
 _I = re.IGNORECASE
 ACK_MAX_WORDS = 8
 STILL_WORKING = "Still working on it."
+WORKING_ON = "Working on it: {step}."
+STEP_LABELS = {
+    "notes create": "Writing the note",
+    "notes search": "Searching your notes",
+    "notes append": "Adding to the note",
+    "get weather": "Checking the weather",
+    "nearby places": "Finding places nearby",
+    "web search": "Searching the web",
+    "web fetch": "Reading a website",
+    "browser task": "Working on the page",
+    "browser results": "Reading the results",
+    "media control": "Pressing the media keys",
+    "set volume": "Changing the volume",
+}
 STEP_PREFIX = "using "
 TEMPLATES = [
     (
@@ -87,7 +101,9 @@ def step_line(step: str) -> str:
     tool = step.removeprefix(STEP_PREFIX).replace("_", " ").strip()
     if not tool or tool == "starting":
         return ""
-    label = TOOL_VERBS.get(tool, tool[:1].upper() + tool[1:])
+    label = TOOL_VERBS.get(tool) or STEP_LABELS.get(tool)
+    if label is None:
+        return WORKING_ON.format(step=tool)
     return f"{label}."
 
 
