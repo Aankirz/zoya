@@ -151,6 +151,14 @@ SCRIPT = (
 )
 
 
+def _script(named: str) -> tuple[Step, ...]:
+    if named == "dev":
+        return SCRIPT
+    import motion_held_out
+
+    return motion_held_out.HELD_OUT
+
+
 @dataclass
 class Run:
     child: subprocess.Popen
@@ -189,10 +197,10 @@ def launch(home: Path, dark: bool, probe: Path, reduce: bool, source: Path) -> s
     )
 
 
-def drive(child: subprocess.Popen) -> list[dict[str, Any]]:
+def drive(child: subprocess.Popen, script: tuple[Step, ...]) -> list[dict[str, Any]]:
     overlay.caption_text("warm the caption filter before the clock starts")
     run = Run(child)
-    for step in SCRIPT:
+    for step in script:
         _send(run, step)
         time.sleep(step.settle_s)
     time.sleep(DRAIN_S)
@@ -294,11 +302,11 @@ def measure(step: Step, sent: dict, frames: list[dict], end: float, latency: dic
     return row
 
 
-def analyse(probe: Path, sent: list[dict]) -> list[dict]:
+def analyse(probe: Path, sent: list[dict], script: tuple[Step, ...]) -> list[dict]:
     frames, _messages = _load(probe)
     latency = latencies_ms()
     rows = []
-    for index, (step, record) in enumerate(zip(SCRIPT, sent, strict=True)):
+    for index, (step, record) in enumerate(zip(script, sent, strict=True)):
         end = sent[index + 1]["m"] if index + 1 < len(sent) else frames[-1]["t"] + 1
         rows.append(measure(step, record, frames, end, latency))
     return rows
@@ -347,8 +355,8 @@ def _recorder(out: Path, seconds: float) -> subprocess.Popen:
     return subprocess.Popen(command)
 
 
-def _script_s() -> float:
-    return START_S + sum(step.settle_s for step in SCRIPT) + DRAIN_S + 1.0
+def _script_s(script: tuple[Step, ...]) -> float:
+    return START_S + sum(step.settle_s for step in script) + DRAIN_S + 1.0
 
 
 def main() -> int:
@@ -359,23 +367,25 @@ def main() -> int:
     parser.add_argument("--backdrop", choices=("daylight", "night", "vivid"))
     parser.add_argument("--record", action="store_true", help="record the screen frame by frame")
     parser.add_argument("--again", action="store_true", help="re-analyse a finished run")
+    parser.add_argument("--set", choices=("dev", "held-out"), default="dev")
     parser.add_argument("--source", type=Path, default=hub_fixture.REPO, help="code to run")
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     if args.again:
         saved = json.loads((args.out / "rows.json").read_text())
-        return _report(args.out, saved["sent"], saved.get("dark", args.dark))
+        named = saved.get("set", args.set)
+        return _report(args.out, saved["sent"], saved.get("dark", args.dark), named)
     if Quartz.CGDisplayIsAsleep(Quartz.CGMainDisplayID()):
         sys.exit("The display is asleep, so no frames tick: wake it first (caffeinate -u -t 2).")
     probe = args.out / "probe.jsonl"
     probe.unlink(missing_ok=True)
     helpers = [_backdrop(args.backdrop)] if args.backdrop else []
     if args.record:
-        helpers.append(_recorder(args.out / "motion.mp4", _script_s()))
+        helpers.append(_recorder(args.out / "motion.mp4", _script_s(_script(args.set))))
     child = launch(hub_fixture.make_home(), args.dark, probe, args.reduce, args.source)
     try:
         time.sleep(START_S)
-        sent = drive(child)
+        sent = drive(child, _script(args.set))
     finally:
         child.stdin.close()
         child.wait()
@@ -383,7 +393,7 @@ def main() -> int:
         if helper.args[1].endswith("motion_backdrop.py"):
             helper.terminate()
         helper.wait()
-    return _report(args.out, sent, args.dark)
+    return _report(args.out, sent, args.dark, args.set)
 
 
 JUMP_PT = 1.0
@@ -422,13 +432,13 @@ def audit(frames: list[dict], dark: bool) -> list[str]:
     return issues
 
 
-def _report(out: Path, sent: list[dict], dark: bool) -> int:
-    rows = analyse(out / "probe.jsonl", sent)
+def _report(out: Path, sent: list[dict], dark: bool, named: str) -> int:
+    rows = analyse(out / "probe.jsonl", sent, _script(named))
     frames, _messages = _load(out / "probe.jsonl")
     issues = audit(frames, dark)
     (out / "audit.txt").write_text(f"{len(frames)} frames\n" + "\n".join(issues) + "\n")
     print(f"audit: {len(frames)} frames, {len(issues)} issues", *issues[:20], sep="\n")
-    saved = {"sent": sent, "rows": rows, "dark": dark}
+    saved = {"sent": sent, "rows": rows, "dark": dark, "set": named}
     (out / "rows.json").write_text(json.dumps(saved, indent=1))
     (out / "table.md").write_text(table(rows) + "\n")
     print(table(rows))
