@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import os
 import statistics
 import threading
 import time
@@ -72,8 +73,15 @@ class Patches:
 
 
 class Simulator:
-    def __init__(self, live: bool = False, scale: float = 1.0, log_dir: Path | None = None):
+    def __init__(
+        self,
+        live: bool = False,
+        scale: float = 1.0,
+        log_dir: Path | None = None,
+        check_silence: bool = True,
+    ):
         self.live, self.scale = live, (1.0 if live else scale)
+        self.check_silence = check_silence
         self.log_dir = log_dir or FLOWS_DIR / ".runs"
         self.recorder = fakes.Recorder(scale=self.scale)
         self.said: list[tuple[int, str, str]] = []
@@ -86,11 +94,14 @@ class Simulator:
     def installed(self) -> Iterator[Simulator]:
         from evals.flows import stubs
 
+        environment = dict(os.environ)
         stubs.install(self)
         try:
             yield self
         finally:
             self.patches.undo()
+            os.environ.clear()
+            os.environ.update(environment)
 
     def hear(self, source: str) -> Callable[..., None]:
         def record(text: str, *_: Any, **__: Any) -> None:
@@ -161,7 +172,7 @@ class Simulator:
             turn.model_calls = _model_calls(result)
         timing(turn)
         split_time(turn, self.recorder, result)
-        turn.failed = checks(turn, spec.get("expect") or {}, finished)
+        turn.failed = checks(turn, spec.get("expect") or {}, finished, self.check_silence)
         return turn
 
 
@@ -228,7 +239,9 @@ def timing(turn: Turn) -> None:
     turn.max_silence_ms = max(b - a for a, b in zip(marks, marks[1:], strict=False))
 
 
-def checks(turn: Turn, expect: dict[str, Any], finished: bool) -> list[str]:
+def checks(
+    turn: Turn, expect: dict[str, Any], finished: bool, check_silence: bool = True
+) -> list[str]:
     failed = [] if finished else ["did not finish"]
     texts = [text for _at, text, _source in turn.said]
     actions = [(at, name) for at, name in turn.tools if fakes.is_action(name)]
@@ -236,7 +249,7 @@ def checks(turn: Turn, expect: dict[str, Any], finished: bool) -> list[str]:
         failed.append("said 'Okay, stopped.' without a user stop")
     if expect.get("stopped") and STOPPED not in texts:
         failed.append("user stop not honoured")
-    if turn.max_silence_ms >= SILENCE_LIMIT_MS:
+    if check_silence and turn.max_silence_ms >= SILENCE_LIMIT_MS:
         failed.append(f"silent {turn.max_silence_ms} ms")
     failed += _ask_checks(turn, expect, actions)
     if expect.get("acts") is True and not actions and not expect.get("stopped"):

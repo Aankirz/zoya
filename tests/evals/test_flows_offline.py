@@ -1,4 +1,7 @@
-"""Done-when 1: every flow scenario runs offline with the scripted brain and passes its checks."""
+"""Done-when 1: every flow scenario runs offline with the scripted brain and passes its checks.
+
+Silence is checked by the CLI and live runs and by tests/test_progress.py: a background
+pytest run on macOS stretched scaled sleeps up to five times, so wall-clock gaps here are noise."""
 
 import pytest
 
@@ -10,7 +13,8 @@ SCENARIOS = sim.load()
 
 @pytest.fixture(scope="module")
 def simulator(tmp_path_factory):
-    simulator = sim.Simulator(scale=SCALE, log_dir=tmp_path_factory.mktemp("flows"))
+    log_dir = tmp_path_factory.mktemp("flows")
+    simulator = sim.Simulator(scale=SCALE, log_dir=log_dir, check_silence=False)
     with simulator.installed():
         yield simulator
 

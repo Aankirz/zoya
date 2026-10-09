@@ -63,6 +63,7 @@ def _quiet_side_effects(sim: Simulator) -> None:
     p.set(harness, "learned_pick", lambda _command: None)
     p.set(harness, "learn_pick", lambda *_a, **_k: None)
     p.set(orchestrator.events, "emit", lambda _event: None)
+    p.set(orchestrator.web_loop, "honest_reply", lambda reply, _proof=None: reply)
 
 
 def _logs(sim: Simulator) -> None:
