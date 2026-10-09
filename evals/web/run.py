@@ -555,7 +555,6 @@ def main() -> int:
     parser.add_argument("--set", choices=("dev", "heldout"), required=True)
     parser.add_argument("--only", default="")
     parser.add_argument("--regrade", default="", help="grade a saved LABEL.json again, offline")
-    parser.add_argument("--loop", choices=("a", "b"), default="b", help="S4 candidate loop")
     args = parser.parse_args()
     if args.regrade:
         return regrade(args.label, args.regrade, args.set)
@@ -565,10 +564,6 @@ def main() -> int:
     aws.load_provider_secrets()
     profile = Path(tempfile.mkdtemp(prefix="zoya-s4web-"))
     install_headless_browser(profile)
-    if args.loop == "a":
-        from zoya.agents import web_loop, web_loop_a
-
-        web_loop.run = web_loop_a.run
     install_meters()
     install_voice()
     quiet_side_effects()
