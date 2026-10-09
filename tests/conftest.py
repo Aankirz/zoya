@@ -31,3 +31,12 @@ def no_page_read_after_clicks(
     monkeypatch.setattr(browser, "_playwright_url_and_text", lambda: ("", ""))
     monkeypatch.setattr(browser, "_ref_url_and_text", lambda: ("", ""))
     monkeypatch.setattr(browser, "ACTION_SETTLE_S", 0)
+
+
+@pytest.fixture(autouse=True)
+def no_jev_on_memory_save(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
+    if _zoya_free(request):
+        return
+    from zoya.tools import memory
+
+    monkeypatch.setattr(memory, "_live_by_jev", lambda _text: False)

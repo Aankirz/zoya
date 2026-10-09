@@ -1,0 +1,1118 @@
+{
+  "dev": {
+    "store": [
+      [
+        "contact",
+        "My husband is Karthik"
+      ],
+      [
+        "contact",
+        "Karthik's number is saved as Karthu"
+      ],
+      [
+        "contact",
+        "My son Aarav is in grade 2 at Inventure Academy"
+      ],
+      [
+        "address",
+        "Home: 45, 6th Cross, Jayanagar 4th Block, Bengaluru"
+      ],
+      [
+        "address",
+        "I work at WeWork Galaxy, Residency Road"
+      ],
+      [
+        "preference",
+        "I'm pescatarian: fish is fine, no chicken or mutton"
+      ],
+      [
+        "preference",
+        "Mujhe Arijit Singh ke gaane pasand hain"
+      ],
+      [
+        "preference",
+        "I prefer Uber Premier for long rides"
+      ],
+      [
+        "routine",
+        "Yoga at 6:30 am every weekday"
+      ],
+      [
+        "contact",
+        "My sister Pooja lives in Mysuru"
+      ],
+      [
+        "contact",
+        "Pooja's number is saved as Poo"
+      ],
+      [
+        "preference",
+        "I'm lactose intolerant"
+      ],
+      [
+        "contact",
+        "My dentist is Dr. Sinha in Basavanagudi"
+      ],
+      [
+        "preference",
+        "I buy vegetables on Zepto"
+      ],
+      [
+        "preference",
+        "Favourite restaurant: MTR on Lalbagh Road"
+      ],
+      [
+        "contact",
+        "My father is Mohan; he's hard of hearing, so speak loudly on calls"
+      ],
+      [
+        "preference",
+        "I watch Malayalam movies on Netflix"
+      ],
+      [
+        "preference",
+        "My shoe size is UK 5"
+      ],
+      [
+        "preference",
+        "I wear size M kurtas"
+      ],
+      [
+        "preference",
+        "Aarav is allergic to peanuts"
+      ],
+      [
+        "routine",
+        "Aarav's school pickup is at 3:15 pm on weekdays"
+      ],
+      [
+        "preference",
+        "I prefer Akasa Air for domestic flights"
+      ],
+      [
+        "preference",
+        "Aisle seat on flights"
+      ],
+      [
+        "contact",
+        "My boss is Farah Siddiqui"
+      ],
+      [
+        "contact",
+        "Our maid is Kavya; she comes at 8"
+      ],
+      [
+        "routine",
+        "Kavya's salary is paid on the 3rd"
+      ],
+      [
+        "preference",
+        "Read WhatsApp messages to me one at a time"
+      ],
+      [
+        "preference",
+        "News in English, please"
+      ],
+      [
+        "preference",
+        "I like Kannada podcasts on Spotify"
+      ],
+      [
+        "preference",
+        "My car is a red Hyundai i20"
+      ],
+      [
+        "contact",
+        "Car service: Advaith Hyundai, Kanakapura Road"
+      ],
+      [
+        "preference",
+        "I'm learning Japanese on Duolingo"
+      ],
+      [
+        "preference",
+        "I like cold brew from Third Wave Coffee"
+      ],
+      [
+        "contact",
+        "Karthik's birthday is 30 June"
+      ],
+      [
+        "contact",
+        "Aarav's birthday is 4 January"
+      ],
+      [
+        "preference",
+        "My workout playlist is 'Sweat Mode'"
+      ],
+      [
+        "preference",
+        "Mera favourite dessert rasmalai hai"
+      ],
+      [
+        "address",
+        "My in-laws live in Coimbatore, RS Puram"
+      ],
+      [
+        "preference",
+        "I follow RCB"
+      ],
+      [
+        "routine",
+        "Weekly call with Pooja on Saturday evenings"
+      ],
+      [
+        "preference",
+        "I buy flowers from KR Market on Fridays"
+      ],
+      [
+        "preference",
+        "My phone is a Pixel 9"
+      ],
+      [
+        "preference",
+        "I read thrillers, especially by Tana French"
+      ],
+      [
+        "contact",
+        "Aarav's class teacher is Ms. D'Costa"
+      ],
+      [
+        "preference",
+        "Comfort food: curd rice with mango pickle"
+      ],
+      [
+        "preference",
+        "I prefer KSRTC Airavat for Mysuru trips"
+      ],
+      [
+        "routine",
+        "Electricity bill is paid through BBPS on Google Pay"
+      ],
+      [
+        "contact",
+        "Apartment manager: Mr. Prakash, on NoBrokerHood"
+      ],
+      [
+        "preference",
+        "Distances in kilometres"
+      ],
+      [
+        "preference",
+        "Reminders 30 minutes before meetings"
+      ],
+      [
+        "preference",
+        "I prefer Namma Yatri autos"
+      ],
+      [
+        "contact",
+        "My mentor is Prof. Iyengar at IISc"
+      ],
+      [
+        "contact",
+        "Plumber: Ramesh, saved as Ramesh Plumber"
+      ],
+      [
+        "preference",
+        "Mujhe mirchi kam chahiye khane mein"
+      ],
+      [
+        "preference",
+        "Favourite snack: Iyengar bakery's khara bun"
+      ],
+      [
+        "preference",
+        "I order medicines from Tata 1mg"
+      ],
+      [
+        "routine",
+        "Aarav has keyboard class on Sundays at 11"
+      ],
+      [
+        "preference",
+        "Work email is Outlook, personal is Gmail"
+      ],
+      [
+        "preference",
+        "Movies at INOX Garuda Mall"
+      ],
+      [
+        "contact",
+        "Spare house key is with neighbour Mrs. Rao"
+      ],
+      [
+        "preference",
+        "I like subtitles on for all shows"
+      ],
+      [
+        "routine",
+        "RO water purifier service every 4 months from Aquaguard"
+      ],
+      [
+        "preference",
+        "Chamomile tea before bed"
+      ],
+      [
+        "activity",
+        "Asked Zoya: play Arijit Singh on YouTube"
+      ],
+      [
+        "activity",
+        "Asked Zoya: what's the weather in Mysuru"
+      ],
+      [
+        "preference",
+        "My handbag brand is Hidesign"
+      ],
+      [
+        "preference",
+        "I donate to Akshaya Patra every month"
+      ],
+      [
+        "contact",
+        "My yoga teacher is Shruti"
+      ],
+      [
+        "preference",
+        "I like Kindle books over paperbacks"
+      ],
+      [
+        "contact",
+        "Karthik's office is in Manyata Tech Park"
+      ],
+      [
+        "preference",
+        "I want Hindi songs in the morning, English in the evening"
+      ],
+      [
+        "order_history",
+        "Ordered Prestige pressure cooker from Amazon.in on 02 October 2026 for 2,199 rupees"
+      ]
+    ],
+    "requests": [
+      [
+        "book a cab to work",
+        [
+          5
+        ]
+      ],
+      [
+        "order lunch for me",
+        [
+          6,
+          12,
+          54
+        ]
+      ],
+      [
+        "message my husband that I'll be late",
+        [
+          1,
+          2
+        ]
+      ],
+      [
+        "Pooja ko call karo",
+        [
+          10,
+          11
+        ]
+      ],
+      [
+        "find a birthday gift for Karthik",
+        [
+          34
+        ]
+      ],
+      [
+        "order a snack for Aarav's school party",
+        [
+          20
+        ]
+      ],
+      [
+        "book flight tickets to Kochi",
+        [
+          22,
+          23
+        ]
+      ],
+      [
+        "find sandals in my size",
+        [
+          18
+        ]
+      ],
+      [
+        "book a dentist appointment",
+        [
+          13
+        ]
+      ],
+      [
+        "play some music for my workout",
+        [
+          36
+        ]
+      ],
+      [
+        "get my car serviced",
+        [
+          31,
+          30
+        ]
+      ],
+      [
+        "order my medicines again",
+        [
+          56
+        ]
+      ],
+      [
+        "who is Aarav's teacher",
+        [
+          44
+        ]
+      ],
+      [
+        "suggest a dessert to order tonight",
+        [
+          37,
+          12
+        ]
+      ],
+      [
+        "book a bus to Mysuru",
+        [
+          46
+        ]
+      ],
+      [
+        "pay the electricity bill",
+        [
+          47
+        ]
+      ],
+      [
+        "order a kurta for me",
+        [
+          19
+        ]
+      ],
+      [
+        "book an auto to Jayanagar",
+        [
+          51
+        ]
+      ],
+      [
+        "call the plumber",
+        [
+          53
+        ]
+      ],
+      [
+        "find a coffee place nearby",
+        [
+          33
+        ]
+      ],
+      [
+        "recommend a book",
+        [
+          43,
+          69
+        ]
+      ],
+      [
+        "what time do I pick up Aarav",
+        [
+          21
+        ]
+      ],
+      [
+        "order dinner from my favourite restaurant",
+        [
+          15
+        ]
+      ],
+      [
+        "call my dad",
+        [
+          16
+        ]
+      ]
+    ]
+  },
+  "held_out": {
+    "store": [
+      [
+        "contact",
+        "My wife is Shalini"
+      ],
+      [
+        "contact",
+        "Shalini's number is saved as Shalu"
+      ],
+      [
+        "contact",
+        "My daughter Ira is in class 3 at Vibgyor"
+      ],
+      [
+        "contact",
+        "Mere bade bhai ka naam Rajeev hai, Nagpur mein rehte hain"
+      ],
+      [
+        "address",
+        "Home: Flat 1204, Amanora Gateway Towers, Hadapsar, Pune"
+      ],
+      [
+        "address",
+        "My office is at EON IT Park, Kharadi"
+      ],
+      [
+        "preference",
+        "I'm eggetarian: eggs are fine, no meat or fish"
+      ],
+      [
+        "preference",
+        "I like my dosa crispy with extra chutney"
+      ],
+      [
+        "preference",
+        "Mujhe Kishore Kumar ke gaane bahut pasand hain"
+      ],
+      [
+        "preference",
+        "I prefer Rapido bikes for short rides"
+      ],
+      [
+        "routine",
+        "I walk in Amanora Park every evening around 7"
+      ],
+      [
+        "routine",
+        "Ira's school bus comes at 7:15 on weekdays"
+      ],
+      [
+        "contact",
+        "My CA is Mr. Gokhale; his number is saved as Gokhale CA"
+      ],
+      [
+        "preference",
+        "I use BigBasket for groceries"
+      ],
+      [
+        "preference",
+        "Favourite restaurant: Vaishali on FC Road"
+      ],
+      [
+        "contact",
+        "My mother is Sudha; she prefers calls after 11 am"
+      ],
+      [
+        "preference",
+        "I watch cricket on JioHotstar"
+      ],
+      [
+        "preference",
+        "My shoe size is UK 9"
+      ],
+      [
+        "preference",
+        "I wear size L shirts"
+      ],
+      [
+        "preference",
+        "I'm allergic to penicillin"
+      ],
+      [
+        "contact",
+        "My doctor is Dr. Pradhan at Ruby Hall Clinic"
+      ],
+      [
+        "routine",
+        "I pay the maid Sunita on the 1st of every month"
+      ],
+      [
+        "preference",
+        "I prefer IndiGo for domestic flights"
+      ],
+      [
+        "preference",
+        "Window seat on trains, always"
+      ],
+      [
+        "preference",
+        "Mera favourite actor Mohanlal hai"
+      ],
+      [
+        "contact",
+        "My friend Aditya works at TCS and lives in Baner"
+      ],
+      [
+        "preference",
+        "Read emails to me slowly"
+      ],
+      [
+        "preference",
+        "I like news summaries in Hindi"
+      ],
+      [
+        "contact",
+        "Car mechanic: Sharma Motors, Magarpatta"
+      ],
+      [
+        "preference",
+        "My car is a grey Maruti Brezza"
+      ],
+      [
+        "routine",
+        "Gym at 6 am on Monday, Wednesday, Friday"
+      ],
+      [
+        "preference",
+        "I like filter coffee from Cafe Goodluck"
+      ],
+      [
+        "preference",
+        "I don't eat anything with mushrooms"
+      ],
+      [
+        "contact",
+        "Shalini's birthday is 9 August"
+      ],
+      [
+        "contact",
+        "Ira's birthday is 22 May"
+      ],
+      [
+        "preference",
+        "My Spotify playlist for driving is 'Long Drive Retro'"
+      ],
+      [
+        "preference",
+        "I prefer paying by UPI over cards"
+      ],
+      [
+        "address",
+        "My parents live in Kozhikode, near Mananchira"
+      ],
+      [
+        "preference",
+        "I support Kerala Blasters in football"
+      ],
+      [
+        "routine",
+        "I call my parents every Sunday morning"
+      ],
+      [
+        "preference",
+        "Sabzi ke liye local mandi Hadapsar wali pasand hai"
+      ],
+      [
+        "preference",
+        "My laptop is a MacBook Air M3"
+      ],
+      [
+        "preference",
+        "I like reading Malayalam novels, especially M.T. Vasudevan Nair"
+      ],
+      [
+        "contact",
+        "Ira's class teacher is Mrs. Fernandes"
+      ],
+      [
+        "preference",
+        "Vegetarian thali from Shreyas is my comfort food"
+      ],
+      [
+        "preference",
+        "I prefer AC sleeper for overnight buses"
+      ],
+      [
+        "routine",
+        "Society maintenance is paid quarterly through MyGate"
+      ],
+      [
+        "contact",
+        "Our building security desk is on MyGate as 'Amanora Security'"
+      ],
+      [
+        "preference",
+        "I like temperature in Celsius"
+      ],
+      [
+        "preference",
+        "Remind me things 15 minutes early"
+      ],
+      [
+        "preference",
+        "I like Ola for airport trips"
+      ],
+      [
+        "contact",
+        "My manager is Ritu Malhotra"
+      ],
+      [
+        "contact",
+        "Office cab coordinator is Ganesh"
+      ],
+      [
+        "preference",
+        "Mujhe zyada teekha khana pasand nahi"
+      ],
+      [
+        "preference",
+        "My favourite sweet is Chitale's bakarwadi"
+      ],
+      [
+        "preference",
+        "I order medicines from PharmEasy"
+      ],
+      [
+        "routine",
+        "Ira has swimming class on Saturdays at 9"
+      ],
+      [
+        "preference",
+        "I use Gmail, not Outlook"
+      ],
+      [
+        "preference",
+        "For movies I like PVR at Amanora Mall"
+      ],
+      [
+        "contact",
+        "My neighbour Kulkarni aunty has our spare key"
+      ],
+      [
+        "preference",
+        "I prefer Hindi dubbed versions of South movies"
+      ],
+      [
+        "routine",
+        "Water purifier service from Kent every 6 months"
+      ],
+      [
+        "preference",
+        "I drink green tea at night"
+      ],
+      [
+        "activity",
+        "Asked Zoya: play Kishore Kumar songs on YouTube"
+      ]
+    ],
+    "requests": [
+      [
+        "book a cab to my office",
+        [
+          6
+        ]
+      ],
+      [
+        "order something for dinner, nothing too spicy",
+        [
+          54,
+          7,
+          33
+        ]
+      ],
+      [
+        "call my mom",
+        [
+          16
+        ]
+      ],
+      [
+        "Shalu ko message karo ki main late hoon",
+        [
+          2,
+          1
+        ]
+      ],
+      [
+        "find a gift for my wife's birthday",
+        [
+          34
+        ]
+      ],
+      [
+        "book a train ticket to Kozhikode",
+        [
+          24,
+          38
+        ]
+      ],
+      [
+        "find me running shoes",
+        [
+          18
+        ]
+      ],
+      [
+        "reorder my medicines",
+        [
+          56
+        ]
+      ],
+      [
+        "Ira ki teacher ka naam kya hai",
+        [
+          44
+        ]
+      ],
+      [
+        "play something for the drive",
+        [
+          36
+        ]
+      ],
+      [
+        "book a doctor's appointment",
+        [
+          21
+        ]
+      ],
+      [
+        "pay this month's maid salary",
+        [
+          22
+        ]
+      ]
+    ]
+  },
+  "held_out_2": {
+    "store": [
+      [
+        "contact",
+        "My husband is Imran"
+      ],
+      [
+        "contact",
+        "Imran's number is saved as Jaan"
+      ],
+      [
+        "contact",
+        "My son Zaid is in 8th standard at Oakridge"
+      ],
+      [
+        "address",
+        "Home: Villa 22, Aparna Sarovar, Nallagandla, Hyderabad"
+      ],
+      [
+        "address",
+        "My clinic is at Banjara Hills Road No. 12"
+      ],
+      [
+        "preference",
+        "I don't eat beef or pork"
+      ],
+      [
+        "preference",
+        "Mujhe Hyderabadi biryani bahut pasand hai, Shah Ghouse wali"
+      ],
+      [
+        "preference",
+        "I prefer Uber Green when available"
+      ],
+      [
+        "routine",
+        "I pray Fajr at 5 every morning"
+      ],
+      [
+        "contact",
+        "My sister Ayesha lives in Toronto"
+      ],
+      [
+        "contact",
+        "Ayesha's WhatsApp is saved as Ayesha Canada"
+      ],
+      [
+        "preference",
+        "I'm gluten intolerant"
+      ],
+      [
+        "contact",
+        "Zaid's tuition teacher is Mr. Rao"
+      ],
+      [
+        "preference",
+        "I buy groceries on Swiggy Instamart"
+      ],
+      [
+        "preference",
+        "Favourite restaurant: Paradise in Secunderabad"
+      ],
+      [
+        "contact",
+        "My mother-in-law is Rukhsana; call her Ammi"
+      ],
+      [
+        "preference",
+        "I watch Pakistani dramas on YouTube"
+      ],
+      [
+        "preference",
+        "My shoe size is UK 6"
+      ],
+      [
+        "preference",
+        "I wear size S tops"
+      ],
+      [
+        "preference",
+        "Zaid is allergic to shellfish"
+      ],
+      [
+        "routine",
+        "Zaid's football practice is on Tuesdays and Thursdays at 5 pm"
+      ],
+      [
+        "preference",
+        "I prefer Air India for international flights"
+      ],
+      [
+        "preference",
+        "Window seats on flights"
+      ],
+      [
+        "contact",
+        "My clinic receptionist is Swathi"
+      ],
+      [
+        "contact",
+        "Driver: Yadagiri, saved as Yadagiri Driver"
+      ],
+      [
+        "routine",
+        "I pay Yadagiri's salary on the 7th"
+      ],
+      [
+        "preference",
+        "Read long messages as a summary first"
+      ],
+      [
+        "preference",
+        "Urdu news in the morning"
+      ],
+      [
+        "preference",
+        "I like ghazals by Jagjit Singh"
+      ],
+      [
+        "preference",
+        "My car is a black Kia Seltos"
+      ],
+      [
+        "contact",
+        "Car service: Lakshmi Kia, Gachibowli"
+      ],
+      [
+        "preference",
+        "I'm learning to bake sourdough"
+      ],
+      [
+        "preference",
+        "I like Irani chai at Nimrah Cafe"
+      ],
+      [
+        "contact",
+        "Imran's birthday is 14 April"
+      ],
+      [
+        "contact",
+        "Zaid's birthday is 3 September"
+      ],
+      [
+        "preference",
+        "My walking playlist is 'Sukoon'"
+      ],
+      [
+        "preference",
+        "Favourite dessert: qubani ka meetha"
+      ],
+      [
+        "address",
+        "My parents live in Lucknow, Aminabad"
+      ],
+      [
+        "preference",
+        "I follow Sunrisers Hyderabad"
+      ],
+      [
+        "routine",
+        "Video call with Ayesha every Friday night"
+      ],
+      [
+        "preference",
+        "I buy fruits from the Erragadda market"
+      ],
+      [
+        "preference",
+        "My phone is an iPhone 15"
+      ],
+      [
+        "preference",
+        "I read Urdu poetry, especially Faiz"
+      ],
+      [
+        "contact",
+        "Zaid's class teacher is Mrs. Menon"
+      ],
+      [
+        "preference",
+        "Comfort food: khichdi with ghee"
+      ],
+      [
+        "preference",
+        "I prefer Vande Bharat for trips to Vizag"
+      ],
+      [
+        "routine",
+        "Water bill is paid on the HMWSSB website"
+      ],
+      [
+        "contact",
+        "Community manager: Mr. Reddy, on MyGate"
+      ],
+      [
+        "preference",
+        "Speak a bit slower than normal"
+      ],
+      [
+        "preference",
+        "Remind me 10 minutes before prayers"
+      ],
+      [
+        "preference",
+        "I prefer Rapido autos for short trips"
+      ],
+      [
+        "contact",
+        "My accountant is Mr. Agarwal"
+      ],
+      [
+        "contact",
+        "Electrician: Salim, saved as Salim Electrician"
+      ],
+      [
+        "preference",
+        "No very oily food for me"
+      ],
+      [
+        "preference",
+        "Favourite snack: Karachi Bakery fruit biscuits"
+      ],
+      [
+        "preference",
+        "I order medicines from Apollo 24/7"
+      ],
+      [
+        "routine",
+        "Zaid has Quran class on Sundays at 10"
+      ],
+      [
+        "preference",
+        "I use Gmail for everything"
+      ],
+      [
+        "preference",
+        "Movies at AMB Cinemas"
+      ],
+      [
+        "contact",
+        "Spare key is with neighbour Mrs. Jain"
+      ],
+      [
+        "preference",
+        "I like dark mode everywhere"
+      ],
+      [
+        "activity",
+        "Asked Zoya: play Jagjit Singh ghazals"
+      ]
+    ],
+    "requests": [
+      [
+        "book a cab to the clinic",
+        [
+          5
+        ]
+      ],
+      [
+        "order dinner for me tonight",
+        [
+          6,
+          12,
+          54
+        ]
+      ],
+      [
+        "call my mother-in-law",
+        [
+          16
+        ]
+      ],
+      [
+        "Ayesha ko message bhejo",
+        [
+          11,
+          10
+        ]
+      ],
+      [
+        "find a gift for Zaid's birthday",
+        [
+          35
+        ]
+      ],
+      [
+        "book tickets to Vizag",
+        [
+          46
+        ]
+      ],
+      [
+        "find me sneakers in my size",
+        [
+          18
+        ]
+      ],
+      [
+        "order my medicines",
+        [
+          56
+        ]
+      ],
+      [
+        "who teaches Zaid at school",
+        [
+          44
+        ]
+      ],
+      [
+        "play something for my walk",
+        [
+          36
+        ]
+      ],
+      [
+        "pay the driver",
+        [
+          26,
+          25
+        ]
+      ],
+      [
+        "book a flight to Toronto",
+        [
+          22,
+          23,
+          10
+        ]
+      ]
+    ]
+  }
+}

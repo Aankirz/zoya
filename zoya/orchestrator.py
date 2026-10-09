@@ -347,6 +347,8 @@ def with_corrections(command: str) -> str:
         context += f"\n[The user is in {country}: use that country's site of a shop or service]"
     if corrections := recent_corrections():
         context += f"\n[Recent corrections from the user: {'; '.join(corrections)}]"
+    if picked := memory.relevant_block(command):
+        context += f"\n{picked}"
     return f"{command}\n{context}"
 
 
@@ -597,6 +599,13 @@ def not_a_guessed_stop(decision: RouteDecision) -> RouteDecision:
     return decision
 
 
+def forget_that(text: str) -> RouteDecision | None:
+    """ "Forget that" right after a save undoes it in one line; any other command closes that
+    window (D163)."""
+    said = memory.next_turn(clean_command(text))
+    return None if said is None else RouteDecision("ask", args={"question": said}, text=text)
+
+
 def ask_first(text: str) -> RouteDecision | None:
     """A post, message, buy or reminder missing its required detail: one question, no action."""
     question = clarify.missing_detail(text)
@@ -625,7 +634,7 @@ def handle_command(text: str, pre_timings: dict[str, int] | None = None) -> Comm
     safety.begin_task(task_id)
     tabs_before = browser.task_tabs()
     with trace.get_tracer("zoya").start_as_current_span("zoya.command") as span:
-        asked = ask_first(text)
+        asked = forget_that(text) or ask_first(text)
         first_line = asked is None and say_first_line(text)
         decision = not_a_guessed_stop(asked or speculate.commit(text) or route(text))
         timings = {**(pre_timings or {}), **decision.timings_ms}
@@ -652,6 +661,8 @@ def handle_command(text: str, pre_timings: dict[str, int] | None = None) -> Comm
     streamed = STREAMED in timings
     if (not streamed or not ok) and not declined and not stopped_by_name:
         tasks.say(spoken)  # the orchestrator already spoke as it streamed
+    if (saved := memory.take_announcements(spoken)) and not declined and not stopped_by_name:
+        tasks.say(saved)
     if decision.route in ("fast", "skill", "ask") and not streamed:
         remember_turn(text, spoken)
     result = CommandResult(task_id, decision, spoken, ok, timings)
