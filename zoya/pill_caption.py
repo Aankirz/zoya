@@ -8,6 +8,7 @@ from typing import Any
 
 import AppKit
 import Quartz
+from PyObjCTools import AppHelper
 
 from zoya import pill_motion
 from zoya.pill_style import (
@@ -188,4 +189,6 @@ class CaptionMixin:
             context.setTimingFunction_(ease())
             change()
 
-        AppKit.NSAnimationContext.runAnimationGroup_completionHandler_(group, done)
+        AppKit.NSAnimationContext.runAnimationGroup_completionHandler_(group, None)
+        if done is not None:
+            AppHelper.callLater(seconds, done)

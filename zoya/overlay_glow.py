@@ -141,7 +141,9 @@ def _fade(window: Any, alpha: float, seconds: float, done: Callable[[], None] | 
         context.setTimingFunction_(_ease())
         window.animator().setAlphaValue_(alpha)
 
-    AppKit.NSAnimationContext.runAnimationGroup_completionHandler_(change, done)
+    AppKit.NSAnimationContext.runAnimationGroup_completionHandler_(change, None)
+    if done is not None:
+        AppHelper.callLater(seconds, done)
 
 
 def _ripple_motion(reduce_motion: bool) -> Any:
