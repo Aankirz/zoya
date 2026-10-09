@@ -589,6 +589,14 @@ def _execute(decision: RouteDecision, timings: dict[str, int]) -> tuple[str, boo
         timings[stage] = round((time.monotonic() - started) * MS_PER_S)
 
 
+def not_a_guessed_stop(decision: RouteDecision) -> RouteDecision:
+    """The voice loop stops tasks before a command is dispatched; a stop Jev guessed for a command
+    that reached here ("that's not what I meant") goes to the brain instead of "Okay, stopped."."""
+    if decision.route == "stop" and decision.source == "jev":
+        return RouteDecision("orchestrator", source="jev", text=decision.text)
+    return decision
+
+
 def ask_first(text: str) -> RouteDecision | None:
     """A post, message, buy or reminder missing its required detail: one question, no action."""
     question = clarify.missing_detail(text)
@@ -619,7 +627,7 @@ def handle_command(text: str, pre_timings: dict[str, int] | None = None) -> Comm
     with trace.get_tracer("zoya").start_as_current_span("zoya.command") as span:
         asked = ask_first(text)
         first_line = asked is None and say_first_line(text)
-        decision = asked or speculate.commit(text) or route(text)
+        decision = not_a_guessed_stop(asked or speculate.commit(text) or route(text))
         timings = {**(pre_timings or {}), **decision.timings_ms}
         if first_line:
             timings["first_line"] = 1

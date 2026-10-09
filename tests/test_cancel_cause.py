@@ -118,3 +118,11 @@ def test_an_idle_stop_is_attributed_to_the_user_and_cleared_by_the_next_command(
     assert orchestrator._cancel.by_user
     orchestrator._cancel.clear()
     assert orchestrator._cancel.cause is None and not orchestrator._cancel.is_set()
+
+
+def test_a_stop_jev_guessed_for_a_dispatched_command_goes_to_the_brain():
+    guessed = RouteDecision("stop", source="jev", text="hmm, that was not what I meant")
+    spoken = RouteDecision("stop", source="rules", text="stop")
+
+    assert orchestrator.not_a_guessed_stop(guessed).route == "orchestrator"
+    assert orchestrator.not_a_guessed_stop(spoken).route == "stop"
