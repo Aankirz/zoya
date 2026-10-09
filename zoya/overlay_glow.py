@@ -14,7 +14,8 @@ import AppKit
 import Quartz
 from PyObjCTools import AppHelper
 
-from zoya.overlay_pill import oklch
+from zoya.pill_motion import ENTER_S, EXIT_S
+from zoya.pill_style import oklch
 
 GLOW_PT = 12.0
 GLOW_RADIUS = 12.0
@@ -24,9 +25,6 @@ BREATHE_LOW = 0.55
 HANDED_BACK = 0.3
 QUIET_S = 1.5
 FOLLOW_S = 0.5
-FADE_S = 0.2
-GLIDE_S = 0.25
-RIPPLE_S = 0.45
 RIPPLE_PT = 34.0
 CURSOR_PT = (26.0, 30.0)
 CURSOR_TIP = (3.0, 29.0)
@@ -137,6 +135,34 @@ def _arrow_path() -> Any:
     return path
 
 
+def _fade(window: Any, alpha: float, seconds: float, done: Callable[[], None] | None) -> None:
+    def change(context: Any) -> None:
+        context.setDuration_(seconds)
+        context.setTimingFunction_(_ease())
+        window.animator().setAlphaValue_(alpha)
+
+    AppKit.NSAnimationContext.runAnimationGroup_completionHandler_(change, None)
+    if done is not None:
+        AppHelper.callLater(seconds, done)
+
+
+def _ripple_motion(reduce_motion: bool) -> Any:
+    fade = Quartz.CABasicAnimation.animationWithKeyPath_("opacity")
+    fade.setFromValue_(0.9)
+    fade.setToValue_(0.0)
+    both = Quartz.CAAnimationGroup.animation()
+    if reduce_motion:
+        both.setAnimations_([fade])
+    else:
+        grow = Quartz.CABasicAnimation.animationWithKeyPath_("transform.scale")
+        grow.setFromValue_(0.3)
+        grow.setToValue_(1.0)
+        both.setAnimations_([grow, fade])
+    both.setDuration_(ENTER_S)
+    both.setTimingFunction_(_ease())
+    return both
+
+
 class Glow:
     def __init__(self, make_panel: Callable[[Any], Any], reduce_motion: Callable[[], bool]) -> None:
         self.make_panel, self.reduce_motion = make_panel, reduce_motion
@@ -148,6 +174,7 @@ class Glow:
         self.panel = self.edge = self.cursor = None
         self.following = False
         self.active = False
+        self.shown = 0
 
     # --- what Zoya is doing -------------------------------------------------------------------
 
@@ -179,9 +206,17 @@ class Glow:
 
     def stop(self) -> None:
         self.target, self.app, self.tool, self.active = None, "", "", False
+        self.shown += 1
         for panel in (self.panel, self.cursor):
-            if panel is not None:
+            if panel is not None and panel.isVisible():
+                _fade(panel, 0.0, EXIT_S, self._hide_after(panel, self.shown))
+
+    def _hide_after(self, panel: Any, shown: int) -> Callable[[], None]:
+        def hide() -> None:
+            if shown == self.shown:
                 panel.orderOut_(None)
+
+        return hide
 
     # --- choosing the window ------------------------------------------------------------------
 
@@ -236,7 +271,7 @@ class Glow:
             self.panel.setContentView_(view)
         self.panel.setFrame_display_(frame, False)
         self._paint(frame[1])
-        self.panel.orderFrontRegardless()
+        self._appear(self.panel)
         if self.cursor is not None:
             self.cursor.setAlphaValue_(0.0 if self.handed_back() else 1.0)
 
@@ -269,6 +304,17 @@ class Glow:
             self.edge.addAnimation_forKey_(pulse, "breathe")
 
     # --- the cursor ---------------------------------------------------------------------------
+
+    def _appear(self, panel: Any) -> None:
+        if panel.isVisible() and panel.alphaValue() > 0:
+            if panel.alphaValue() < 1.0:
+                self.shown += 1
+                _fade(panel, 1.0, ENTER_S, None)
+            return
+        self.shown += 1
+        panel.setAlphaValue_(0.0)
+        panel.orderFrontRegardless()
+        _fade(panel, 1.0, ENTER_S, None)
 
     def _make_cursor(self, at: tuple) -> None:
         self.cursor = self.make_panel((at, CURSOR_PT))
@@ -308,14 +354,17 @@ class Glow:
         if self.cursor is None:
             (fx, fy), (fw, fh) = self._frame()
             self._make_cursor((fx + fw / 2, fy + fh / 2))
+        self.shown += 1
         self.cursor.orderFrontRegardless()
-        self.cursor.setAlphaValue_(0.0 if self.handed_back() else 1.0)
         if self.reduce_motion():
+            self.cursor.setAlphaValue_(0.0)
             self.cursor.setFrameOrigin_(end)
+            _fade(self.cursor, 0.0 if self.handed_back() else 1.0, ENTER_S, None)
             return
+        self.cursor.setAlphaValue_(0.0 if self.handed_back() else 1.0)
 
         def move(context: Any) -> None:
-            context.setDuration_(GLIDE_S)
+            context.setDuration_(ENTER_S)
             context.setTimingFunction_(_ease())
             self.cursor.animator().setFrame_display_((end, CURSOR_PT), True)
 
@@ -340,15 +389,5 @@ class Glow:
         view.layer().addSublayer_(ring)
         panel.setContentView_(view)
         panel.orderFrontRegardless()
-        grow = Quartz.CABasicAnimation.animationWithKeyPath_("transform.scale")
-        grow.setFromValue_(0.3)
-        grow.setToValue_(1.0)
-        fade = Quartz.CABasicAnimation.animationWithKeyPath_("opacity")
-        fade.setFromValue_(0.9)
-        fade.setToValue_(0.0)
-        both = Quartz.CAAnimationGroup.animation()
-        both.setAnimations_([grow, fade])
-        both.setDuration_(RIPPLE_S)
-        both.setTimingFunction_(_ease())
-        ring.addAnimation_forKey_(both, "ripple")
-        AppHelper.callLater(RIPPLE_S, panel.orderOut_, None)
+        ring.addAnimation_forKey_(_ripple_motion(self.reduce_motion()), "ripple")
+        AppHelper.callLater(ENTER_S, panel.orderOut_, None)

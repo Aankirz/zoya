@@ -17,19 +17,18 @@ import Foundation
 import Quartz
 from PyObjCTools import AppHelper
 
-from zoya import config, hotkey, hub_data, sparkle
+from zoya import config, hotkey, hub_data, overlay_probe, pill_beats, pill_motion, sparkle
 from zoya.hub import Hub
 from zoya.hub_bridge import OPEN_HUB_NOTICE
 from zoya.overlay_glow import Glow
-from zoya.overlay_pill import BLUE, Pill
+from zoya.overlay_pill import Pill
+from zoya.pill_style import BLUE
 
 IDLE_HIDE_S = 5.0
 RING_LINE_PT = 4.0
 RING_RGB = BLUE
 RING_SHOW_S = 1.4
 RING_ENTER_SCALE = 1.08
-RING_ENTER_S = 0.2
-EXIT_S = 0.15
 EASE = (0.22, 1.0, 0.36, 1.0)
 THEME_CHANGED = "AppleInterfaceThemeChangedNotification"
 CONFIRM_HOW = "Say “confirm”, or “stop”"
@@ -282,8 +281,11 @@ class Presence:
         )
         self.latencies_ms: list[float] = []
         self.screen_name = ""
+        self.doors = pill_beats.Doors()
+        self.view = ("", "", "")
         self.settings(hub_data.settings())
         self.follow_pointer()
+        self.pill.warm_up()
         self.show()
 
     def settings(self, chosen: dict[str, Any]) -> None:
@@ -310,30 +312,39 @@ class Presence:
         if kind == "level":
             self.pill.set_level(float(message.get("v", 0.0)))
             return
-        if kind == "state":
-            self.speaking = False
-            self.base = (message["state"], message.get("step", ""), message.get("task", ""))
-            self.stake = message.get("stake", "")
-            self.tool = message.get("tool", "")
-            if message["state"] == "listening":
-                self.pill.set_caption("", heard=False)
-        elif kind == "zoya":
-            self.speaking = True
-            self.pill.set_caption(message["text"], heard=False)
-        elif kind == "user":
-            self.pill.set_caption(message["text"], heard=True)
-        elif kind == "intent":
-            if self.base[0] != "listening":
-                return
-            self.pill.set_caption(message["text"], heard=True, chips=message.get("chips", ()))
-        elif kind == "speech_done":
-            self.speaking = False
+        if kind == "beat":
+            self.pill.beat()
+        elif kind == "state":
+            self._state(message)
+        elif kind in ("zoya", "user", "intent", "speech_done"):
+            self._caption(kind, message)
         elif kind == "ring":
             self.ring(message["rect"])
             self.glow.point_at(message["rect"])
         self.show()
         if "t" in message:
             self.latencies_ms.append((time.time() - message["t"]) * 1000)
+
+    def _state(self, message: dict[str, Any]) -> None:
+        if not self.doors.admit(message):
+            return
+        self.speaking = False
+        self.base = (message["state"], message.get("step", ""), message.get("task", ""))
+        self.stake = message.get("stake", "")
+        self.tool = message.get("tool", "")
+        if message["state"] == "listening":
+            self.pill.set_caption("", heard=False)
+
+    def _caption(self, kind: str, message: dict[str, Any]) -> None:
+        if kind == "zoya":
+            self.speaking = True
+            self.pill.set_caption(message["text"], heard=False)
+        elif kind == "user":
+            self.pill.set_caption(message["text"], heard=True)
+        elif kind == "intent" and self.base[0] == "listening":
+            self.pill.set_caption(message["text"], heard=True, chips=message.get("chips", ()))
+        elif kind == "speech_done":
+            self.speaking = False
 
     def show(self) -> None:
         state, step, task = self.base
@@ -347,9 +358,16 @@ class Presence:
         self.glow.update(state, self.tool)
         if self.glow.app and state in ("acting", "thinking"):
             words = f"{words} · using {self.glow.app}"
+        view = (state, words, self.stake)
+        if view == self.view:
+            return
+        changed = state != self.view[0]
+        self.view = view
         self.pill.show(state, words, self.stake or CONFIRM_FALLBACK, CONFIRM_HOW)
-        self.on_status(state)
         self._update_hit()
+        if not changed:
+            return
+        self.on_status(state)
         if state == "idle":
             AppHelper.callLater(IDLE_HIDE_S, self._hide_if_idle)
 
@@ -382,16 +400,16 @@ class Presence:
         view.layer().addSublayer_(layer)
         panel.setContentView_(view)
         panel.orderFrontRegardless()
-        _animate(layer, "opacity", 1.0, RING_ENTER_S, start=0.0)
+        _animate(layer, "opacity", 1.0, pill_motion.ENTER_S, start=0.0)
         if not self.pill.reduce_motion:
-            _animate(layer, "transform.scale", 1.0, RING_ENTER_S, start=RING_ENTER_SCALE)
+            _animate(layer, "transform.scale", 1.0, pill_motion.ENTER_S, start=RING_ENTER_SCALE)
         self.rings.append(panel)
         self._update_hit()
         AppHelper.callLater(RING_SHOW_S, self._fade_ring, panel, layer)
 
     def _fade_ring(self, panel: Any, layer: Any) -> None:
-        _animate(layer, "opacity", 0.0, EXIT_S)
-        AppHelper.callLater(EXIT_S, self._drop_ring, panel)
+        _animate(layer, "opacity", 0.0, pill_motion.EXIT_S)
+        AppHelper.callLater(pill_motion.EXIT_S, self._drop_ring, panel)
 
     def _drop_ring(self, panel: Any) -> None:
         panel.orderOut_(None)
@@ -458,6 +476,8 @@ def run(controls_only: bool = False) -> int:
     if presence is not None:
         controls.hub.on_settings = presence.settings
         presence.on_status = controls.hub.set_status
+    if presence is not None and os.environ.get(overlay_probe.PROBE_ENV):
+        controls.probe = overlay_probe.install(presence)
     threading.Thread(
         target=_read_stdin, args=(presence,), name="overlay-stdin", daemon=True
     ).start()

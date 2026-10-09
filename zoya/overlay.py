@@ -37,7 +37,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from zoya import events
+from zoya import events, pill_beats
 from zoya.config import LOG_DIR
 
 OVERLAY_LOG = LOG_DIR / "overlay.log"
@@ -83,11 +83,9 @@ TOOL_VERBS = {
     "youtube play video": "Playing a video",
     "youtube search": "Searching YouTube",
 }
-ERROR_KINDS = {"error", "blocked"}
 STAKE_PREFIX = "I'm about to "
 LEVEL_EVERY_S = 0.08
 LEVEL_GAIN = 12.0
-STOP_KINDS = {"stop", "cancel"}
 CHIP_MAX_CHARS = 24
 CHIP_SEPARATOR = "\n"
 CHIP_ARGS = ("app_name", "app", "query", "title", "note_name", "url", "song", "item", "city")
@@ -157,26 +155,38 @@ def to_message(event: events.Event) -> dict[str, Any] | None:
     if isinstance(event, events.NarrateEvent):
         return {"k": "zoya", "text": caption_text(event.text)}
     if isinstance(event, events.EarconEvent):
-        state = {"listening": "listening", "working": "thinking"}.get(event.kind)
-        state = state or ("error" if event.kind in ERROR_KINDS else None)
-        state = state or ("stopped" if event.kind in STOP_KINDS else None)
-        return {"k": "state", "state": state} if state else None
+        return pill_beats.earcon_message(event.kind)
     if isinstance(event, events.TaskEvent):
-        state = {"started": "thinking", "done": "idle", "failed": "error", "cancelled": "stopped"}
-        return {"k": "state", "state": state[event.status]} if event.status in state else None
+        return _task_message(event)
     if isinstance(event, events.ConfirmationEvent):
-        if event.decision == "pending":
-            stake = caption_text(stake_line(event.summary))
-            return {
-                "k": "state",
-                "state": "waiting",
-                "task": _task_name(event.task_id),
-                "stake": stake,
-            }
-        return {"k": "state", "state": "thinking"}
+        return _ask_message(event)
     if isinstance(event, events.OverlayEvent):
         return _overlay_message(event)
     return None
+
+
+def _task_message(event: events.TaskEvent) -> dict[str, Any] | None:
+    state = {"started": "thinking", "done": "idle", "failed": "error", "cancelled": "stopped"}
+    if event.status not in state:
+        return None
+    message = {"k": "state", "state": state[event.status]}
+    if event.status in pill_beats.ENDED_TASKS:
+        message["ended"] = event.task_id
+    return message
+
+
+def _ask_message(event: events.ConfirmationEvent) -> dict[str, Any]:
+    ask = pill_beats.ask_key(event.task_id, event.summary)
+    if event.decision != "pending":
+        return {"k": "state", "state": pill_beats.DECIDED_STATES[event.decision], "decided": ask}
+    stake = caption_text(stake_line(event.summary))
+    return {
+        "k": "state",
+        "state": "waiting",
+        "task": _task_name(event.task_id),
+        "stake": stake,
+        "ask": ask,
+    }
 
 
 def stake_line(summary: str) -> str:
