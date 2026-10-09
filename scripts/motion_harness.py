@@ -175,8 +175,8 @@ def _send(run: Run, step: Step) -> None:
     run.sent.append({"step": step.name, "m": started, "ids": ids})
 
 
-def launch(home: Path, dark: bool, probe: Path, reduce: bool) -> subprocess.Popen:
-    style = ["-AppleInterfaceStyle", "Dark"] if dark else ["-AppleInterfaceStyle", "Light"]
+def launch(home: Path, dark: bool, probe: Path, reduce: bool, source: Path) -> subprocess.Popen:
+    style = ["-AppleInterfaceStyle", "Dark"] if dark else ["-NSRequiresAquaSystemAppearance", "YES"]
     env = {**os.environ, "HOME": str(home), overlay_probe.PROBE_ENV: str(probe)}
     if reduce:
         env[overlay_probe.REDUCE_ENV] = "1"
@@ -185,7 +185,7 @@ def launch(home: Path, dark: bool, probe: Path, reduce: bool) -> subprocess.Pope
         stdin=subprocess.PIPE,
         text=True,
         env=env,
-        cwd=hub_fixture.REPO,
+        cwd=source,
     )
 
 
@@ -359,16 +359,20 @@ def main() -> int:
     parser.add_argument("--backdrop", choices=("daylight", "night", "vivid"))
     parser.add_argument("--record", action="store_true", help="record the screen frame by frame")
     parser.add_argument("--again", action="store_true", help="re-analyse a finished run")
+    parser.add_argument("--source", type=Path, default=hub_fixture.REPO, help="code to run")
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     if args.again:
-        return _report(args.out, json.loads((args.out / "rows.json").read_text())["sent"])
+        saved = json.loads((args.out / "rows.json").read_text())
+        return _report(args.out, saved["sent"], saved.get("dark", args.dark))
+    if Quartz.CGDisplayIsAsleep(Quartz.CGMainDisplayID()):
+        sys.exit("The display is asleep, so no frames tick: wake it first (caffeinate -u -t 2).")
     probe = args.out / "probe.jsonl"
     probe.unlink(missing_ok=True)
     helpers = [_backdrop(args.backdrop)] if args.backdrop else []
     if args.record:
         helpers.append(_recorder(args.out / "motion.mp4", _script_s()))
-    child = launch(hub_fixture.make_home(), args.dark, probe, args.reduce)
+    child = launch(hub_fixture.make_home(), args.dark, probe, args.reduce, args.source)
     try:
         time.sleep(START_S)
         sent = drive(child)
@@ -379,7 +383,7 @@ def main() -> int:
         if helper.args[1].endswith("motion_backdrop.py"):
             helper.terminate()
         helper.wait()
-    return _report(args.out, sent)
+    return _report(args.out, sent, args.dark)
 
 
 JUMP_PT = 1.0
@@ -418,13 +422,14 @@ def audit(frames: list[dict], dark: bool) -> list[str]:
     return issues
 
 
-def _report(out: Path, sent: list[dict]) -> int:
+def _report(out: Path, sent: list[dict], dark: bool) -> int:
     rows = analyse(out / "probe.jsonl", sent)
     frames, _messages = _load(out / "probe.jsonl")
-    issues = audit(frames, bool(frames and frames[0].get("dark")))
+    issues = audit(frames, dark)
     (out / "audit.txt").write_text(f"{len(frames)} frames\n" + "\n".join(issues) + "\n")
     print(f"audit: {len(frames)} frames, {len(issues)} issues", *issues[:20], sep="\n")
-    (out / "rows.json").write_text(json.dumps({"sent": sent, "rows": rows}, indent=1))
+    saved = {"sent": sent, "rows": rows, "dark": dark}
+    (out / "rows.json").write_text(json.dumps(saved, indent=1))
     (out / "table.md").write_text(table(rows) + "\n")
     print(table(rows))
     return 0
