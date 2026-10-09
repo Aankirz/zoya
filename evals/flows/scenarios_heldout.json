@@ -1,0 +1,24 @@
+[
+  {"id": "h01", "category": "chat", "turns": [{"say": "tell me something interesting about octopuses", "expect": {"acts": null}}]},
+  {"id": "h02", "category": "capability", "turns": [{"say": "can you help me with emails?", "expect": {"acts": false}}]},
+  {"id": "h03", "category": "open_app", "turns": [{"say": "launch System Settings", "expect": {"acts": true}}]},
+  {"id": "h04", "category": "media", "turns": [{"say": "pause the music", "expect": {"acts": true}}]},
+  {"id": "h05", "category": "notes", "turns": [{"say": "jot down: buy cardamom and saffron", "expect": {"acts": true}}]},
+  {"id": "h06", "category": "reminder", "turns": [{"say": "set a reminder", "expect": {"asks": true}}]},
+  {"id": "h07", "category": "web_search", "turns": [{"say": "who won the women's singles at the last US Open?", "expect": {"acts": null}}]},
+  {"id": "h08", "category": "buy", "turns": [{"say": "add something to my cart", "expect": {"asks": true}}]},
+  {"id": "h09", "category": "post", "turns": [{"say": "put up a story on Instagram", "expect": {"asks": true}}]},
+  {"id": "h10", "category": "message", "turns": [{"say": "send Ankit an iMessage saying the keys are under the mat", "expect": {"asks": false, "acts": true}}]},
+  {"id": "h11", "category": "message", "turns": [{"say": "message mom", "expect": {"asks": true}}]},
+  {"id": "h12", "category": "follow_up", "turns": [
+    {"say": "what's the population of Portugal?", "expect": {"acts": null}},
+    {"say": "and Spain?", "expect": {"acts": null}}]},
+  {"id": "h13", "category": "correction", "turns": [
+    {"say": "play some jazz", "expect": {"acts": true}},
+    {"say": "no, classical instead", "expect": {"acts": true}}]},
+  {"id": "h14", "category": "stop", "turns": [{"say": "write me a long poem about monsoon rain", "stop_at_s": 1.5, "expect": {"stopped": true}}]},
+  {"id": "h15", "category": "junk", "turns": [{"say": "okay so like", "expect": {"acts": false, "short": true}}]},
+  {"id": "h16", "category": "hinglish", "turns": [{"say": "YouTube pe yoga video chalao", "expect": {"acts": true}}]},
+  {"id": "h17", "category": "timer", "turns": [{"say": "start a 25 minute focus timer", "expect": {"acts": true}}]},
+  {"id": "h18", "category": "long", "turns": [{"say": "compare the battery life of the two newest Pixel phones", "expect": {"acts": true}}]}
+]

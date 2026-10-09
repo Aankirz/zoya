@@ -12,6 +12,7 @@ https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-OTLPEn
 
 from __future__ import annotations
 
+import contextvars
 import json
 import logging
 import os
@@ -38,20 +39,24 @@ from strands.models.openai_responses import OpenAIResponsesModel
 from strands.tools.executors import SequentialToolExecutor
 from strands.types.exceptions import EventLoopException
 
-from zoya import aws, events, harness, hub_data, safety, speculate, speech, tasks
+from zoya import aws, clarify, events, harness, hub_data, progress, safety, speculate, speech, tasks
 from zoya.agents import web_loop
 from zoya.config import (
+    BRAIN_PLANNING_REASONING_EFFORT,
+    BRAIN_QUICK_REASONING_EFFORT,
     BRAIN_STEP_REASONING_EFFORT,
     LOG_DIR,
     MAX_TOOL_CALLS_PER_TASK,
     MODEL_PRICES_USD_PER_1M,
     PER_TASK_COST_CAP_USD,
+    SKILL_ACTION_DEADLINE_S,
+    SKILL_ACTION_POLL_S,
     TIMING_LOG,
     UNKNOWN_MODEL_PRICE_USD_PER_1M,
 )
 from zoya.prompts import ORCHESTRATOR_PROMPT
-from zoya.router import RouteDecision, clean_command, route
-from zoya.tools import ToolError, browser, collect_tools, memory
+from zoya.router import RouteDecision, clean_command, match_rules, route
+from zoya.tools import ToolError, browser, collect_tools, memory, watch_abandon
 from zoya.tools.memory import recent_corrections
 
 log = logging.getLogger(__name__)
@@ -60,16 +65,17 @@ TOKENS_PER_PRICE_UNIT = 1_000_000
 MS_PER_S = 1000
 LOG_COMMAND_MAX_CHARS = 60
 STOPPED_MESSAGE = "Okay, stopped."
+CUT_SHORT_MESSAGE = "Sorry, that got cut off before I finished. Please ask me again."
 GENERIC_FAILURE = "Sorry, something went wrong. Please try again."
 LIMIT_MESSAGE = "I've stopped this task because it was taking too many steps."
 IDLE_MESSAGE = "Nothing is running."
 OPEN_APP_FALLBACK = "open_app_fallback"
 DECLINED = "confirmation_declined"  # the safety gate already played cancel and spoke
 STREAMED = "brain"  # the brain ran and spoke as it streamed
+SKILL_DEADLINE = "skill_deadline"
 SKILL_FALLBACK = "skill_fallback"  # a skill action failed; the brain retried with that skill
 MAX_CONVERSATION_TURNS = 6  # follow-ups keep context; older turns drop to bound token cost
 OLD_RESULT_MAX_CHARS = 300  # a finished turn's tool results, as follow-ups see them
-ACK = "On it."
 QUICK_QUESTION = re.compile(r"^(?:what|who|when|where|why|how|which|is|are|was|does|do)\b", re.I)
 SENTENCE_END = re.compile(r"(?<=[.!?।])\s+")
 
@@ -205,7 +211,7 @@ def last_tool_results(messages: list[Any], count: int) -> list[str]:
 
 # --- Orchestrator -----------------------------------------------------------------
 
-_cancel = threading.Event()  # outside a Task Manager task (tests, evals); tasks have their own
+_cancel = tasks.CancelSignal("outside-a-task")  # tests, evals, the REPL; tasks have their own
 _conversation: list[list[Any]] = []  # recent turns, each the messages one run added
 
 
@@ -264,6 +270,7 @@ def build_orchestrator(
     messages: list[Any] | None = None,
     callback_handler: Any = None,
     skill: str = "",
+    effort: str = BRAIN_PLANNING_REASONING_EFFORT,
 ) -> Agent:
     """A fresh Agent per task (AUDIT B6), seeded with recent conversation for follow-ups."""
     from zoya.models import brain_planning_model
@@ -271,7 +278,7 @@ def build_orchestrator(
     prompt, tools, plugins = brain_inputs(skill)
     limits = TaskLimits(os.environ.get("BRAIN_MODEL", ""), cost_cap_usd)
     return Agent(
-        model=brain_planning_model(cache_key=harness.cache_key(skill)),
+        model=brain_planning_model(cache_key=harness.cache_key(skill), effort=effort),
         system_prompt=prompt,
         tools=tools,
         plugins=plugins,
@@ -374,6 +381,7 @@ def run_orchestrator(command: str, timings: dict[str, int] | None = None, skill:
         messages=list(history),
         callback_handler=_speak_stream(sentences, spoken, held),
         skill=skill,
+        effort=reasoning_effort(command),
     )
     if timings is not None:
         timings[STREAMED] = 1
@@ -431,7 +439,8 @@ def _remember_interrupted(command: str, spoken: list[str]) -> None:
     to playback); a half-heard last sentence is kept whole.
     """
     heard = " ".join(spoken) or "(nothing yet)"
-    remember_turn(command, f"{heard} [interrupted by the user]")
+    why = "interrupted by the user" if cancel_signal().by_user else "cut off before it finished"
+    remember_turn(command, f"{heard} [{why}]")
 
 
 def remember_turn(command: str, reply: str) -> None:
@@ -455,7 +464,7 @@ def run_skill(decision: RouteDecision, timings: dict[str, int]) -> str:
     if not decision.tool:
         return run_orchestrator(decision.text, timings, decision.skill)
     try:
-        spoken = harness.run_action(decision.tool, decision.args)
+        spoken = run_action_in_time(decision.tool, decision.args, timings)
     except ToolError as error:
         if decision.tool not in harness.action_tools():
             raise  # a plain tool's answer is final ("I can't remember card numbers")
@@ -469,6 +478,43 @@ def run_skill(decision: RouteDecision, timings: dict[str, int]) -> str:
     return safety.untag(spoken).strip()  # spoken to the user, not fed to a model
 
 
+def run_action_in_time(action: str, args: dict[str, Any], timings: dict[str, int]) -> str:
+    """A skill action gets SKILL_ACTION_DEADLINE_S to finish or reach a confirmation; past it, the
+    action is abandoned (its next browser or Mac step refuses) and the brain takes over (A2)."""
+    flag, box = threading.Event(), {}
+
+    def work() -> None:
+        watch_abandon(flag)
+        try:
+            box["spoken"] = harness.run_action(action, args)
+        except BaseException as error:  # noqa: BLE001 — handed back to the task thread below
+            box["error"] = error
+
+    worker = threading.Thread(
+        target=contextvars.copy_context().run, args=(work,), name="zoya-skill-action", daemon=True
+    )
+    worker.start()
+    if not _join_unless_late(worker):
+        flag.set()
+        timings[SKILL_DEADLINE] = 1
+        raise ToolError(f"{action} took longer than {SKILL_ACTION_DEADLINE_S:.0f} s")
+    if "error" in box:
+        raise box["error"]
+    return box["spoken"]
+
+
+def _join_unless_late(worker: threading.Thread) -> bool:
+    """True when the action ended. A confirmation it opened holds the floor: then it waits on."""
+    deadline = time.monotonic() + SKILL_ACTION_DEADLINE_S
+    asking = False
+    while worker.is_alive():
+        asking = asking or safety.pending_task_id() == safety.current_task_id()
+        if not asking and time.monotonic() >= deadline:
+            return False
+        worker.join(SKILL_ACTION_POLL_S)
+    return True
+
+
 def run_fast_tool(decision: RouteDecision) -> str:
     # No Agent, so no hooks on this path: only free tools may run here (safety registry).
     if not safety.fast_tool_allowed(decision.tool or ""):
@@ -479,25 +525,32 @@ def run_fast_tool(decision: RouteDecision) -> str:
     return tools[decision.tool](**decision.args)
 
 
-def acknowledge(decision: RouteDecision) -> str:
-    """What Zoya says the moment a slow task starts ("" for none): the brain's first sentence is
-    1.5 s+ away and a web task's 10 s+, and users notice silence, not latency
-    (https://getstream.io/blog/speculative-tool-calling-voice/). Quick questions and fast tools
-    answer before an acknowledgement would finish."""
-    command = clean_command(decision.text)
-    brain = decision.route == "orchestrator" or (decision.route == "skill" and not decision.tool)
-    if not brain or QUICK_QUESTION.match(command):
-        return ""
-    return ACK
+def say_first_line(text: str) -> bool:
+    """A command that will take a while hears what Zoya understood at once (A5); fast tools and
+    stops answer before a first line would finish."""
+    quick = match_rules(text)
+    if quick is not None and quick.route in ("fast", "stop"):
+        return False
+    line = progress.early_line(text)
+    if line:
+        tasks.say(line)
+    return bool(line)
+
+
+def reasoning_effort(command: str) -> str:
+    """A question is answered, not planned: no reasoning before its first word (D88 keeps
+    planning effort for tasks)."""
+    if QUICK_QUESTION.match(clean_command(command)):
+        return BRAIN_QUICK_REASONING_EFFORT
+    return BRAIN_PLANNING_REASONING_EFFORT
 
 
 def _execute(decision: RouteDecision, timings: dict[str, int]) -> tuple[str, bool]:
     started = time.monotonic()
-    if ack := acknowledge(decision):
-        tasks.say(ack)
-        timings["ack_ms"] = round((time.monotonic() - started) * MS_PER_S)
     stage = "orchestrator_ms" if decision.route == "orchestrator" else "tool_ms"
     try:
+        if decision.route == "ask":
+            return decision.args["question"], True
         if decision.route == "stop":
             return STOPPED_MESSAGE, True
         if decision.route == "skill":
@@ -520,8 +573,10 @@ def _execute(decision: RouteDecision, timings: dict[str, int]) -> tuple[str, boo
         timings[DECLINED] = 1  # the gate played cancel and said what happened
         said = str(declined)
         return (safety.CANCELLED_SAY if said == safety.ALREADY_DECLINED else said), False
-    except (KeyboardInterrupt, TaskCancelled):
+    except KeyboardInterrupt:
         return STOPPED_MESSAGE, False
+    except TaskCancelled:
+        return cancelled_reply(), False
     except Exception as error:  # noqa: BLE001 — never crash on a command; say so politely
         from zoya.models import relay_failure
 
@@ -534,6 +589,32 @@ def _execute(decision: RouteDecision, timings: dict[str, int]) -> tuple[str, boo
         timings[stage] = round((time.monotonic() - started) * MS_PER_S)
 
 
+def not_a_guessed_stop(decision: RouteDecision) -> RouteDecision:
+    """The voice loop stops tasks before a command is dispatched; a stop Jev guessed for a command
+    that reached here ("that's not what I meant") goes to the brain instead of "Okay, stopped."."""
+    if decision.route == "stop" and decision.source == "jev":
+        return RouteDecision("orchestrator", source="jev", text=decision.text)
+    return decision
+
+
+def ask_first(text: str) -> RouteDecision | None:
+    """A post, message, buy or reminder missing its required detail: one question, no action."""
+    question = clarify.missing_detail(text)
+    if question is None:
+        return None
+    return RouteDecision("ask", args={"question": question.text}, source="clarify", text=text)
+
+
+def cancelled_reply() -> str:
+    """ "Okay, stopped." only when the user stopped; any other cancel is a failure that says so."""
+    signal = cancel_signal()
+    if signal.by_user:
+        return STOPPED_MESSAGE
+    cause = signal.cause
+    log.warning("task cancelled without a user stop: %s", cause or "no cause recorded")
+    return CUT_SHORT_MESSAGE
+
+
 def handle_command(text: str, pre_timings: dict[str, int] | None = None) -> CommandResult:
     """Run one command. `pre_timings` (voice stages such as stt_ms) go into the timing log."""
     task = tasks.current()
@@ -544,17 +625,23 @@ def handle_command(text: str, pre_timings: dict[str, int] | None = None) -> Comm
     safety.begin_task(task_id)
     tabs_before = browser.task_tabs()
     with trace.get_tracer("zoya").start_as_current_span("zoya.command") as span:
-        decision = speculate.commit(text) or route(text)
+        asked = ask_first(text)
+        first_line = asked is None and say_first_line(text)
+        decision = not_a_guessed_stop(asked or speculate.commit(text) or route(text))
         timings = {**(pre_timings or {}), **decision.timings_ms}
+        if first_line:
+            timings["first_line"] = 1
         events.emit(events.TaskEvent(task_id, "started", text, decision.route))
-        spoken, ok = _execute(decision, timings)
+        working = task if decision.route in ("orchestrator", "skill") else None
+        with progress.heartbeat(working):
+            spoken, ok = _execute(decision, timings)
         # Fast path target is router + tool (Done-when #2); speech is queued, not waited on.
         timings["total_ms"] = round((time.monotonic() - started) * MS_PER_S)
         span.set_attributes({f"zoya.{k}": v for k, v in timings.items()})
         span.set_attributes({"zoya.route": decision.route, "zoya.tool": decision.tool or ""})
     outcome = "stop" if decision.route == "stop" or spoken == STOPPED_MESSAGE else "success"
     declined = DECLINED in timings
-    stopped_by_name = task is not None and task.cancel.is_set()  # the stop already spoke for it
+    stopped_by_name = task is not None and task.cancel.by_user  # the stop already spoke for it
     if not declined and not stopped_by_name:
         shared_done = ok and task is not None and task.shared and outcome == "success"
         events.emit(
@@ -565,7 +652,7 @@ def handle_command(text: str, pre_timings: dict[str, int] | None = None) -> Comm
     streamed = STREAMED in timings
     if (not streamed or not ok) and not declined and not stopped_by_name:
         tasks.say(spoken)  # the orchestrator already spoke as it streamed
-    if decision.route in ("fast", "skill") and not streamed:
+    if decision.route in ("fast", "skill", "ask") and not streamed:
         remember_turn(text, spoken)
     result = CommandResult(task_id, decision, spoken, ok, timings)
     _close_task_tabs(tabs_before)
@@ -584,7 +671,7 @@ MEMORY_TOOLS = {"memory_add", "memory_search"}
 def worth_capturing(decision: RouteDecision) -> bool:
     """A remembered fact is already stored, and stopping is not an outcome."""
     return (
-        decision.route != "stop"
+        decision.route not in ("stop", "ask")
         and decision.skill != "memory"
         and (decision.tool not in MEMORY_TOOLS)
     )
@@ -630,7 +717,7 @@ def stop_task(name: str = "") -> str:
         return tasks.stop(name)
     said = tasks.stop_last()
     if not tasks.running():
-        _cancel.set()
+        _cancel.stop_by_user("stop with no task running")
         safety.cancel_pending()  # outside tasks: whatever confirmation waits ends with no token
     speech.cancel()
     return said or STOPPED_MESSAGE

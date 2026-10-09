@@ -43,7 +43,7 @@ EarconKind = Literal[
     "complete",
 ]
 TaskStatus = Literal["started", "running", "done", "failed", "cancelled", "queued"]
-Route = Literal["fast", "orchestrator", "stop", "skill"]
+Route = Literal["fast", "orchestrator", "stop", "skill", "ask"]
 
 
 @dataclass(frozen=True)

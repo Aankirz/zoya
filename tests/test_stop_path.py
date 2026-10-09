@@ -61,7 +61,7 @@ def test_cancelled_run_is_reported_as_stopped_not_success(monkeypatch):
         event_loop_metrics = type("M", (), {"accumulated_usage": {}})()
 
         def __call__(self, command, cancel_signal):
-            cancel_signal.set()
+            cancel_signal.stop_by_user("stop")
             return type("Result", (), {"stop_reason": "cancelled"})()
 
     monkeypatch.setattr(orchestrator, "build_orchestrator", lambda **_: CancelledAgent())

@@ -14,7 +14,7 @@ from urllib.parse import urlparse
 from strands import tool
 
 from zoya.config import APP_LOOKUP_TIMEOUT_S, OSASCRIPT_TIMEOUT_S
-from zoya.tools import ToolError
+from zoya.tools import ToolError, check_abandoned
 
 VOLUME_STEP = 15
 MIN_FUZZY_APP_CHARS = 3
@@ -33,10 +33,11 @@ def _run(argv: list[str], timeout: float = OSASCRIPT_TIMEOUT_S) -> subprocess.Co
     )
 
 
-def osascript(script: str, *args: str) -> str:
+def osascript(script: str, *args: str, timeout: float = OSASCRIPT_TIMEOUT_S) -> str:
     """Run AppleScript; user text goes in as argv (`on run argv`), never spliced into code."""
+    check_abandoned()
     try:
-        result = _run(["osascript", "-e", script, *args])
+        result = _run(["osascript", "-e", script, *args], timeout=timeout)
     except subprocess.TimeoutExpired as error:
         raise ToolError(
             "The Mac took too long to answer. If it asked for permission, please allow it."

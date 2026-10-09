@@ -57,7 +57,7 @@ class RouteDecision:
     route: Route
     tool: str | None = None
     args: dict[str, Any] = field(default_factory=dict)
-    source: Literal["rules", "model", "fallback", "trigger", "learned", "jev"] = "rules"
+    source: Literal["rules", "model", "fallback", "trigger", "learned", "jev", "clarify"] = "rules"
     text: str = ""
     timings_ms: dict[str, int] = field(default_factory=dict)
     skill: str = ""  # route "skill": the skill; `tool` is its action when one was picked

@@ -129,7 +129,9 @@ def relay_failure(error: BaseException) -> str:
     return ""
 
 
-def brain_planning_model(cache_key: str = "") -> Model:
+def brain_planning_model(
+    cache_key: str = "", effort: str = BRAIN_PLANNING_REASONING_EFFORT
+) -> Model:
     """The brain on the OpenAI Responses API: function tools and reasoning together (D80a).
 
     Reasoning starts at BRAIN_PLANNING_REASONING_EFFORT; orchestrator.ReasoningSchedule drops it
@@ -143,7 +145,7 @@ def brain_planning_model(cache_key: str = "") -> Model:
         client_args=_openai_client_args("brain"),
         model_id=_model_id("brain"),
         params={
-            "reasoning": {"effort": BRAIN_PLANNING_REASONING_EFFORT},
+            "reasoning": {"effort": effort},
             **_cache_params(cache_key),
         },
     )

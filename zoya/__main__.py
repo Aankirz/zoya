@@ -35,7 +35,9 @@ def _print_result(result) -> None:  # noqa: ANN001 — CommandResult, imported l
 
 def main() -> int:
     load_env()
-    logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
+    from zoya import crash
+
+    crash.configure_logging()
     # An expired `aws login` makes botocore log a full traceback on every call; zoya.aws
     # already logs one line with the reason.
     logging.getLogger("botocore.credentials").setLevel(logging.CRITICAL)
