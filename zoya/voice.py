@@ -345,6 +345,24 @@ class StreamingVad:
         return float(np.asarray(out).reshape(-1)[0])
 
 
+_LOADED_WHISPERS: dict[str, object] = {}
+
+
+def _hold_every_model(holder: type) -> None:
+    """mlx-whisper's ModelHolder keeps one model, and the spotter (loop thread) and turbo
+    (partial threads) alternate on it: an interleaving reloaded weights by repo id. Serve
+    every model Zoya loaded from one registry instead; anything else loads as before."""
+    if getattr(holder.get_model, "zoya_registry", False):
+        return
+    original = holder.get_model
+
+    def get_model(path: str, dtype: object) -> object:
+        return _LOADED_WHISPERS.get(path) or original(path, dtype)
+
+    get_model.zoya_registry = True
+    holder.get_model = staticmethod(get_model)
+
+
 def load_whisper(
     repo: str,
     allowed_languages: frozenset[str] | None = None,
@@ -365,12 +383,10 @@ def load_whisper(
     from zoya.setup_models import local_model_dir
 
     # A local path: mlx-whisper would otherwise ask the Hub for a revision (startup hang, AUDIT §6).
-    model = load_model(local_model_dir(repo), dtype=mx.float16)  # transcribe()'s default fp16
+    _LOADED_WHISPERS[repo] = load_model(local_model_dir(repo), dtype=mx.float16)
+    _hold_every_model(ModelHolder)
 
     def transcribe(samples: np.ndarray) -> str:
-        # ponytail: mlx-whisper 0.4.3 caches ONE model, so alternating base.en and turbo reloaded
-        # weights every call (+350 ms spot, turbo 0.6 → 1.3 s). Hand it ours; re-check on upgrade.
-        ModelHolder.model, ModelHolder.model_path = model, repo
         result = mlx_whisper.transcribe(
             samples,
             path_or_hf_repo=repo,
