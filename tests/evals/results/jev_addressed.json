@@ -1,0 +1,227 @@
+[
+ {
+  "set": "dev",
+  "text": "Here's where",
+  "meant": false,
+  "rules": false,
+  "jev": true,
+  "noul": 0.72,
+  "ms": 541
+ },
+ {
+  "set": "dev",
+  "text": "control option.",
+  "meant": false,
+  "rules": false,
+  "jev": true,
+  "noul": 0.77,
+  "ms": 398
+ },
+ {
+  "set": "dev",
+  "text": "Zoya, I'm going to make a video.",
+  "meant": false,
+  "rules": false,
+  "jev": false,
+  "noul": 0.18,
+  "ms": 425
+ },
+ {
+  "set": "dev",
+  "text": "ज़िए ज़दर भी हां कि मुझे ये करना है ये करना है",
+  "meant": false,
+  "rules": false,
+  "jev": false,
+  "noul": 0.66,
+  "ms": 366
+ },
+ {
+  "set": "dev",
+  "text": "dark mode",
+  "meant": true,
+  "rules": true,
+  "jev": true,
+  "noul": 0.9,
+  "ms": 392
+ },
+ {
+  "set": "dev",
+  "text": "Hey Zoya, what's on my calendar tomorrow",
+  "meant": true,
+  "rules": true,
+  "jev": true,
+  "noul": 0.96,
+  "ms": 361
+ },
+ {
+  "set": "dev",
+  "text": "remind me to water the plants at seven",
+  "meant": true,
+  "rules": true,
+  "jev": true,
+  "noul": 0.96,
+  "ms": 415
+ },
+ {
+  "set": "dev",
+  "text": "kal subah 7 baje ka alarm laga do",
+  "meant": true,
+  "rules": true,
+  "jev": true,
+  "noul": 0.97,
+  "ms": 560
+ },
+ {
+  "set": "dev",
+  "text": "मम्मी को फ़ोन लगाओ",
+  "meant": true,
+  "rules": true,
+  "jev": true,
+  "noul": 0.89,
+  "ms": 487
+ },
+ {
+  "set": "dev",
+  "text": "so this is the part where it opens the browser for you",
+  "meant": false,
+  "rules": false,
+  "jev": false,
+  "noul": 0.41,
+  "ms": 435
+ },
+ {
+  "set": "dev",
+  "text": "I told Zoya about it yesterday",
+  "meant": false,
+  "rules": false,
+  "jev": false,
+  "noul": 0.19,
+  "ms": 489
+ },
+ {
+  "set": "dev",
+  "text": "haan main bas abhi aata hoon",
+  "meant": false,
+  "rules": false,
+  "jev": false,
+  "noul": 0.29,
+  "ms": 386
+ },
+ {
+  "set": "dev",
+  "text": "and what about tomorrow?",
+  "meant": true,
+  "rules": true,
+  "jev": true,
+  "noul": 0.9,
+  "ms": 370
+ },
+ {
+  "set": "dev",
+  "text": "and in other news the markets closed higher today",
+  "meant": false,
+  "rules": false,
+  "jev": false,
+  "noul": 0.33,
+  "ms": 416
+ },
+ {
+  "set": "heldout",
+  "text": "turn the volume down a bit",
+  "meant": true,
+  "rules": true,
+  "jev": true,
+  "noul": 0.95,
+  "ms": 352
+ },
+ {
+  "set": "heldout",
+  "text": "what's the score in the India match",
+  "meant": true,
+  "rules": true,
+  "jev": true,
+  "noul": 0.97,
+  "ms": 456
+ },
+ {
+  "set": "heldout",
+  "text": "the thing about compound interest is that it grows quietly",
+  "meant": false,
+  "rules": false,
+  "jev": false,
+  "noul": 0.19,
+  "ms": 389
+ },
+ {
+  "set": "heldout",
+  "text": "Zoya, I just got back from the gym",
+  "meant": false,
+  "rules": false,
+  "jev": false,
+  "noul": 0.17,
+  "ms": 393
+ },
+ {
+  "set": "heldout",
+  "text": "Hey Zoya, mujhe kal ki meeting yaad dila dena",
+  "meant": true,
+  "rules": true,
+  "jev": true,
+  "noul": 0.95,
+  "ms": 509
+ },
+ {
+  "set": "heldout",
+  "text": "yeah I'll be there in five minutes",
+  "meant": false,
+  "rules": false,
+  "jev": false,
+  "noul": 0.18,
+  "ms": 379
+ },
+ {
+  "set": "heldout",
+  "text": "make it a bit louder",
+  "meant": true,
+  "rules": true,
+  "jev": true,
+  "noul": 0.95,
+  "ms": 345
+ },
+ {
+  "set": "heldout",
+  "text": "aaj mausam kaisa hai",
+  "meant": true,
+  "rules": true,
+  "jev": true,
+  "noul": 0.96,
+  "ms": 352
+ },
+ {
+  "set": "heldout",
+  "text": "aur ab dekhte hain aaj ki badi khabrein",
+  "meant": false,
+  "rules": false,
+  "jev": false,
+  "noul": 0.64,
+  "ms": 497
+ },
+ {
+  "set": "heldout",
+  "text": "brightness up",
+  "meant": true,
+  "rules": true,
+  "jev": true,
+  "noul": 0.95,
+  "ms": 364
+ },
+ {
+  "set": "heldout",
+  "text": "Okay Zoya, read me my last message",
+  "meant": true,
+  "rules": true,
+  "jev": true,
+  "noul": 0.94,
+  "ms": 421
+ }
+]
