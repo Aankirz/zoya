@@ -9,11 +9,12 @@
   const safe = e => !['password','file','hidden'].includes(e.type);
   const visible = e => !e.closest('[aria-hidden="true"],[inert]') &&
     e.checkVisibility({checkOpacity:true,checkVisibilityCSS:true});
+  const byId = (e,id) => e.getRootNode().getElementById?.(id) || document.getElementById(id);
   const name = (e,seen=new Set()) => {
     if (!e || seen.has(e)) return '';
     seen.add(e);
     const referenced=(e.getAttribute('aria-labelledby')||'').split(/\s+/)
-      .map(id=>name(document.getElementById(id),seen)).filter(Boolean).join(' ');
+      .map(id=>id && name(byId(e,id),seen)).filter(Boolean).join(' ');
     return referenced || e.getAttribute('aria-label') ||
       [...(e.labels||[])].map(l=>name(l,seen)).filter(Boolean).join(' ') ||
       (['button','submit','reset'].includes(e.type) ? e.value : '') || e.getAttribute('alt') ||
@@ -41,6 +42,22 @@
     }
     return null;
   };
+  const shadows = root => [...root.querySelectorAll('*')].filter(e=>e.shadowRoot)
+    .flatMap(e=>[e.shadowRoot, ...shadows(e.shadowRoot)]);
+  const roots=[document, ...shadows(document)];
+  const hitAt = (x,y) => {
+    let hit=document.elementFromPoint(x,y);
+    while (hit?.shadowRoot) {
+      const inner=hit.shadowRoot.elementFromPoint(x,y);
+      if (!inner || inner===hit) break;
+      hit=inner;
+    }
+    return hit;
+  };
+  const holds = (e,hit) => {
+    for (let n=hit; n; n=n.parentNode || n.host) if (n===e) return true;
+    return false;
+  };
   cache.pageKey=()=>[performance.timeOrigin,location.href,scrollX,scrollY,innerWidth,innerHeight,
     [...document.querySelectorAll('input,textarea,select')].filter(safe)
       .map(e=>[identity(e),e.value,e.checked,e.selectedIndex,e.disabled,e.readOnly])];
@@ -57,13 +74,14 @@
         !e.checkVisibility({checkOpacity:true,checkVisibilityCSS:true})) return false;
     const r=e.getBoundingClientRect(), x=r.x+r.width/2, y=r.y+r.height/2;
     if (!r.width || !r.height || x<0 || y<0 || x>=innerWidth || y>=innerHeight) return false;
-    return e.contains(document.elementFromPoint(x,y));
+    return holds(e, hitAt(x,y));
   };
   const actions=[];
-  for (const e of document.querySelectorAll(selector)) {
+  for (const e of roots.flatMap(root=>[...root.querySelectorAll(selector)])) {
     if (!safe(e) || !visible(e) || e.matches(':disabled') || e.closest('[aria-disabled="true"]')) continue;
     const r=e.getBoundingClientRect(), x=r.x+r.width/2, y=r.y+r.height/2, rname=role(e);
     if (!rname || r.width<=0 || r.height<=0 || x<0 || y<0 || x>=innerWidth || y>=innerHeight) continue;
+    if (!holds(e, hitAt(x,y))) continue;
     if (rname==='gridcell' && e.querySelector('button,[role="button"]')) continue;
     const base={node:identity(e),role:rname,label:name(e)||rname};
     for (const key of ['checked','selected','expanded']) {
@@ -85,14 +103,16 @@
       if (editable) actions.push({...base,kind:'click',value,label:'Open '+base.label});
     }
   }
-  const words=[], walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);
-  const range=document.createRange(); let node,length=0;
-  while ((node=walker.nextNode()) && length<6000) {
-    const value=node.textContent.trim(), parent=node.parentElement;
-    if (!value || !parent || parent.closest('script,style,noscript,template') || !visible(parent)) continue;
-    range.selectNodeContents(node); const r=range.getBoundingClientRect();
-    if (r.width>0 && r.height>0 && r.bottom>0 && r.top<innerHeight && r.right>0 && r.left<innerWidth) {
-      words.push(value); length+=value.length;
+  const words=[], range=document.createRange(); let length=0;
+  for (const root of [document.body, ...roots.slice(1)]) {
+    const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT); let node;
+    while ((node=walker.nextNode()) && length<6000) {
+      const value=node.textContent.trim(), parent=node.parentElement;
+      if (!value || !parent || parent.closest('script,style,noscript,template') || !visible(parent)) continue;
+      range.selectNodeContents(node); const r=range.getBoundingClientRect();
+      if (r.width>0 && r.height>0 && r.bottom>0 && r.top<innerHeight && r.right>0 && r.left<innerWidth) {
+        words.push(value); length+=value.length;
+      }
     }
   }
   const text=words.join('\n').slice(0,6000), height=document.documentElement.scrollHeight;
