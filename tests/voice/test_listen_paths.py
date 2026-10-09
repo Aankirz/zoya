@@ -74,6 +74,23 @@ def test_an_onset_that_changes_nothing_holds_nothing(monkeypatch):
         assert loop.barge_in_until > sim.clock.now
 
 
+def test_the_wake_earcon_comes_after_a_short_pause(monkeypatch):
+    trace, _loop = run_script(monkeypatch, [Sound("Hey Zoya", 1.0)])
+    (wake,) = trace.events("wake")
+    assert wake["phrase_end_to_earcon_ms"] < 300
+
+
+def test_a_pause_after_the_name_still_reaches_the_command(monkeypatch):
+    sounds = [Sound("Hey Zoya", 1.0), Sound("open the calendar", 1.85)]
+    trace, _loop = run_script(monkeypatch, sounds)
+    assert trace.dispatched == ["open the calendar"]
+
+
+def test_zoya_stop_is_never_taken_for_an_early_wake(monkeypatch):
+    trace, _loop = run_script(monkeypatch, [Sound("Zoya stop", 1.0)], running=["report"])
+    assert len(trace.stops) == 1 and not trace.events("wake")
+
+
 QUESTION = Reply("Which colour would you like for the case?", 0.5)
 
 

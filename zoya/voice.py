@@ -130,6 +130,8 @@ ANSWER_MERGE_S = 1.5
 EXPIRED_CONFIRMATION = "That confirmation has expired, so nothing was done."
 # wake.wav is 0.40 s and 4 of its 28 VAD blocks (128 ms) read as speech; one short word is ~0.3 s.
 ECHO_MAX_VOICED_S = 0.25
+WAKE_EARLY_SILENCE_S = 0.15  # spot for the wake word after this much quiet, not the full 0.3 s
+WAKE_SPECULATION_MIN_S = 1.5  # voiced time before a not-yet-awake utterance speculates
 REPLY_ECHO_TAIL_S = 0.2  # a room's echo of her voice has died away by then
 USER_LEAD_BLOCKS = 2  # keep the canceller's one-block delay plus one block before the user's voice
 
@@ -493,6 +495,7 @@ class Segment:
     speculations: int = 0  # partial routes started for this utterance
     channel: listen.Channel = listen.Channel.WAKE
     user_blocks: int = 0  # blocks that were the user's own voice, not Zoya's echo
+    early_checked: bool = False  # the short-pause wake check already ran
     user_from: int | None = None  # index of the first of them
 
     def note_user(self, is_user: bool) -> None:
@@ -762,6 +765,8 @@ class VoiceLoop:
         if segment.seconds >= MAX_UTTERANCE_S:
             return True
         if segment.woke_at is None:
+            if silence >= WAKE_EARLY_SILENCE_S and self._early_wake(segment):
+                return True
             return silence >= WAKE_END_SILENCE_S
         if self.turn and silence >= TURN_CHECK_SILENCE_S and segment.turn_complete is None:
             segment.turn_complete = self.turn(segment.tail(TURN_WINDOW_S))
@@ -771,6 +776,18 @@ class VoiceLoop:
             return silence >= (ANSWER_INCOMPLETE_SILENCE_S if self.turn else COMMAND_END_SILENCE_S)
         # Smart Turn can only end a command sooner; "incomplete" falls back to the 0.5 s rule.
         return bool(segment.turn_complete) or silence >= COMMAND_END_SILENCE_S
+
+    def _wake_checks(self, segment: Segment) -> bool:
+        return not (self._zoya_talking() or segment.began_while_busy or not self.wake_enabled)
+
+    def _early_wake(self, segment: Segment) -> bool:
+        """A short pause after the name is enough: spot once there, and end the phrase now if it
+        is a wake. Anything else waits for the full wake silence and is spotted again whole."""
+        if segment.early_checked or not self._wake_checks(segment):
+            return False
+        segment.early_checked = True
+        text = self._spot(segment.samples(WAKE_WINDOW_S))
+        return is_wake(text) and not is_stop(text)
 
     # --- spotting: "stop" always, the wake word only when Zoya is quiet ----------------------
 
@@ -864,7 +881,7 @@ class VoiceLoop:
             segment.channel = self.window
             self._command(segment)
             return
-        if self._zoya_talking() or segment.began_while_busy or not self.wake_enabled:
+        if not self._wake_checks(segment):
             return  # echo protection (Done-when #2): only the stop spotter listens now
         # Whole utterance only: partial audio makes Whisper hallucinate the "Zoya" prompt.
         text = self._spot(segment.samples(WAKE_WINDOW_S))
@@ -1042,6 +1059,8 @@ class VoiceLoop:
             return  # Zoya's own voice at the mic: never worth a transcription
         if now - self.last_partial_at < SPECULATION_EVERY_S or segment.seconds < PARTIAL_MIN_S:
             return
+        if segment.woke_at is None and segment.voiced_blocks * BLOCK_S < WAKE_SPECULATION_MIN_S:
+            return  # a bare "Hey Zoya": turbo on the GPU would only delay the wake check
         self.last_partial_at = now
         self.partial_pending = True
         awaited = segment.woke_at is not None
