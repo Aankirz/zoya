@@ -16,14 +16,15 @@ from zoya.router import QUESTION, clean_command
 _I = re.IGNORECASE
 VAGUE = r"(?:something|anything|stuff|a\s+(?:post|tweet|message|note)|it|this|that)"
 TOPIC = re.compile(
-    rf"^{VAGUE}(?:\s+(?:about|on|regarding)\s+(?P<topic>.+)|\s+(?:nice|useful|good|cool|for)\b.*)?$",
+    rf"^{VAGUE}(?:\s+(?:about|regarding)\s+(?P<topic>.+)|\s+(?:nice|useful|good|cool|for|on|to)\b.*)?$",
     _I,
 )
 
 NOT_A_NAME = r"(?!(?:that|saying|an?|to)\b)[\w']+"
 SEPARATOR = r"(?:\s*[:,-]\s*|\s+(?:saying|that says|that|to say)\s+)"
 POST = re.compile(
-    r"^(?:post|tweet|publish|share\s+(?:a\s+|an\s+)?(?:post|update|story)|put\s+up(?:\s+a)?(?:\s+(?:post|story|status))?)"
+    r"^(?:post|tweet|publish|share\s+(?:a\s+|an\s+)?(?:post|update|story)"
+    r"|share(?=\s+(?:something|anything)\b)|put\s+up(?:\s+a)?(?:\s+(?:post|story|status))?)"
     r"(?:\s+(?:a|my|the))?(?:\s+(?:post|tweet|story|status|update))?"
     r"(?:\s+(?:on|to|for)\s+(?P<where>(?:my\s+|the\s+)?[\w.]+))?"
     rf"(?:{SEPARATOR}|\s+)?(?P<text>.*)$",
@@ -34,7 +35,7 @@ MESSAGE = re.compile(
     r"|message|whatsapp|imessage|dm|e-?mail|mail)"
     rf"(?:\s+(?:to\s+)?(?P<who>{NOT_A_NAME}(?:\s+{NOT_A_NAME}){{0,2}}))?"
     r"(?:\s+an?\s+(?:message|text|imessage|whatsapp|email|e-?mail))?"
-    rf"(?:{SEPARATOR}(?P<body>.*))?$",
+    rf"(?:{SEPARATOR}(?P<body>.*)|\s+about\s+(?P<topic>.+))?$",
     _I,
 )
 BUY = re.compile(
@@ -97,7 +98,7 @@ def _message(text: str) -> Question | None:
         return None
     who = (match["who"] or "").strip()
     body = (match["body"] or "").strip(" .'\"")
-    if who.lower() in {"it", "this", "that", "something"}:
+    if who.lower() in {"it", "this", "that", "something", "someone", "somebody", "anyone"}:
         who = ""
     if body and _vague(body):
         body = ""

@@ -19,6 +19,9 @@ ASKS = {
     "order it": "What would you like me to buy?",
     "add stuff to my basket": "What should I add to your cart?",
     "set a reminder": "What should I remind you about, and when?",
+    "text somebody about the school pickup": "Who should I send it to, and what should it say?",
+    "message Dad about the weekend": "What should the message to Dad say?",
+    "share something on my forum": "What should the post say?",
     "get me something nice for the kitchen": "What would you like me to buy?",
     "share an update on Threads": "What should the post say?",
 }
