@@ -19,6 +19,8 @@ ASKS = {
     "order it": "What would you like me to buy?",
     "add stuff to my basket": "What should I add to your cart?",
     "set a reminder": "What should I remind you about, and when?",
+    "get me something nice for the kitchen": "What would you like me to buy?",
+    "share an update on Threads": "What should the post say?",
 }
 
 ACTS = [
@@ -35,6 +37,7 @@ ACTS = [
     "open Messages",
     "add 5 and 7",
     "play some lo-fi beats",
+    "share an update on Threads: back from the hills",
 ]
 
 

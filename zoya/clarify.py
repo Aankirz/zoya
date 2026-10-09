@@ -15,12 +15,15 @@ from zoya.router import QUESTION, clean_command
 
 _I = re.IGNORECASE
 VAGUE = r"(?:something|anything|stuff|a\s+(?:post|tweet|message|note)|it|this|that)"
-TOPIC = re.compile(rf"^{VAGUE}(?:\s+(?:about|on|regarding)\s+(?P<topic>.+))?$", _I)
+TOPIC = re.compile(
+    rf"^{VAGUE}(?:\s+(?:about|on|regarding)\s+(?P<topic>.+)|\s+(?:nice|useful|good|cool|for)\b.*)?$",
+    _I,
+)
 
 NOT_A_NAME = r"(?!(?:that|saying|an?|to)\b)[\w']+"
 SEPARATOR = r"(?:\s*[:,-]\s*|\s+(?:saying|that says|that|to say)\s+)"
 POST = re.compile(
-    r"^(?:post|tweet|publish|share\s+a\s+post|put\s+up(?:\s+a)?(?:\s+(?:post|story|status))?)"
+    r"^(?:post|tweet|publish|share\s+(?:a\s+|an\s+)?(?:post|update|story)|put\s+up(?:\s+a)?(?:\s+(?:post|story|status))?)"
     r"(?:\s+(?:a|my|the))?(?:\s+(?:post|tweet|story|status|update))?"
     r"(?:\s+(?:on|to|for)\s+(?P<where>(?:my\s+|the\s+)?[\w.]+))?"
     rf"(?:{SEPARATOR}|\s+)?(?P<text>.*)$",
