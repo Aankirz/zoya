@@ -1182,13 +1182,19 @@ def test_push_to_talk_does_not_cancel_a_waiting_confirmation(loop, monkeypatch):
 
 
 def test_push_to_talk_still_interrupts_when_nothing_waits(loop, monkeypatch):
+    from zoya import speech, voice
+
     instance, calls = loop
     monkeypatch.setattr(safety, "awaiting_reply", lambda: False)
+    cut = []
+    monkeypatch.setattr(speech, "cancel", lambda: cut.append(True))
+    monkeypatch.setattr(voice, "_log_voice", lambda record: None)
     import numpy as np
 
     instance._push_to_talk(time.monotonic(), np.zeros(512, dtype="float32"))
 
-    assert calls["stop_task"] == 1
+    assert cut == [True]
+    assert calls["stop_task"] == 0
 
 
 def test_spoken_zoya_stop_during_a_confirmation_takes_the_stop_path(loop):

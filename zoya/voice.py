@@ -39,6 +39,7 @@ from zoya import (
     diagnostics,
     events,
     hotkey,
+    listen,
     orchestrator,
     overlay,
     safety,
@@ -108,10 +109,12 @@ ONE_BREATH_MIN_S = 1.2  # longer utterances get a turbo wake check if base.en mi
 MAX_COMPRESSION_RATIO = 2.4  # Whisper's own threshold for repetitive output
 MIN_AVG_LOGPROB = -0.7
 STT_LANGUAGES = frozenset({"en", "hi"})
+HINGLISH_PROMPT = "Haan, Spotify khol do aur mera playlist bajao. Mummy ko message bhejo."
 MAX_TRANSCRIPT_WORDS = 60  # 15 s of speech at most (MAX_UTTERANCE_S)
 RUNAWAY_REPEATS = 4
 MIN_COMMAND_WORDS = 2
 MIN_VOICED_FRACTION = 0.2  # a captured "command" that is mostly background is music, not the user
+NOT_ADDRESSED = {"not_a_request", "fragment"}
 FIRST_WORD_WAIT_S = 5.0
 FIRST_WORD_POLL_S = 0.02
 STOP_COOLDOWN_S = 2.0
@@ -128,6 +131,10 @@ ANSWER_MERGE_S = 1.5
 EXPIRED_CONFIRMATION = "That confirmation has expired, so nothing was done."
 # wake.wav is 0.40 s and 4 of its 28 VAD blocks (128 ms) read as speech; one short word is ~0.3 s.
 ECHO_MAX_VOICED_S = 0.25
+WAKE_EARLY_SILENCE_S = 0.15  # spot for the wake word after this much quiet, not the full 0.3 s
+WAKE_SPECULATION_MIN_S = 1.5  # voiced time before a not-yet-awake utterance speculates
+REPLY_ECHO_TAIL_S = 0.2  # a room's echo of her voice has died away by then
+USER_LEAD_BLOCKS = 2  # keep the canceller's one-block delay plus one block before the user's voice
 
 # --- Parsers (tested: tests/test_voice_spotter.py) ------------------------------------
 
@@ -341,6 +348,24 @@ class StreamingVad:
         return float(np.asarray(out).reshape(-1)[0])
 
 
+_LOADED_WHISPERS: dict[str, object] = {}
+
+
+def _hold_every_model(holder: type) -> None:
+    """mlx-whisper's ModelHolder keeps one model, and the spotter (loop thread) and turbo
+    (partial threads) alternate on it: an interleaving reloaded weights by repo id. Serve
+    every model Zoya loaded from one registry instead; anything else loads as before."""
+    if getattr(holder.get_model, "zoya_registry", False):
+        return
+    original = holder.get_model
+
+    def get_model(path: str, dtype: object) -> object:
+        return _LOADED_WHISPERS.get(path) or original(path, dtype)
+
+    get_model.zoya_registry = True
+    holder.get_model = staticmethod(get_model)
+
+
 def load_whisper(
     repo: str,
     allowed_languages: frozenset[str] | None = None,
@@ -361,12 +386,10 @@ def load_whisper(
     from zoya.setup_models import local_model_dir
 
     # A local path: mlx-whisper would otherwise ask the Hub for a revision (startup hang, AUDIT §6).
-    model = load_model(local_model_dir(repo), dtype=mx.float16)  # transcribe()'s default fp16
+    _LOADED_WHISPERS[repo] = load_model(local_model_dir(repo), dtype=mx.float16)
+    _hold_every_model(ModelHolder)
 
     def transcribe(samples: np.ndarray) -> str:
-        # ponytail: mlx-whisper 0.4.3 caches ONE model, so alternating base.en and turbo reloaded
-        # weights every call (+350 ms spot, turbo 0.6 → 1.3 s). Hand it ours; re-check on upgrade.
-        ModelHolder.model, ModelHolder.model_path = model, repo
         result = mlx_whisper.transcribe(
             samples,
             path_or_hf_repo=repo,
@@ -471,6 +494,17 @@ class Segment:
     began_while_busy: bool = False  # started during Zoya's speech: likely her own echo
     over_earcon: bool = False  # started while (or just after) an earcon played
     speculations: int = 0  # partial routes started for this utterance
+    channel: listen.Channel = listen.Channel.WAKE
+    user_blocks: int = 0  # blocks that were the user's own voice, not Zoya's echo
+    early_checked: bool = False  # the short-pause wake check already ran
+    user_from: int | None = None  # index of the first of them
+
+    def note_user(self, is_user: bool) -> None:
+        if not is_user:
+            return
+        self.user_blocks += 1
+        if self.user_from is None:
+            self.user_from = len(self.blocks) - 1
 
     @property
     def seconds(self) -> float:
@@ -487,26 +521,46 @@ class Segment:
         return np.concatenate(self.blocks[-max(1, int(seconds / BLOCK_S)) :])
 
 
+@dataclass(frozen=True)
+class Models:
+    vad: Callable[[np.ndarray], float]
+    spot: Callable[[np.ndarray], str]
+    stt: Callable[[np.ndarray], str]
+    turn: Callable[[np.ndarray], bool] | None
+
+
+def load_models() -> Models:
+    spot = (
+        load_cpu_spotter()
+        if SPOTTER_ENGINE == "faster-whisper"
+        else load_whisper(WAKE_MODEL, language="en", initial_prompt="Zoya")
+    )
+    # Multilingual, but only English/Hindi are accepted.
+    stt = load_whisper(
+        STT_MODEL_REPO,
+        allowed_languages=STT_LANGUAGES,
+        min_avg_logprob=MIN_AVG_LOGPROB,
+        initial_prompt=HINGLISH_PROMPT,
+    )
+    turn = load_smart_turn() if ENDPOINT_MODE == "smart_turn" else None
+    return Models(StreamingVad(), spot, stt, turn)
+
+
 class VoiceLoop:
     ptt_woke_at = 0.0
 
     def __init__(
-        self, wake_enabled: bool = True, test_wake: bool = False, record_clips: bool = False
+        self,
+        wake_enabled: bool = True,
+        test_wake: bool = False,
+        record_clips: bool = False,
+        models: Models | None = None,
     ) -> None:
         self.wake_enabled = wake_enabled
         self.test_wake = test_wake
         self.record_clips = record_clips
-        self.vad = StreamingVad()
-        self.spot = (
-            load_cpu_spotter()
-            if SPOTTER_ENGINE == "faster-whisper"
-            else load_whisper(WAKE_MODEL, language="en", initial_prompt="Zoya")
-        )
-        # Multilingual (Hinglish → Devanagari, D42), but only English/Hindi are accepted.
-        self.stt = load_whisper(
-            STT_MODEL_REPO, allowed_languages=STT_LANGUAGES, min_avg_logprob=MIN_AVG_LOGPROB
-        )
-        self.turn = load_smart_turn() if ENDPOINT_MODE == "smart_turn" else None
+        models = models or load_models()
+        self.vad, self.spot, self.stt, self.turn = models.vad, models.spot, models.stt, models.turn
         self.mic: queue.Queue[tuple[float, np.ndarray]] = queue.Queue()
         self.pre_roll: deque[np.ndarray] = deque(maxlen=int(PRE_ROLL_S / BLOCK_S))
         self.recent: deque[np.ndarray] = deque(maxlen=int(STOP_WINDOW_S / BLOCK_S))
@@ -518,6 +572,7 @@ class VoiceLoop:
         self.utterances = 0
         self.segment: Segment | None = None
         self.awaiting_command_until = 0.0  # "Hey Zoya" … pause … command
+        self.window = listen.Channel.AFTER_WAKE
         self.ptt: Segment | None = None
         self.ptt_woke_at = 0.0
         self.task: threading.Thread | None = None
@@ -596,7 +651,6 @@ class VoiceLoop:
             self._end_barge_in()
 
     def _barge_in(self, arrival: float, other_audio: bool) -> None:
-        self.barge_in_until = time.monotonic() + BARGE_IN_HOLD_S
         action = "none"
         if speech.is_speaking():
             audio.engine().set_speech_gain(BARGE_IN_SPEECH_GAIN)
@@ -604,6 +658,8 @@ class VoiceLoop:
         elif other_audio:
             audio.duck()  # kill-safe duck path; restored by the idle check once the hold ends
             action = "duck"
+        if action != "none":
+            self.barge_in_until = time.monotonic() + BARGE_IN_HOLD_S
         # The voice began ~(BARGE_IN_ONSET_BLOCKS + mic delay) blocks before this block arrived.
         drop_ms = round((time.monotonic() - arrival) * MS_PER_S)
         _log_voice(
@@ -644,12 +700,15 @@ class VoiceLoop:
             if voiced:
                 self.segment = Segment([*self.pre_roll, block], arrival)
                 self.segment.began_while_busy = self._zoya_talking()
+                self.segment.note_user(self._users_voice(voiced))
                 self.segment.over_earcon = self._own_sound(arrival)
                 if time.monotonic() < self.awaiting_command_until or safety.awaiting_reply():
                     self.segment.woke_at = time.monotonic()  # already awake: this is the command
                     self.segment.awaited = True
+                    self.segment.channel = self.window
             return
         self.segment.blocks.append(block)
+        self.segment.note_user(self._users_voice(voiced))
         if voiced:
             self.segment.last_voice_at = arrival
             self.segment.voiced_blocks += 1
@@ -675,11 +734,43 @@ class VoiceLoop:
         loud_enough = loudness >= max(background * SPEECH_OVER_BACKGROUND, MIN_SPEECH_RMS)
         return loud_enough and self.vad(block) >= VAD_THRESHOLD
 
+    def _users_voice(self, voiced: bool) -> bool:
+        """This voiced block is the user, not Zoya: she is quiet, or the echo canceller kept
+        most of it while she spoke (D62's onset test)."""
+        if not voiced:
+            return False
+        if self.onset and self.onset.voiced:
+            return True
+        quiet_for = time.monotonic() - self.last_spoke_at
+        return not speech.is_speaking() and quiet_for >= REPLY_ECHO_TAIL_S
+
+    def _keep_users_part(self, segment: Segment) -> bool:
+        """A segment that began over Zoya's speech: keep it from where the user's own voice
+        starts, or drop it as her echo."""
+        if segment.user_from is None or segment.user_blocks * BLOCK_S < ECHO_MAX_VOICED_S:
+            return False
+        start = max(0, segment.user_from - USER_LEAD_BLOCKS)
+        segment.blocks = segment.blocks[start:]
+        segment.voiced_blocks, segment.began_while_busy = segment.user_blocks, False
+        segment.user_from = segment.user_from - start
+        _log_voice({"event": "reply_over_speech", "user_ms": round(segment.seconds * MS_PER_S)})
+        return True
+
+    def _reply_window(self) -> bool:
+        """Zoya has finished and a no-wake-word window is (or is about to be) open."""
+        if speech.is_speaking():
+            return False
+        if self.follow_up_pending:
+            self._open_follow_up()
+        return time.monotonic() < self.awaiting_command_until
+
     def _segment_ended(self, segment: Segment, arrival: float) -> bool:
         silence = arrival - segment.last_voice_at
         if segment.seconds >= MAX_UTTERANCE_S:
             return True
         if segment.woke_at is None:
+            if silence >= WAKE_EARLY_SILENCE_S and self._early_wake(segment):
+                return True
             return silence >= WAKE_END_SILENCE_S
         if self.turn and silence >= TURN_CHECK_SILENCE_S and segment.turn_complete is None:
             segment.turn_complete = self.turn(segment.tail(TURN_WINDOW_S))
@@ -689,6 +780,18 @@ class VoiceLoop:
             return silence >= (ANSWER_INCOMPLETE_SILENCE_S if self.turn else COMMAND_END_SILENCE_S)
         # Smart Turn can only end a command sooner; "incomplete" falls back to the 0.5 s rule.
         return bool(segment.turn_complete) or silence >= COMMAND_END_SILENCE_S
+
+    def _wake_checks(self, segment: Segment) -> bool:
+        return not (self._zoya_talking() or segment.began_while_busy or not self.wake_enabled)
+
+    def _early_wake(self, segment: Segment) -> bool:
+        """A short pause after the name is enough: spot once there, and end the phrase now if it
+        is a wake. Anything else waits for the full wake silence and is spotted again whole."""
+        if segment.early_checked or not self._wake_checks(segment):
+            return False
+        segment.early_checked = True
+        text = self._spot(segment.samples(WAKE_WINDOW_S))
+        return is_wake(text) and not is_stop(text)
 
     # --- spotting: "stop" always, the wake word only when Zoya is quiet ----------------------
 
@@ -777,7 +880,12 @@ class VoiceLoop:
         if segment.woke_at is not None:
             self._command(segment)
             return
-        if self._zoya_talking() or segment.began_while_busy or not self.wake_enabled:
+        if segment.began_while_busy and self._reply_window() and self._keep_users_part(segment):
+            segment.awaited, segment.woke_at = True, time.monotonic()
+            segment.channel = self.window
+            self._command(segment)
+            return
+        if not self._wake_checks(segment):
             return  # echo protection (Done-when #2): only the stop spotter listens now
         # Whole utterance only: partial audio makes Whisper hallucinate the "Zoya" prompt.
         text = self._spot(segment.samples(WAKE_WINDOW_S))
@@ -818,6 +926,7 @@ class VoiceLoop:
         """Zoya finished answering: the next sentence needs no wake word for a few seconds."""
         self.follow_up_pending = False
         self.awaiting_command_until = time.monotonic() + FOLLOW_UP_WINDOW_S
+        self.window = listen.Channel.FOLLOW_UP
         self.answer_until = self.awaiting_command_until if self.answer_expected else 0.0
         print(f"LISTENING for a follow-up ({FOLLOW_UP_WINDOW_S:.0f} s, no wake word needed)")
 
@@ -833,6 +942,7 @@ class VoiceLoop:
 
     def _await_command(self) -> None:
         self.awaiting_command_until = time.monotonic() + AFTER_WAKE_WAIT_S
+        self.window = listen.Channel.AFTER_WAKE
 
     def _idle_since_wake(self) -> bool:
         waiting = time.monotonic() < max(self.awaiting_command_until, self.barge_in_until)
@@ -907,12 +1017,15 @@ class VoiceLoop:
             return False
         if self.ptt is None:
             if self._zoya_busy() and not safety.awaiting_reply():  # keys answer a confirmation
-                if self._task_running():
-                    speech.cancel()  # keys cut speech; tasks go on ("Zoya, stop" ends them)
-                else:
-                    orchestrator.stop_task()  # the keys interrupt Zoya, like Wispr's fn key
+                speech.cancel()  # keys cut speech; tasks go on ("Zoya, stop" ends them)
                 audio.engine().silence_all()
-            self.ptt = Segment([*self.pre_roll, block], arrival, woke_at=time.monotonic())
+                _log_voice({"event": "ptt_cut_speech", "tasks": len(tasks.running())})
+            self.ptt = Segment(
+                [*self.pre_roll, block],
+                arrival,
+                woke_at=time.monotonic(),
+                channel=listen.Channel.PUSH_TO_TALK,
+            )
             self.segment = None
             if time.monotonic() - self.ptt_woke_at > PTT_WAKE_FRESH_S:
                 audio.earcon("listening")
@@ -950,6 +1063,8 @@ class VoiceLoop:
             return  # Zoya's own voice at the mic: never worth a transcription
         if now - self.last_partial_at < SPECULATION_EVERY_S or segment.seconds < PARTIAL_MIN_S:
             return
+        if segment.woke_at is None and segment.voiced_blocks * BLOCK_S < WAKE_SPECULATION_MIN_S:
+            return  # a bare "Hey Zoya": turbo on the GPU would only delay the wake check
         self.last_partial_at = now
         self.partial_pending = True
         awaited = segment.woke_at is not None
@@ -989,7 +1104,7 @@ class VoiceLoop:
 
     def _command(self, segment: Segment, transcript: str | None = None) -> None:
         endpoint_ms = round((time.monotonic() - segment.last_voice_at) * MS_PER_S)
-        if segment.awaited and segment.began_while_busy:
+        if segment.awaited and segment.began_while_busy and not self._keep_users_part(segment):
             # Started while Zoya (any task) was speaking: her own words at the mic. Owner's run:
             # her re-prompt "I need a clear answer." was dispatched as a command (V3).
             _log_voice({"event": "echo_dropped", "reason": "speech"})
@@ -1006,17 +1121,13 @@ class VoiceLoop:
         audio.earcon("working")
         speech.reset_timing()
         text, stt_ms = (transcript, 0) if transcript is not None else self._transcribe(segment)
-        background = segment.awaited and segment.voiced_fraction < MIN_VOICED_FRACTION
         print(f"HEARD {text!r} (endpoint {endpoint_ms} ms, stt {stt_ms} ms)")
         if _quit(text):  # before the junk filter: "quit" alone is one word
             return
-        if background or not is_usable_command(text):
-            audio.engine().silence_all()  # end the working loop
-            if not segment.awaited:
-                self._await_command()  # woke (or keys pressed) but no words yet: keep listening
-            elif self.awaiting_command_until:  # junk mustn't use up the window: give its time back
-                self.awaiting_command_until += segment.seconds + stt_ms / MS_PER_S
-            # Junk in the wait window (music, the chime) keeps the wake, and the music stays ducked.
+        channel = self._channel_of(segment)
+        verdict = listen.judge(text, channel, segment.voiced_fraction)
+        if not verdict.act:
+            self._not_for_me(segment, channel, verdict, stt_ms)
             return
         if segment.awaited:
             text = strip_wake(text)  # "Zoya 5000" answers with "5000"
@@ -1027,6 +1138,26 @@ class VoiceLoop:
             return
         self._send(segment, text, pre)
 
+    def _channel_of(self, segment: Segment) -> listen.Channel:
+        if segment.awaited and self._answer_mode():
+            return listen.Channel.ANSWER
+        return segment.channel
+
+    def _not_for_me(
+        self, segment: Segment, channel: listen.Channel, verdict: listen.Verdict, stt_ms: int
+    ) -> None:
+        """Junk keeps the wake and gives the window its time back; a remark after the name in
+        one breath ends the wake, so Zoya stays quiet and the music comes back."""
+        audio.engine().silence_all()
+        _log_voice({"event": "not_for_me", "reason": verdict.reason, "channel": channel})
+        if channel is listen.Channel.WAKE and verdict.reason in NOT_ADDRESSED:
+            self.awaiting_command_until = 0.0
+            audio.restore()
+        elif not segment.awaited:
+            self._await_command()
+        elif self.awaiting_command_until and verdict.reason not in NOT_ADDRESSED:
+            self.awaiting_command_until += segment.seconds + stt_ms / MS_PER_S
+
     def _answer_mode(self) -> bool:
         return time.monotonic() < self.answer_until
 
@@ -1035,7 +1166,7 @@ class VoiceLoop:
         self.answer_expected, self.answer_until = False, 0.0
         events.emit(events.OverlayEvent(text, "listening", {"role": "user"}))  # caption (Phase 7)
         audio.restore()  # the command is in: other audio comes back before Zoya answers
-        self._dispatch(text, segment.last_voice_at, pre)
+        self._dispatch(text, segment.last_voice_at, pre, judged=True)
 
     def _resume_or_release(self, block: np.ndarray, voiced: bool) -> None:
         """A held answer: the user went on speaking → one segment again (re-transcribed whole at
@@ -1106,10 +1237,12 @@ class VoiceLoop:
         events.emit(events.OverlayEvent(text, "listening", {"role": "user"}))
         self._dispatch(text, time.monotonic(), {})
 
-    def _dispatch(self, text: str, speech_end_at: float, pre: dict[str, int]) -> None:
+    def _dispatch(
+        self, text: str, speech_end_at: float, pre: dict[str, int], judged: bool = False
+    ) -> None:
         if _quit(text) or _problem_report(text) or updates.answer(text):
             return
-        if not is_usable_command(text):
+        if not judged and not is_usable_command(text):
             audio.engine().silence_all()  # nothing heard: end the working loop quietly
             return
         if self._task_command(clean_command(text)):

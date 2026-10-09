@@ -1,0 +1,1290 @@
+{
+ "summary": {
+  "auto (current) / hinglish": {
+   "clips": 11,
+   "heard_share": 0.815,
+   "needs_translate": 11,
+   "p50_ms": 812
+  },
+  "auto (current) / english": {
+   "clips": 18,
+   "heard_share": 0.88,
+   "needs_translate": 0,
+   "p50_ms": 688
+  },
+  "language=hi / hinglish": {
+   "clips": 11,
+   "heard_share": 0.815,
+   "needs_translate": 11,
+   "p50_ms": 536
+  },
+  "language=hi / english": {
+   "clips": 18,
+   "heard_share": 0.319,
+   "needs_translate": 17,
+   "p50_ms": 632
+  },
+  "language=en / hinglish": {
+   "clips": 11,
+   "heard_share": 0.413,
+   "needs_translate": 1,
+   "p50_ms": 426
+  },
+  "language=en / english": {
+   "clips": 18,
+   "heard_share": 0.88,
+   "needs_translate": 0,
+   "p50_ms": 375
+  },
+  "auto + Hinglish prompt / hinglish": {
+   "clips": 11,
+   "heard_share": 0.858,
+   "needs_translate": 6,
+   "p50_ms": 788
+  },
+  "auto + Hinglish prompt / english": {
+   "clips": 18,
+   "heard_share": 0.887,
+   "needs_translate": 0,
+   "p50_ms": 699
+  }
+ },
+ "detail": {
+  "auto (current)": [
+   {
+    "clip": "polly-kajal/5",
+    "hinglish": true,
+    "heard": "ठीक है, आपकी बहन का बर्दी दे 12th of March को है.",
+    "language": "hi",
+    "share": 0.7,
+    "devanagari": true,
+    "ms": 1860
+   },
+   {
+    "clip": "polly-kajal/6",
+    "hinglish": true,
+    "heard": "मैंने राहुल वर्मा को वाटसाप पे मेसेज भेज दिया.",
+    "language": "hi",
+    "share": 0.78,
+    "devanagari": true,
+    "ms": 850
+   },
+   {
+    "clip": "polly-kajal/10",
+    "hinglish": true,
+    "heard": "आज नोईदा में 34 डिग्री है, शाम को बारिश हो शकती है.",
+    "language": "hi",
+    "share": 0.83,
+    "devanagari": true,
+    "ms": 942
+   },
+   {
+    "clip": "polly-kajal/11",
+    "hinglish": true,
+    "heard": "खेसरिया चला रही हूँ अर्जित सिंग का",
+    "language": "hi",
+    "share": 0.86,
+    "devanagari": true,
+    "ms": 812
+   },
+   {
+    "clip": "polly-kajal/12",
+    "hinglish": true,
+    "heard": "Rs. 1249 का order place करूं. Say confirm और stop.",
+    "language": "hi",
+    "share": 0.89,
+    "devanagari": true,
+    "ms": 770
+   },
+   {
+    "clip": "polly-kajal/13",
+    "hinglish": true,
+    "heard": "आपकी मीटिंग 4.30 बजे है रिया के साथ",
+    "language": "hi",
+    "share": 0.89,
+    "devanagari": true,
+    "ms": 776
+   },
+   {
+    "clip": "polly-kajal/1",
+    "hinglish": false,
+    "heard": "Notes is open.",
+    "language": "en",
+    "share": 1.0,
+    "devanagari": false,
+    "ms": 671
+   },
+   {
+    "clip": "polly-kajal/7",
+    "hinglish": false,
+    "heard": "Your car total is Rs. 1249.50 with a delivery fee of Rs. 35.",
+    "language": "en",
+    "share": 0.86,
+    "devanagari": false,
+    "ms": 739
+   },
+   {
+    "clip": "polly-kajal/9",
+    "hinglish": false,
+    "heard": "It's 31 degrees in Bengaluru, with a chance of rain after 4 pm.",
+    "language": "en",
+    "share": 1.0,
+    "devanagari": false,
+    "ms": 707
+   },
+   {
+    "clip": "fixture/00",
+    "hinglish": false,
+    "heard": "Remind me to call Priya at 6 PM.",
+    "language": "en",
+    "share": 0.88,
+    "devanagari": false,
+    "ms": 683
+   },
+   {
+    "clip": "fixture/01",
+    "hinglish": false,
+    "heard": "Message Rohan and tell him I'm running late.",
+    "language": "en",
+    "share": 1.0,
+    "devanagari": false,
+    "ms": 658
+   },
+   {
+    "clip": "fixture/02",
+    "hinglish": false,
+    "heard": "My order total is Rs. 2847.",
+    "language": "en",
+    "share": 0.33,
+    "devanagari": false,
+    "ms": 672
+   },
+   {
+    "clip": "fixture/03",
+    "hinglish": false,
+    "heard": "Set a reminder for the team meeting at 3 pm.",
+    "language": "en",
+    "share": 0.9,
+    "devanagari": false,
+    "ms": 692
+   },
+   {
+    "clip": "fixture/04",
+    "hinglish": false,
+    "heard": "Sent Rs. 15,000 to Ankit Sharma.",
+    "language": "en",
+    "share": 0.57,
+    "devanagari": false,
+    "ms": 700
+   },
+   {
+    "clip": "fixture/05",
+    "hinglish": true,
+    "heard": "आपका स्विगी ओर्डर 15 मिनिट में आ जाएगा.",
+    "language": "hi",
+    "share": 0.62,
+    "devanagari": true,
+    "ms": 841
+   },
+   {
+    "clip": "fixture/06",
+    "hinglish": true,
+    "heard": "Spotify खोल दो और मेरा प्लेलिस्ट बजाओ",
+    "language": "hi",
+    "share": 1.0,
+    "devanagari": true,
+    "ms": 766
+   },
+   {
+    "clip": "fixture/07",
+    "hinglish": false,
+    "heard": "Remind me to pay the electricity bill of 1200 rupees.",
+    "language": "en",
+    "share": 0.82,
+    "devanagari": false,
+    "ms": 721
+   },
+   {
+    "clip": "fixture/08",
+    "hinglish": false,
+    "heard": "Message Snehaan, ask if she's free tonight.",
+    "language": "en",
+    "share": 0.89,
+    "devanagari": false,
+    "ms": 661
+   },
+   {
+    "clip": "fixture/09",
+    "hinglish": true,
+    "heard": "मामी को मेसेज भेजो कि मैं घर आ रहा हूँ",
+    "language": "hi",
+    "share": 0.8,
+    "devanagari": true,
+    "ms": 831
+   },
+   {
+    "clip": "fixture/10",
+    "hinglish": false,
+    "heard": "What's the weather in Bangalore today?",
+    "language": "en",
+    "share": 1.0,
+    "devanagari": false,
+    "ms": 683
+   },
+   {
+    "clip": "fixture/11",
+    "hinglish": false,
+    "heard": "Set a reminder to take medicine at 9 pm.",
+    "language": "en",
+    "share": 0.89,
+    "devanagari": false,
+    "ms": 723
+   },
+   {
+    "clip": "fixture/12",
+    "hinglish": false,
+    "heard": "Search the web for the best biryani near me.",
+    "language": "en",
+    "share": 1.0,
+    "devanagari": false,
+    "ms": 723
+   },
+   {
+    "clip": "fixture/13",
+    "hinglish": false,
+    "heard": "Open WhatsApp and read my latest message from Kartik.",
+    "language": "en",
+    "share": 1.0,
+    "devanagari": false,
+    "ms": 678
+   },
+   {
+    "clip": "fixture/14",
+    "hinglish": true,
+    "heard": "बताईए मेरा कार्ट में कितने आइटम्स है।",
+    "language": "hi",
+    "share": 0.71,
+    "devanagari": true,
+    "ms": 789
+   },
+   {
+    "clip": "fixture/15",
+    "hinglish": false,
+    "heard": "Add discount code festive and check the new total.",
+    "language": "en",
+    "share": 1.0,
+    "devanagari": false,
+    "ms": 745
+   },
+   {
+    "clip": "fixture/16",
+    "hinglish": false,
+    "heard": "Deliver this order to Sneha Reddy at MG Road.",
+    "language": "en",
+    "share": 1.0,
+    "devanagari": false,
+    "ms": 667
+   },
+   {
+    "clip": "fixture/17",
+    "hinglish": false,
+    "heard": "Zoya stop, cancel what you are doing.",
+    "language": "en",
+    "share": 1.0,
+    "devanagari": false,
+    "ms": 668
+   },
+   {
+    "clip": "fixture/18",
+    "hinglish": true,
+    "heard": "रुप जाओ जोया, मुझे कुछ और बोलना है।",
+    "language": "hi",
+    "share": 0.88,
+    "devanagari": true,
+    "ms": 764
+   },
+   {
+    "clip": "fixture/19",
+    "hinglish": false,
+    "heard": "Confirm the transfer of Rs. 2000 to my sister.",
+    "language": "en",
+    "share": 0.7,
+    "devanagari": false,
+    "ms": 916
+   }
+  ],
+  "language=hi": [
+   {
+    "clip": "polly-kajal/5",
+    "hinglish": true,
+    "heard": "ठीक है, आपकी बहन का बर्दी दे 12th of March को है.",
+    "language": "hi",
+    "share": 0.7,
+    "devanagari": true,
+    "ms": 997
+   },
+   {
+    "clip": "polly-kajal/6",
+    "hinglish": true,
+    "heard": "मैंने राहुल वर्मा को वाटसाप पे मेसेज भेज दिया.",
+    "language": "hi",
+    "share": 0.78,
+    "devanagari": true,
+    "ms": 593
+   },
+   {
+    "clip": "polly-kajal/10",
+    "hinglish": true,
+    "heard": "आज नोईदा में 34 डिग्री है, शाम को बारिश हो शकती है.",
+    "language": "hi",
+    "share": 0.83,
+    "devanagari": true,
+    "ms": 519
+   },
+   {
+    "clip": "polly-kajal/11",
+    "hinglish": true,
+    "heard": "खेसरिया चला रही हूँ अर्जित सिंग का",
+    "language": "hi",
+    "share": 0.86,
+    "devanagari": true,
+    "ms": 445
+   },
+   {
+    "clip": "polly-kajal/12",
+    "hinglish": true,
+    "heard": "Rs. 1249 का order place करूं. Say confirm और stop.",
+    "language": "hi",
+    "share": 0.89,
+    "devanagari": true,
+    "ms": 394
+   },
+   {
+    "clip": "polly-kajal/13",
+    "hinglish": true,
+    "heard": "आपकी मीटिंग 4.30 बजे है रिया के साथ",
+    "language": "hi",
+    "share": 0.89,
+    "devanagari": true,
+    "ms": 463
+   },
+   {
+    "clip": "polly-kajal/1",
+    "hinglish": false,
+    "heard": "नोटस इस ओपन",
+    "language": "hi",
+    "share": 1.0,
+    "devanagari": true,
+    "ms": 429
+   },
+   {
+    "clip": "polly-kajal/7",
+    "hinglish": false,
+    "heard": "यह चार टोतल इस 1,249.50 रुपी इस दिलिवरी फी फिर थर्टीफ रुपी रुपी इस दिलिवरी फी रुपी इस दिलिवरी फी रुपी इस दिलिवरी फी इस दिलिवरी इस दिलिवरी इस दिलिवरी इस दिलिवरी इस दिलिवरी इस दिलिवरी इस दिलिवरी इस दिलिव",
+    "language": "hi",
+    "share": 0.5,
+    "devanagari": true,
+    "ms": 1562
+   },
+   {
+    "clip": "polly-kajal/9",
+    "hinglish": false,
+    "heard": "इस 31 देग्री इंगलुरू इट जा जाँ जाँ अटर फूर प्रूर्ट प्रूर्ट प्रूर्ट प्रूर्ट प्रूर्ट प्रूर्ट प्रूर्ट प्रूर्ट प्रूर्ट प्रूर्ट प्रूर्ट प्रूर्ट प्रूर्ट प्रूर्ट प्रूर्ट प्रूर्ट प्रूर्ट प्",
+    "language": "hi",
+    "share": 0.21,
+    "devanagari": true,
+    "ms": 1546
+   },
+   {
+    "clip": "fixture/00",
+    "hinglish": false,
+    "heard": "रिमाने टो अगॉब प्रिया अग्सिक्ष प्रिया अग्सिक्ष प्रिया अग्सिक्ष प्रिया अग्सिक्ष प्रिया अग्सिक्ष प्रिया अग्सिक्ष प्रिया अग्सिक्ष प्रिया अग्सिक्ष प्रिया अग्सिक्ष प्रिया अग्सिक्ष प्रिया अग्सिक्ष प्रिया",
+    "language": "hi",
+    "share": 0.25,
+    "devanagari": true,
+    "ms": 1168
+   },
+   {
+    "clip": "fixture/01",
+    "hinglish": false,
+    "heard": "मेशच रहन और रहन और रहन और रहन और रहन और रहन और रहन और रहन और रहन और रहन और रहन और रहन और रहन और रहन और रहन और रहन और रहन और रहन और रहन और रहन और रहन और रहन और रहन और रहन और रहन और रहन और रहन और रहन और रहन और रहन और रहन और",
+    "language": "hi",
+    "share": 0.11,
+    "devanagari": true,
+    "ms": 1205
+   },
+   {
+    "clip": "fixture/02",
+    "hinglish": false,
+    "heard": "मैं अजर टोटल इस 2,847 रूपीज",
+    "language": "hi",
+    "share": 0.17,
+    "devanagari": true,
+    "ms": 418
+   },
+   {
+    "clip": "fixture/03",
+    "hinglish": false,
+    "heard": "अब एक रिमांदर एक टीम मेटिंग अट 3 प्म",
+    "language": "hi",
+    "share": 0.4,
+    "devanagari": true,
+    "ms": 505
+   },
+   {
+    "clip": "fixture/04",
+    "hinglish": false,
+    "heard": "सेंट 15,000 रुपीस तो अंकित शर्मा",
+    "language": "hi",
+    "share": 0.71,
+    "devanagari": true,
+    "ms": 446
+   },
+   {
+    "clip": "fixture/05",
+    "hinglish": true,
+    "heard": "आपका स्विगी ओर्डर 15 मिनिट में आ जाएगा.",
+    "language": "hi",
+    "share": 0.62,
+    "devanagari": true,
+    "ms": 533
+   },
+   {
+    "clip": "fixture/06",
+    "hinglish": true,
+    "heard": "Spotify खोल दो और मेरा प्लेलिस्ट बजाओ",
+    "language": "hi",
+    "share": 1.0,
+    "devanagari": true,
+    "ms": 536
+   },
+   {
+    "clip": "fixture/07",
+    "hinglish": false,
+    "heard": "रवाद में पेडिए टेलेक्रिशिती बिल फ्टेल फ्टेल रूपीज रूपीज रूपीज रूपीज रूपीज रूपीज रूपीज रूपीज रूपीज रूपीज रूपीज रूपीज रूपीज रूपीज रूपीज रूपीज रूपीज रूपीज रूपीज र",
+    "language": "hi",
+    "share": 0.18,
+    "devanagari": true,
+    "ms": 1442
+   },
+   {
+    "clip": "fixture/08",
+    "hinglish": false,
+    "heard": "मेसेच नीहान अग्ड़ कि अग्ड़ की तरी तनाइट",
+    "language": "hi",
+    "share": 0.0,
+    "devanagari": true,
+    "ms": 601
+   },
+   {
+    "clip": "fixture/09",
+    "hinglish": true,
+    "heard": "मामी को मेसेज भेजो कि मैं घर आ रहा हूँ",
+    "language": "hi",
+    "share": 0.8,
+    "devanagari": true,
+    "ms": 594
+   },
+   {
+    "clip": "fixture/10",
+    "hinglish": false,
+    "heard": "वाट से वेदर इंगलो टोड़ी तदेगा टेगा टेगा टेगा टेगा टेगा टेगा टेगा टेगा टेगा टेगा टेगा टेगा टेगा टेगा टेगा टेगा टेगा टेगा टेगा टेगा टेगा टेगा टेगा टेगा टेगा टेगा टेगा टेगा टेगा टेगा टेगा �",
+    "language": "hi",
+    "share": 0.0,
+    "devanagari": true,
+    "ms": 2430
+   },
+   {
+    "clip": "fixture/11",
+    "hinglish": false,
+    "heard": "अब्सक्राइब टेक्टेजिन अग्टेजिन अग्टेजिन अग्टेजिन अग्टेजिन अग्टेजिन अग्टेजिन अग्टेजिन अग्टेजिन अग्टेजिन अग्टेजिन अग्टेजिन अग्टेजिन अग्टेजिन अग्टेजिन अग्टेजिन अग्टेजिन अग्",
+    "language": "hi",
+    "share": 0.0,
+    "devanagari": true,
+    "ms": 1467
+   },
+   {
+    "clip": "fixture/12",
+    "hinglish": false,
+    "heard": "जब एक बेस्ट बिर्यानी निर में",
+    "language": "hi",
+    "share": 0.33,
+    "devanagari": true,
+    "ms": 614
+   },
+   {
+    "clip": "fixture/13",
+    "hinglish": false,
+    "heard": "अबने वाट्सब और राटेस्ट में सेज्ज फ्रम कार्थिक",
+    "language": "hi",
+    "share": 0.22,
+    "devanagari": true,
+    "ms": 650
+   },
+   {
+    "clip": "fixture/14",
+    "hinglish": true,
+    "heard": "बताईए मेरा कार्ट में कितने आइटम्स है।",
+    "language": "hi",
+    "share": 0.71,
+    "devanagari": true,
+    "ms": 592
+   },
+   {
+    "clip": "fixture/15",
+    "hinglish": false,
+    "heard": "अग्डिस्कांट कोट फेस्टिव और चेक टेक टोटल",
+    "language": "hi",
+    "share": 0.22,
+    "devanagari": true,
+    "ms": 585
+   },
+   {
+    "clip": "fixture/16",
+    "hinglish": false,
+    "heard": "देलिवर दिस अर्डर तो स्नेहा डिदी अग्जी रोड",
+    "language": "hi",
+    "share": 0.44,
+    "devanagari": true,
+    "ms": 548
+   },
+   {
+    "clip": "fixture/17",
+    "hinglish": false,
+    "heard": "Zoya stop, cancel what you are doing.",
+    "language": "hi",
+    "share": 1.0,
+    "devanagari": false,
+    "ms": 376
+   },
+   {
+    "clip": "fixture/18",
+    "hinglish": true,
+    "heard": "रुप जाओ जोया, मुझे कुछ और बोलना है।",
+    "language": "hi",
+    "share": 0.88,
+    "devanagari": true,
+    "ms": 546
+   },
+   {
+    "clip": "fixture/19",
+    "hinglish": false,
+    "heard": "अज़ अज़ अज़ अज़ अज़ अज़ अज़ अज़ अज़ अज़ अज़ अज़ अज़ अज़ अज़ अज़ अज़ अज़ अज़ अज़ अज़ अज़ अज़ अज़ अज़ अज़ अज़ अज़ अज़ अज़ अज़ अज़ अज़ अज़ अज़ अज़ अज़ �",
+    "language": "hi",
+    "share": 0.0,
+    "devanagari": true,
+    "ms": 1438
+   }
+  ],
+  "language=en": [
+   {
+    "clip": "polly-kajal/5",
+    "hinglish": true,
+    "heard": "Okay, your baby's birthday is the 12th of March.",
+    "language": "en",
+    "share": 0.4,
+    "devanagari": false,
+    "ms": 380
+   },
+   {
+    "clip": "polly-kajal/6",
+    "hinglish": true,
+    "heard": "I have a message to Rahul Verma to WhatsApp.",
+    "language": "en",
+    "share": 0.44,
+    "devanagari": false,
+    "ms": 420
+   },
+   {
+    "clip": "polly-kajal/10",
+    "hinglish": true,
+    "heard": "Now the night of the night is 34 degrees, the sun will be rain.",
+    "language": "en",
+    "share": 0.17,
+    "devanagari": false,
+    "ms": 400
+   },
+   {
+    "clip": "polly-kajal/11",
+    "hinglish": true,
+    "heard": "I'm going to play a game with Arjit Singh.",
+    "language": "en",
+    "share": 0.29,
+    "devanagari": false,
+    "ms": 432
+   },
+   {
+    "clip": "polly-kajal/12",
+    "hinglish": true,
+    "heard": "Rs. 1249 ka order place karu. Say confirm or stop.",
+    "language": "en",
+    "share": 0.89,
+    "devanagari": false,
+    "ms": 426
+   },
+   {
+    "clip": "polly-kajal/13",
+    "hinglish": true,
+    "heard": "Your meeting is 4.30am with Ria.",
+    "language": "en",
+    "share": 0.44,
+    "devanagari": false,
+    "ms": 428
+   },
+   {
+    "clip": "polly-kajal/1",
+    "hinglish": false,
+    "heard": "Notes is open.",
+    "language": "en",
+    "share": 1.0,
+    "devanagari": false,
+    "ms": 353
+   },
+   {
+    "clip": "polly-kajal/7",
+    "hinglish": false,
+    "heard": "Your car total is Rs. 1249.50 with a delivery fee of Rs. 35.",
+    "language": "en",
+    "share": 0.86,
+    "devanagari": false,
+    "ms": 416
+   },
+   {
+    "clip": "polly-kajal/9",
+    "hinglish": false,
+    "heard": "It's 31 degrees in Bengaluru, with a chance of rain after 4 pm.",
+    "language": "en",
+    "share": 1.0,
+    "devanagari": false,
+    "ms": 390
+   },
+   {
+    "clip": "fixture/00",
+    "hinglish": false,
+    "heard": "Remind me to call Priya at 6 PM.",
+    "language": "en",
+    "share": 0.88,
+    "devanagari": false,
+    "ms": 354
+   },
+   {
+    "clip": "fixture/01",
+    "hinglish": false,
+    "heard": "Message Rohan and tell him I'm running late.",
+    "language": "en",
+    "share": 1.0,
+    "devanagari": false,
+    "ms": 351
+   },
+   {
+    "clip": "fixture/02",
+    "hinglish": false,
+    "heard": "My order total is Rs. 2847.",
+    "language": "en",
+    "share": 0.33,
+    "devanagari": false,
+    "ms": 365
+   },
+   {
+    "clip": "fixture/03",
+    "hinglish": false,
+    "heard": "Set a reminder for the team meeting at 3 pm.",
+    "language": "en",
+    "share": 0.9,
+    "devanagari": false,
+    "ms": 362
+   },
+   {
+    "clip": "fixture/04",
+    "hinglish": false,
+    "heard": "Sent Rs. 15,000 to Ankit Sharma.",
+    "language": "en",
+    "share": 0.57,
+    "devanagari": false,
+    "ms": 369
+   },
+   {
+    "clip": "fixture/05",
+    "hinglish": true,
+    "heard": "Your swiggy order will come in 15 minutes.",
+    "language": "en",
+    "share": 0.38,
+    "devanagari": false,
+    "ms": 464
+   },
+   {
+    "clip": "fixture/06",
+    "hinglish": true,
+    "heard": "Spotify, Khol2 and Mera Playlist Bajau",
+    "language": "en",
+    "share": 0.71,
+    "devanagari": false,
+    "ms": 393
+   },
+   {
+    "clip": "fixture/07",
+    "hinglish": false,
+    "heard": "Remind me to pay the electricity bill of 1200 rupees.",
+    "language": "en",
+    "share": 0.82,
+    "devanagari": false,
+    "ms": 425
+   },
+   {
+    "clip": "fixture/08",
+    "hinglish": false,
+    "heard": "Message Snehaan, ask if she's free tonight.",
+    "language": "en",
+    "share": 0.89,
+    "devanagari": false,
+    "ms": 395
+   },
+   {
+    "clip": "fixture/09",
+    "hinglish": true,
+    "heard": "Mommy, I'm going to send message to my house.",
+    "language": "en",
+    "share": 0.2,
+    "devanagari": false,
+    "ms": 366
+   },
+   {
+    "clip": "fixture/10",
+    "hinglish": false,
+    "heard": "What's the weather in Bangalore today?",
+    "language": "en",
+    "share": 1.0,
+    "devanagari": false,
+    "ms": 358
+   },
+   {
+    "clip": "fixture/11",
+    "hinglish": false,
+    "heard": "Set a reminder to take medicine at 9 pm.",
+    "language": "en",
+    "share": 0.89,
+    "devanagari": false,
+    "ms": 399
+   },
+   {
+    "clip": "fixture/12",
+    "hinglish": false,
+    "heard": "Search the web for the best biryani near me.",
+    "language": "en",
+    "share": 1.0,
+    "devanagari": false,
+    "ms": 369
+   },
+   {
+    "clip": "fixture/13",
+    "hinglish": false,
+    "heard": "Open WhatsApp and read my latest message from Kartik.",
+    "language": "en",
+    "share": 1.0,
+    "devanagari": false,
+    "ms": 359
+   },
+   {
+    "clip": "fixture/14",
+    "hinglish": true,
+    "heard": "। । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । । ।",
+    "language": "en",
+    "share": 0.0,
+    "devanagari": true,
+    "ms": 1224
+   },
+   {
+    "clip": "fixture/15",
+    "hinglish": false,
+    "heard": "Add discount code festive and check the new total.",
+    "language": "en",
+    "share": 1.0,
+    "devanagari": false,
+    "ms": 388
+   },
+   {
+    "clip": "fixture/16",
+    "hinglish": false,
+    "heard": "Deliver this order to Sneha Reddy at MG Road.",
+    "language": "en",
+    "share": 1.0,
+    "devanagari": false,
+    "ms": 408
+   },
+   {
+    "clip": "fixture/17",
+    "hinglish": false,
+    "heard": "Zoya stop, cancel what you are doing.",
+    "language": "en",
+    "share": 1.0,
+    "devanagari": false,
+    "ms": 381
+   },
+   {
+    "clip": "fixture/18",
+    "hinglish": true,
+    "heard": "Ruk jau Zoya, Mujhe Kuch Or Pohlna Hai.",
+    "language": "en",
+    "share": 0.62,
+    "devanagari": false,
+    "ms": 458
+   },
+   {
+    "clip": "fixture/19",
+    "hinglish": false,
+    "heard": "Confirm the transfer of Rs. 2000 to my sister.",
+    "language": "en",
+    "share": 0.7,
+    "devanagari": false,
+    "ms": 403
+   }
+  ],
+  "auto + Hinglish prompt": [
+   {
+    "clip": "polly-kajal/5",
+    "hinglish": true,
+    "heard": "ठीक है, आपकी बहन का birthday the 12th of March को है.",
+    "language": "hi",
+    "share": 0.8,
+    "devanagari": true,
+    "ms": 798
+   },
+   {
+    "clip": "polly-kajal/6",
+    "hinglish": true,
+    "heard": "मैंने राहुल वर्मा को WhatsApp पे message भेज दिया.",
+    "language": "hi",
+    "share": 1.0,
+    "devanagari": true,
+    "ms": 824
+   },
+   {
+    "clip": "polly-kajal/10",
+    "hinglish": true,
+    "heard": "आज नोईदा में 34 degree है, शाम को बारिश हो शकती है.",
+    "language": "hi",
+    "share": 0.83,
+    "devanagari": true,
+    "ms": 852
+   },
+   {
+    "clip": "polly-kajal/11",
+    "hinglish": true,
+    "heard": "Khesariya chala raha huu, Arjit Singh ka.",
+    "language": "hi",
+    "share": 0.86,
+    "devanagari": false,
+    "ms": 747
+   },
+   {
+    "clip": "polly-kajal/12",
+    "hinglish": true,
+    "heard": "Rs. 1249 ka order place karu. Say confirm or stop.",
+    "language": "hi",
+    "share": 0.89,
+    "devanagari": false,
+    "ms": 748
+   },
+   {
+    "clip": "polly-kajal/13",
+    "hinglish": true,
+    "heard": "आपकी meeting 4.30 बजे है, रिया के साथ.",
+    "language": "hi",
+    "share": 0.89,
+    "devanagari": true,
+    "ms": 788
+   },
+   {
+    "clip": "polly-kajal/1",
+    "hinglish": false,
+    "heard": "Notes is open.",
+    "language": "en",
+    "share": 1.0,
+    "devanagari": false,
+    "ms": 697
+   },
+   {
+    "clip": "polly-kajal/7",
+    "hinglish": false,
+    "heard": "Your car total is Rs 1249.50 with a delivery fee of Rs 35.",
+    "language": "en",
+    "share": 0.86,
+    "devanagari": false,
+    "ms": 684
+   },
+   {
+    "clip": "polly-kajal/9",
+    "hinglish": false,
+    "heard": "It's 31 degrees in Bengaluru, with a chance of rain after 4 pm.",
+    "language": "en",
+    "share": 1.0,
+    "devanagari": false,
+    "ms": 741
+   },
+   {
+    "clip": "fixture/00",
+    "hinglish": false,
+    "heard": "Remind me to call Priya at 6 pm.",
+    "language": "en",
+    "share": 0.88,
+    "devanagari": false,
+    "ms": 702
+   },
+   {
+    "clip": "fixture/01",
+    "hinglish": false,
+    "heard": "Message Rohan and tell him I'm running late.",
+    "language": "en",
+    "share": 1.0,
+    "devanagari": false,
+    "ms": 659
+   },
+   {
+    "clip": "fixture/02",
+    "hinglish": false,
+    "heard": "My order total is 2847 rupees.",
+    "language": "en",
+    "share": 0.42,
+    "devanagari": false,
+    "ms": 665
+   },
+   {
+    "clip": "fixture/03",
+    "hinglish": false,
+    "heard": "Set a reminder for the team meeting at 3 pm.",
+    "language": "en",
+    "share": 0.9,
+    "devanagari": false,
+    "ms": 664
+   },
+   {
+    "clip": "fixture/04",
+    "hinglish": false,
+    "heard": "Sent 15,000 rupees to Ankit Sharma.",
+    "language": "en",
+    "share": 0.71,
+    "devanagari": false,
+    "ms": 651
+   },
+   {
+    "clip": "fixture/05",
+    "hinglish": true,
+    "heard": "आपका स्विगी ओर्डर 15 मिनिट में आ जाएगा.",
+    "language": "hi",
+    "share": 0.62,
+    "devanagari": true,
+    "ms": 760
+   },
+   {
+    "clip": "fixture/06",
+    "hinglish": true,
+    "heard": "Spotify khol do aur mera playlist bajao.",
+    "language": "hi",
+    "share": 1.0,
+    "devanagari": false,
+    "ms": 666
+   },
+   {
+    "clip": "fixture/07",
+    "hinglish": false,
+    "heard": "Remind me to pay the electricity bill of 1200 rupees.",
+    "language": "en",
+    "share": 0.82,
+    "devanagari": false,
+    "ms": 733
+   },
+   {
+    "clip": "fixture/08",
+    "hinglish": false,
+    "heard": "Message Nehaan, ask if she's free tonight.",
+    "language": "en",
+    "share": 0.78,
+    "devanagari": false,
+    "ms": 691
+   },
+   {
+    "clip": "fixture/09",
+    "hinglish": true,
+    "heard": "Mummy ko message bhejo ki mein ghar a raha huu.",
+    "language": "hi",
+    "share": 0.8,
+    "devanagari": false,
+    "ms": 791
+   },
+   {
+    "clip": "fixture/10",
+    "hinglish": false,
+    "heard": "What's the weather in Bangalore today?",
+    "language": "en",
+    "share": 1.0,
+    "devanagari": false,
+    "ms": 701
+   },
+   {
+    "clip": "fixture/11",
+    "hinglish": false,
+    "heard": "Set a reminder to take medicine at 9 pm.",
+    "language": "en",
+    "share": 0.89,
+    "devanagari": false,
+    "ms": 721
+   },
+   {
+    "clip": "fixture/12",
+    "hinglish": false,
+    "heard": "Search the web for the best biryani near me.",
+    "language": "en",
+    "share": 1.0,
+    "devanagari": false,
+    "ms": 676
+   },
+   {
+    "clip": "fixture/13",
+    "hinglish": false,
+    "heard": "Open WhatsApp and read my latest message from Kartik.",
+    "language": "en",
+    "share": 1.0,
+    "devanagari": false,
+    "ms": 657
+   },
+   {
+    "clip": "fixture/14",
+    "hinglish": true,
+    "heard": "बताइए मेरा कार्ट में कितने items है.",
+    "language": "hi",
+    "share": 1.0,
+    "devanagari": true,
+    "ms": 736
+   },
+   {
+    "clip": "fixture/15",
+    "hinglish": false,
+    "heard": "Add discount code festive and check the new total.",
+    "language": "en",
+    "share": 1.0,
+    "devanagari": false,
+    "ms": 703
+   },
+   {
+    "clip": "fixture/16",
+    "hinglish": false,
+    "heard": "Deliver this order to Sneha Reddy at MG Road.",
+    "language": "en",
+    "share": 1.0,
+    "devanagari": false,
+    "ms": 734
+   },
+   {
+    "clip": "fixture/17",
+    "hinglish": false,
+    "heard": "Zoya stop, cancel what you are doing.",
+    "language": "en",
+    "share": 1.0,
+    "devanagari": false,
+    "ms": 758
+   },
+   {
+    "clip": "fixture/18",
+    "hinglish": true,
+    "heard": "Ruk jau Zoya, mughe kuch or polna hai.",
+    "language": "hi",
+    "share": 0.75,
+    "devanagari": false,
+    "ms": 802
+   },
+   {
+    "clip": "fixture/19",
+    "hinglish": false,
+    "heard": "Confirm the transfer of Rs.2000 to my sister.",
+    "language": "en",
+    "share": 0.7,
+    "devanagari": false,
+    "ms": 759
+   }
+  ]
+ },
+ "leak": {
+  "summary": {
+   "plain": {
+    "clips": 42,
+    "non_empty": 19,
+    "prompt_words_leaked": 0
+   },
+   "prompted": {
+    "clips": 42,
+    "non_empty": 17,
+    "prompt_words_leaked": 0
+   }
+  },
+  "rows": {
+   "noise 0.002": {
+    "plain": "Thank you.",
+    "prompted": ""
+   },
+   "noise 0.01": {
+    "plain": "",
+    "prompted": "!"
+   },
+   "noise 0.05": {
+    "plain": "",
+    "prompted": ""
+   },
+   "silence": {
+    "plain": "Thank you.",
+    "prompted": ""
+   },
+   "earcon add-to-cart": {
+    "plain": "",
+    "prompted": ""
+   },
+   "earcon blocked": {
+    "plain": "",
+    "prompted": ""
+   },
+   "earcon cancel": {
+    "plain": "",
+    "prompted": ""
+   },
+   "earcon checkpoint": {
+    "plain": "",
+    "prompted": ""
+   },
+   "earcon complete": {
+    "plain": "",
+    "prompted": ""
+   },
+   "earcon error": {
+    "plain": "",
+    "prompted": ""
+   },
+   "earcon mention": {
+    "plain": "",
+    "prompted": ""
+   },
+   "earcon processing": {
+    "plain": "Thank you.",
+    "prompted": "!"
+   },
+   "earcon progress-step": {
+    "plain": "",
+    "prompted": ""
+   },
+   "earcon purchase": {
+    "plain": "",
+    "prompted": ""
+   },
+   "earcon queued": {
+    "plain": "",
+    "prompted": ""
+   },
+   "earcon release": {
+    "plain": "",
+    "prompted": ""
+   },
+   "earcon stop": {
+    "plain": "",
+    "prompted": ""
+   },
+   "earcon success": {
+    "plain": "",
+    "prompted": ""
+   },
+   "earcon wake": {
+    "plain": "",
+    "prompted": ""
+   },
+   "earcon warning": {
+    "plain": "",
+    "prompted": ""
+   },
+   "wake_clips_session2/14": {
+    "plain": "Now starting with the negatives.",
+    "prompted": "Now starting with the negatives."
+   },
+   "wake_clips_session2/15": {
+    "plain": "",
+    "prompted": ""
+   },
+   "wake_clips_session2/16": {
+    "plain": "So yeah.",
+    "prompted": "So yeah."
+   },
+   "wake_clips_session2/17": {
+    "plain": "Zoe is coming.",
+    "prompted": "Zoe is coming."
+   },
+   "wake_clips_session2/18": {
+    "plain": "Hey Sonia!",
+    "prompted": "Hey Sonia."
+   },
+   "wake_clips_session2/19": {
+    "plain": "I bought soya milk today.",
+    "prompted": "I bought soya milk today."
+   },
+   "wake_clips_session2/20": {
+    "plain": "",
+    "prompted": ""
+   },
+   "wake_clips_session2/21": {
+    "plain": "",
+    "prompted": "Heesh yaar."
+   },
+   "wake_clips_session2/22": {
+    "plain": "Let's go to the store",
+    "prompted": "Let's go to the store."
+   },
+   "wake_clips_session2/23": {
+    "plain": "What time is the meeting?",
+    "prompted": "What time is the meeting?"
+   },
+   "wake_clips_session2/24": {
+    "plain": "Call Sonia later.",
+    "prompted": "Call Sonia later."
+   },
+   "wake_clips_session2/25": {
+    "plain": "Open the window.",
+    "prompted": "Open the window."
+   },
+   "wake_clips_session2/26": {
+    "plain": "Good morning.",
+    "prompted": "Good morning."
+   },
+   "wake_clips_session2/27": {
+    "plain": "",
+    "prompted": ""
+   },
+   "wake_clips_session2/28": {
+    "plain": "सुया चंक्स आर हिल्थी",
+    "prompted": "Soya chunks are healthy."
+   },
+   "wake_clips/13": {
+    "plain": "Hey Siri!",
+    "prompted": ""
+   },
+   "wake_clips/14": {
+    "plain": "",
+    "prompted": ""
+   },
+   "wake_clips/16": {
+    "plain": "",
+    "prompted": ""
+   },
+   "wake_clips/18": {
+    "plain": "Zoe said,",
+    "prompted": "Zoe said,"
+   },
+   "wake_clips/19": {
+    "plain": "so yeah okay",
+    "prompted": ""
+   },
+   "wake_clips/20": {
+    "plain": "Sonia called",
+    "prompted": "Sonia called."
+   },
+   "wake_clips/21": {
+    "plain": "Good morning.",
+    "prompted": "Good morning."
+   }
+  }
+ }
+}
