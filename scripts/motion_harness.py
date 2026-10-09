@@ -34,6 +34,7 @@ import hub_fixture  # noqa: E402
 from zoya import events, overlay, overlay_probe  # noqa: E402
 
 START_S = 4.0
+BACKDROP_S = 2.0
 DRAIN_S = 1.5
 STEP_S = 0.6
 LONG_S = 1.2
@@ -344,14 +345,16 @@ def _backdrop(name: str) -> subprocess.Popen:
     return subprocess.Popen([sys.executable, str(script), name])
 
 
-def _recorder(out: Path, seconds: float) -> subprocess.Popen:
+def _recorder(out: Path, seconds: float, pids: list[int]) -> subprocess.Popen:
     import AppKit
+    import motion_backdrop
 
     script = Path(__file__).resolve().parent / "motion_recorder.py"
     screen = AppKit.NSScreen.mainScreen().frame().size
-    width, height = 1160, 640
+    width, height = int(motion_backdrop.WIDTH_PT), int(motion_backdrop.HEIGHT_PT)
     rect = [(screen.width - width) / 2, screen.height - height, width, height]
     command = [sys.executable, str(script), str(out), *map(str, rect), str(seconds)]
+    command += [str(pid) for pid in pids]
     return subprocess.Popen(command)
 
 
@@ -380,9 +383,13 @@ def main() -> int:
     probe = args.out / "probe.jsonl"
     probe.unlink(missing_ok=True)
     helpers = [_backdrop(args.backdrop)] if args.backdrop else []
-    if args.record:
-        helpers.append(_recorder(args.out / "motion.mp4", _script_s(_script(args.set))))
+    if args.record and not args.backdrop:
+        sys.exit("--record needs --backdrop: the recording must show only fixture windows.")
     child = launch(hub_fixture.make_home(), args.dark, probe, args.reduce, args.source)
+    if args.record:
+        time.sleep(BACKDROP_S)
+        pids = [child.pid, helpers[0].pid]
+        helpers.append(_recorder(args.out / "motion.mp4", _script_s(_script(args.set)), pids))
     try:
         time.sleep(START_S)
         sent = drive(child, _script(args.set))

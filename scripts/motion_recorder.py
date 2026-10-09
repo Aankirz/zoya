@@ -2,9 +2,10 @@
 goes to an H.264 file (ffmpeg, near-lossless) and its host-clock timestamp to a .times file, so a
 frame lines up with the overlay probe's display-link log.
 
-    uv run python scripts/motion_recorder.py OUT.mp4 X Y WIDTH HEIGHT SECONDS
+    uv run python scripts/motion_recorder.py OUT.mp4 X Y WIDTH HEIGHT SECONDS PID [PID ...]
 
-X/Y/WIDTH/HEIGHT are display points, top-left origin. Frames are 1 px per point.
+X/Y/WIDTH/HEIGHT are display points, top-left origin. Frames are 1 px per point. Only the
+windows of the given processes are recorded: nothing else on the screen reaches the file.
 
 APIs: https://developer.apple.com/documentation/screencapturekit/scstream
 https://developer.apple.com/documentation/screencapturekit/scstreamoutput
@@ -90,10 +91,20 @@ def _ffmpeg(out: Path, width: int, height: int) -> subprocess.Popen:
     return subprocess.Popen([*command, str(out)], stdin=subprocess.PIPE)
 
 
-def record(out: Path, rect: tuple[int, int, int, int], seconds: float) -> int:
+def _only(pids: set[int]) -> Any:
+    content = _content()
+    apps = [app for app in content.applications() if app.processID() in pids]
+    if len(apps) != len(pids):
+        sys.exit(f"not every process has a window yet: {sorted(pids)}")
+    display = content.displays()[0]
+    return SCK.SCContentFilter.alloc().initWithDisplay_includingApplications_exceptingWindows_(
+        display, apps, []
+    )
+
+
+def record(out: Path, rect: tuple[int, int, int, int], seconds: float, pids: set[int]) -> int:
     x, y, width, height = rect
-    display = _content().displays()[0]
-    content_filter = SCK.SCContentFilter.alloc().initWithDisplay_excludingWindows_(display, [])
+    content_filter = _only(pids)
     config = SCK.SCStreamConfiguration.alloc().init()
     config.setSourceRect_(((x, y), (width, height)))
     config.setWidth_(width)
@@ -125,9 +136,10 @@ def record(out: Path, rect: tuple[int, int, int, int], seconds: float) -> int:
 
 
 def main() -> int:
-    out, *numbers, seconds = sys.argv[1:]
+    out, *numbers = sys.argv[1:6]
+    seconds, pids = float(sys.argv[6]), {int(pid) for pid in sys.argv[7:]}
     rect = tuple(int(float(n)) for n in numbers)
-    return record(Path(out), rect, float(seconds))
+    return record(Path(out), rect, seconds, pids)
 
 
 if __name__ == "__main__":

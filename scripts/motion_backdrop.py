@@ -1,5 +1,7 @@
 """A stand-in wallpaper for the motion harness: one borderless window behind the pill, so the
 glass is recorded over a known light, dark or busy picture without touching the desktop picture.
+It floats above ordinary windows and the recording never reaches past it, so nothing else on
+the screen is captured.
 
     uv run python scripts/motion_backdrop.py daylight|night|vivid
 """
@@ -50,6 +52,12 @@ def show(name: str) -> Any:
     picture.name = name
     window.setContentView_(picture)
     window.setTitle_(f"motion backdrop {name}")
+    window.setLevel_(AppKit.NSFloatingWindowLevel)
+    window.setCollectionBehavior_(
+        AppKit.NSWindowCollectionBehaviorCanJoinAllSpaces
+        | AppKit.NSWindowCollectionBehaviorFullScreenAuxiliary
+    )
+    window.setIgnoresMouseEvents_(True)
     window.orderFrontRegardless()
     return window
 
