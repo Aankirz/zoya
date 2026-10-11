@@ -50,6 +50,10 @@ UNKNOWN_MODEL_PRICE_USD_PER_1M = (4.00, 20.00)
 
 # Bounded autonomy (§9.3, §12.1).
 MAX_TOOL_CALLS_PER_TASK = 40
+# Stuck detection (D176, arXiv 2609.20804 §2.4: 5 and 8 over a 300-step budget). The brain's longest
+# measured task is 11 model calls under a 40-call cap, so the thresholds scale down.
+STUCK_NUDGE_CALLS = 3
+STUCK_STOP_FAILURES = 4
 
 # AWS Secrets Manager: one JSON secret holding provider keys (STACK §8).
 PROVIDER_SECRET_ID = "zoya/providers"

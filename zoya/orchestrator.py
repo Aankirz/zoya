@@ -51,6 +51,8 @@ from zoya.config import (
     PER_TASK_COST_CAP_USD,
     SKILL_ACTION_DEADLINE_S,
     SKILL_ACTION_POLL_S,
+    STUCK_NUDGE_CALLS,
+    STUCK_STOP_FAILURES,
     TIMING_LOG,
     UNKNOWN_MODEL_PRICE_USD_PER_1M,
 )
@@ -68,6 +70,11 @@ STOPPED_MESSAGE = "Okay, stopped."
 CUT_SHORT_MESSAGE = "Sorry, that got cut off before I finished. Please ask me again."
 GENERIC_FAILURE = "Sorry, something went wrong. Please try again."
 LIMIT_MESSAGE = "I've stopped this task because it was taking too many steps."
+CIRCLES_MESSAGE = "I kept trying the same thing and it didn't work, so I've stopped."
+STUCK_NUDGE = (
+    "You have called {tool} with these same arguments {count} times in a row. Do not repeat it: "
+    "try a different way, or tell the user what is in the way."
+)
 IDLE_MESSAGE = "Nothing is running."
 OPEN_APP_FALLBACK = "open_app_fallback"
 DECLINED = "confirmation_declined"  # the safety gate already played cancel and spoke
@@ -94,6 +101,47 @@ class CommandResult:
 
 class TaskLimitExceeded(Exception):
     """Raised inside the agent loop to hard-stop a task (§12.1 bounded autonomy)."""
+
+    say = LIMIT_MESSAGE
+
+
+class GoingInCircles(TaskLimitExceeded):
+    say = CIRCLES_MESSAGE
+
+
+def call_key(name: str, args: Any) -> str:
+    return name + json.dumps(args, sort_keys=True, default=str)
+
+
+class StuckGuard(HookProvider):
+    """The same tool call again and again (D176): one nudge in the tool result at
+    STUCK_NUDGE_CALLS, and the task ends after STUCK_STOP_FAILURES identical failures in a row."""
+
+    def __init__(self) -> None:
+        self.last = ""
+        self.streak = 0
+        self.failures = 0
+
+    def register_hooks(self, registry: HookRegistry, **_: Any) -> None:
+        registry.add_callback(AfterToolCallEvent, self._after_tool)
+        registry.add_callback(BeforeModelCallEvent, self._check)
+
+    def _after_tool(self, event: AfterToolCallEvent) -> None:
+        name = str(event.tool_use.get("name", ""))
+        if name == narrate_tool.tool_name:
+            return
+        key = call_key(name, event.tool_use.get("input"))
+        if key != self.last:
+            self.last, self.streak, self.failures = key, 0, 0
+        self.streak += 1
+        self.failures = self.failures + 1 if event.result.get("status") == "error" else 0
+        if self.streak == STUCK_NUDGE_CALLS:
+            nudge = {"text": STUCK_NUDGE.format(tool=name, count=self.streak)}
+            event.result = {**event.result, "content": [*event.result.get("content", []), nudge]}
+
+    def _check(self, _event: BeforeModelCallEvent) -> None:
+        if self.failures >= STUCK_STOP_FAILURES:
+            raise GoingInCircles(f"{self.failures} identical failing calls: {self.last[:80]}")
 
 
 def task_cost_usd(model_id: str, input_tokens: int, output_tokens: int) -> float:
@@ -285,7 +333,13 @@ def build_orchestrator(
         messages=messages,
         # The gate goes last so it sees the final tool call (safety.ConfirmationGate). Tools run one
         # at a time: nothing else speaks or clicks while a confirmation waits for the user.
-        hooks=[limits, ReasoningSchedule(), tasks.StepTracker(), safety.ConfirmationGate()],
+        hooks=[
+            limits,
+            StuckGuard(),
+            ReasoningSchedule(),
+            tasks.StepTracker(),
+            safety.ConfirmationGate(),
+        ],
         tool_executor=SequentialToolExecutor(),
         callback_handler=callback_handler,
         trace_attributes={"zoya.component": "orchestrator"},
@@ -394,8 +448,8 @@ def run_orchestrator(command: str, timings: dict[str, int] | None = None, skill:
     except TaskLimitExceeded as limit:
         _record_usage(agent, timings if timings is not None else {})
         log.warning("task stopped: %s", limit)
-        tasks.say(LIMIT_MESSAGE)
-        return LIMIT_MESSAGE
+        tasks.say(limit.say)
+        return limit.say
     except safety.ConfirmationDeclined:
         _record_usage(agent, timings if timings is not None else {})
         # What the user heard, not the model-facing "do not try again": a later, fresh request

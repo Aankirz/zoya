@@ -4,8 +4,14 @@ from types import SimpleNamespace
 
 import pytest
 
-from zoya.config import MAX_TOOL_CALLS_PER_TASK
-from zoya.orchestrator import TaskLimitExceeded, TaskLimits, task_cost_usd
+from zoya.config import MAX_TOOL_CALLS_PER_TASK, STUCK_NUDGE_CALLS, STUCK_STOP_FAILURES
+from zoya.orchestrator import (
+    GoingInCircles,
+    StuckGuard,
+    TaskLimitExceeded,
+    TaskLimits,
+    task_cost_usd,
+)
 
 
 def _event(input_tokens: int, output_tokens: int) -> SimpleNamespace:
@@ -45,3 +51,46 @@ def test_model_call_blocked_after_max_tool_calls():
 
     with pytest.raises(TaskLimitExceeded):
         limits._check_limits(_event(0, 0))
+
+
+def _tool_event(name: str, args: dict, status: str = "error") -> SimpleNamespace:
+    result = {"toolUseId": "t", "status": status, "content": [{"text": "no"}]}
+    return SimpleNamespace(tool_use={"name": name, "input": args}, result=result)
+
+
+def _run(guard: StuckGuard, *events: SimpleNamespace) -> SimpleNamespace:
+    for event in events:
+        guard._after_tool(event)
+    return events[-1]
+
+
+def test_identical_failing_calls_end_the_task():
+    guard = StuckGuard()
+    _run(guard, *[_tool_event("browser_click", {"ref": "e1"}) for _ in range(STUCK_STOP_FAILURES)])
+
+    with pytest.raises(GoingInCircles):
+        guard._check(None)
+
+
+def test_different_arguments_are_not_a_circle():
+    guard = StuckGuard()
+    _run(guard, *[_tool_event("browser_click", {"ref": f"e{i}"}) for i in range(10)])
+
+    guard._check(None)
+
+
+def test_a_success_breaks_the_failing_streak():
+    guard = StuckGuard()
+    calls = [_tool_event("browser_read", {})] * (STUCK_STOP_FAILURES - 1)
+    _run(guard, *calls, _tool_event("browser_read", {}, "success"), *calls)
+
+    guard._check(None)
+
+
+def test_repeat_is_nudged_once_in_the_tool_result():
+    guard = StuckGuard()
+    events = [_tool_event("browser_read", {}, "success") for _ in range(STUCK_NUDGE_CALLS + 1)]
+    _run(guard, *events)
+
+    nudged = [e for e in events if len(e.result["content"]) == 2]
+    assert nudged == [events[STUCK_NUDGE_CALLS - 1]]
