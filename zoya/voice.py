@@ -23,7 +23,6 @@ import queue
 import re
 import threading
 import time
-import unicodedata
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -46,6 +45,7 @@ from zoya import (
     shutdown,
     speculate,
     speech,
+    stop,
     tasks,
     updates,
 )
@@ -83,7 +83,8 @@ from zoya.config import (
     WAKE_MODEL,
     WAKE_WINDOW_S,
 )
-from zoya.router import STOP, clean_command, match_rules
+from zoya.router import clean_command, match_rules
+from zoya.spoken import is_name, words
 
 log = logging.getLogger(__name__)
 
@@ -138,14 +139,9 @@ USER_LEAD_BLOCKS = 2  # keep the canceller's one-block delay plus one block befo
 
 # --- Parsers (tested: tests/test_voice_spotter.py) ------------------------------------
 
-# Lenient "Zoya" (§7.1): zoya, zoia, zooeya, zoa, zoea, zoyah — not soya, sonia, zoe.
-NAME = re.compile(r"^z(?:oo?e?y|oi|oe|o)ah?$")
 # Whisper sometimes merges the greeting: "Hizoya", "Hezoya".
 MERGED_WAKE = re.compile(r"^(?:hey|hi|he|hay|ok|okay)z(?:oo?e?y|oi|oe|o)ah?$")
-WORD = re.compile(r"[a-z]+|\d+|[\u0900-\u097F]+")  # digits: "Zoya 5000" answers a budget question
 WORD_SPAN = re.compile(r"[^\W\d_]+|\d+")
-# large-v3-turbo writes Hinglish in Devanagari (D42): "ज़ोया, स्पॉटिफ़ाई खोल दो".
-DEVANAGARI_NAME = re.compile(r"^(?:ज़|ज़|ज)ोया$")
 WAKE_NAME_WORDS = 3
 # Only greetings may come before the name: "I bought soya milk" transcribes as "I bought
 # Zoya milk" even on the whole clip (Phase 2 test), so "name anywhere in 3 words" isn't enough.
@@ -157,11 +153,8 @@ HALLUCINATIONS = {
     *("um", "uh", "hmm", "mm", "ah", "er"),  # fillers: owner's live run sent "um" to the brain
 }
 SUPPORTED_SCRIPT = re.compile(r"[A-Za-z0-9\u0900-\u097F]")  # Latin or Devanagari (D42), or digits
-LATIN_ACCENT = re.compile(r"[\u0300-\u036f]")
 # Not "soya": turbo wrote real "Hey Zoya" as "Hey, Soya." (replay) and "Soya!" (owner live run).
 SOUND_ALIKES = {"zoe", "joya", "sonia", "sonya", "so", "siri", "सोनिया", "ज़ो"}
-STOP_WORDS = {"stop", "cancel", "quiet", "ruko", "ruk", "bas", "chup"}
-MAX_STOP_PHRASE_WORDS = 6
 STATUS = re.compile(r"\bwhat(?:'s| is| are you)\s+(?:running|doing|working on)\b", re.I)
 # Phase 6 (§9.13 voice controls), matched on the cleaned command.
 TASK_STATUS = re.compile(
@@ -175,12 +168,6 @@ QUEUE_IT = re.compile(
 STOP_NAME_PAUSE_S = 0.35
 
 
-def words(text: str) -> list[str]:
-    # Strip Latin accents only ("Zoëa" → "zoea"); Devanagari marks are letters, keep them.
-    plain = "".join(c for c in unicodedata.normalize("NFKD", text) if not LATIN_ACCENT.match(c))
-    return WORD.findall(plain.lower())
-
-
 def vetoes_wake(turbo_text: str) -> bool:
     """large-v3-turbo heard a different name where "Zoya" was: "Zoe is coming", "Joya!", "हे सोनिया".
 
@@ -192,10 +179,6 @@ def vetoes_wake(turbo_text: str) -> bool:
     if any(is_name(word) or MERGED_WAKE.match(word) for word in first):
         return False  # turbo heard the name too: "Hey Zoya, so what's the weather" stays a wake
     return any(word in SOUND_ALIKES for word in first)
-
-
-def is_name(word: str) -> bool:
-    return bool(NAME.match(word) or DEVANAGARI_NAME.match(word))
 
 
 def is_wake(text: str) -> bool:
@@ -275,54 +258,8 @@ def is_junk_reply(text: str) -> bool:
     return safety.classify_reply(text) == "unclear" and len(words(text)) < MIN_COMMAND_WORDS
 
 
-def is_stop(text: str) -> bool:
-    """ "Zoya, stop" / "stop Zoya" / "Zoya ruko": the name AND a stop word in a short phrase.
-
-    Requiring the name keeps Zoya's own speech ("Okay, stopped.") from stopping her.
-    """
-    spoken = words(text)
-    if not spoken or len(spoken) > MAX_STOP_PHRASE_WORDS:
-        return False
-    return any(is_name(w) for w in spoken) and any(w in STOP_WORDS for w in spoken)
-
-
-STOP_FILLER = {
-    "the",
-    "my",
-    "zoya",
-    "please",
-    "now",
-    "it",
-    "that",
-    "this",
-    "what",
-    "you",
-    "re",
-    "doing",
-    "current",
-    "task",  # "stop the task" is a bare stop, not a task named "task" (owner's run)
-    "tasks",
-}
-
-
-def stop_name(text: str, known_only: bool = True) -> str:
-    """ "Zoya, stop the presentation" → "presentation"; "stop everything" → "everything"; a bare
-    stop → "". `known_only`: only names of running tasks count, so "stop the music" stays a media
-    command. The stop spotter passes False while tasks run: a name that matches nothing ("the
-    presentation", already stopped) must never become a bare stop of another task."""
-    spoken = words(text)
-    first = next((i for i, w in enumerate(spoken) if w in STOP_WORDS | {"end"}), None)
-    if first is None:
-        return ""
-    rest = " ".join(w for w in spoken[first + 1 :] if w not in STOP_FILLER)
-    if rest in tasks.ALL_WORDS:
-        return "everything"
-    return rest if rest and (tasks.find(rest) or not known_only) else ""
-
-
-def is_stop_command(text: str) -> bool:
-    """A captured command that means stop ("Hey Zoya … stop", router STOP phrases)."""
-    return is_stop(text) or bool(STOP.match(clean_command(text)))
+def known_task(target: str) -> bool:
+    return bool(tasks.find(target))
 
 
 # --- Models -----------------------------------------------------------------------------
@@ -791,7 +728,7 @@ class VoiceLoop:
             return False
         segment.early_checked = True
         text = self._spot(segment.samples(WAKE_WINDOW_S))
-        return is_wake(text) and not is_stop(text)
+        return is_wake(text) and not stop.is_named_stop(text)
 
     # --- spotting: "stop" always, the wake word only when Zoya is quiet ----------------------
 
@@ -833,24 +770,32 @@ class VoiceLoop:
         if now - self.last_stop_at < STOP_COOLDOWN_S:
             return  # Zoya saying "Okay, stopped." must not stop her again
         text = self._spot(np.concatenate(self.recent))
-        if is_stop(text):  # name AND stop word in one window: echo alone rarely has both
+        if self._heard_stop(text):
             self._stop(self.last_voice_at, text, partial=True)
             return
         self._ask_jev_stop(text, self.last_voice_at)
+
+    def _heard_stop(self, text: str) -> bool:
+        """While Zoya talks or works (D177): a named stop always; a bare one unless her own voice
+        just said that word. A target that may already be gone stays a target (replay finding)."""
+        found = stop.parse(text, known=None if self._task_running() else known_task)
+        if found is None:
+            return False
+        return found.named or not speech.recently_said(found.verb, STOP_WINDOW_S + ECHO_TAIL_S)
 
     def _take_jev_stop(self) -> None:
         """Jev answered "that was a stop" on a background thread; act on it here, on the loop
         thread that owns this state, and only while there is still something to stop."""
         pending, self.jev_stop = self.jev_stop, None
         if pending and self._zoya_busy():
-            self._stop(pending[0], pending[1], partial=True)
+            self._stop(pending[0], pending[1], partial=True, source="jev")
 
     def _ask_jev_stop(self, text: str, voice_end_at: float) -> None:
         """Additive only (D81): the regex above already ran, offline, and can never be vetoed.
         Jev widens what counts as a stop — "that's enough", "no no leave it" — for an utterance
         that named Zoya, one question at a time, off the loop thread so the mic never waits."""
         spoken = words(text)
-        if self.jev_stop_asked or not spoken or len(spoken) > MAX_STOP_PHRASE_WORDS:
+        if self.jev_stop_asked or not spoken or len(spoken) > stop.MAX_PHRASE_WORDS:
             return
         if not any(is_name(word) for word in spoken):
             return
@@ -894,7 +839,7 @@ class VoiceLoop:
         self.utterances += 1
         if self.record_clips:
             _save_clip(self.utterances, segment.samples())
-        if is_stop(text):
+        if (found := stop.parse(text, known=known_task)) is not None and found.named:
             self._stop(segment.last_voice_at, text, partial=False)
         elif is_wake(text):
             self._wake(segment, text)  # chime now (< 500 ms); turbo can still veto
@@ -957,17 +902,17 @@ class VoiceLoop:
         print(f"#{self.utterances} WAKE {after_end} ms after the phrase ended — heard {text!r}")
         _log_voice({"event": "wake", "phrase_end_to_earcon_ms": after_end, "heard": text})
 
-    def _stop(self, voice_end_at: float, text: str, partial: bool) -> None:
-        name = stop_name(text, known_only=not self._task_running())
-        if name:
-            self._stop_named(name)
+    def _stop(self, voice_end_at: float, text: str, partial: bool, source: str = "rule") -> None:
+        found = stop.parse(text, known=None if self._task_running() else known_task)
+        if found is not None and found.target:
+            self._stop_named(found.target)
             return
         stopped_at = time.monotonic()
-        speculate.discard()
         was_busy = self._zoya_busy()
+        audio.engine().silence_all()
+        speculate.discard()
         had_tasks = self._task_running()
         said = orchestrator.stop_task()
-        audio.engine().silence_all()
         self._end_barge_in()
         audio.earcon("stop")
         after_end = round((stopped_at - voice_end_at) * MS_PER_S)
@@ -988,6 +933,8 @@ class VoiceLoop:
                 "event": "stop",
                 "partial": partial,
                 "busy": was_busy,
+                "source": source,
+                "named": bool(found and found.named),
                 "last_voice_to_silence_ms": after_end,
             }
         )
@@ -1210,7 +1157,7 @@ class VoiceLoop:
             return
         print(f"REPLY {text!r}")
         events.emit(events.OverlayEvent(text, "listening", {"role": "user"}))
-        if is_stop_command(text):  # "Zoya, stop" / "stop the task" cancels it too
+        if stop.parse(text, known=known_task) is not None:  # "stop the task" cancels it too
             self._stop(segment.last_voice_at, text, partial=False)
             return
         if is_junk_reply(text):
@@ -1218,9 +1165,6 @@ class VoiceLoop:
         pending = safety.pending_task_id()
         answer = tasks.answer_for(text, pending)
         if answer is None:  # names another task: never an answer to this confirmation (D61)
-            others = [task for task in tasks.named_tasks(text) if task.id != pending]
-            if set(words(text)) & STOP_WORDS:
-                self._stop_named(others[0].name)  # "cancel the presentation": that task only
             return
         self.confirmations.reply(answer, heard_from=segment.woke_at or 0.0)
 
@@ -1247,7 +1191,7 @@ class VoiceLoop:
             return
         if self._task_command(clean_command(text)):
             return
-        if is_stop_command(text) or self._speculated_stop(text):
+        if stop.parse(text, known=known_task) is not None or self._speculated_stop(text):
             speculate.discard()
             self._stop(speech_end_at, text, partial=False)
             return
@@ -1284,8 +1228,9 @@ class VoiceLoop:
             return True
         if not self._task_running():
             return False
-        if stop_name(command):
-            self._stop_named(stop_name(command))
+        found = stop.parse(command, known=known_task)
+        if found is not None and found.target:
+            self._stop_named(found.target)
             return True
         status = TASK_STATUS.match(command)
         if status and tasks.find(status["name"]):

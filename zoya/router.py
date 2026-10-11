@@ -24,7 +24,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 from typesafe_sdk import Choice
 
-from zoya import aws, decisions, harness
+from zoya import aws, decisions, harness, stop
 from zoya.config import JEV_ROUTE_CONFIDENCE, JEV_TIMEOUT_S
 from zoya.events import Route
 from zoya.prompts import ROUTER_PROMPT, ROUTER_SKILLS
@@ -80,12 +80,6 @@ MULTI_STEP_WORDS = re.compile(r"\b(?:and|then|after that|aur|phir|fir)\b", _I)
 MULTI_STEP = re.compile(rf"{MULTI_STEP_WORDS.pattern}|[,;]", _I)
 DOMAIN = re.compile(r"^(?:https?://)?(?:[a-z0-9-]+\.)+[a-z]{2,}(?:[/?#]\S*)?$", _I)
 
-STOP = re.compile(
-    r"^(?:stop|cancel|ruk\s*jao|ruko|rukiye|bas|chup)"
-    r"(?:[\s,]+(?:it|that|now|everything|mat\s+kijiye|karo|what you'?re doing|the|this|my|current"
-    r"|task|tasks))*$",
-    _I,
-)
 # "Go back" is the browser's back, never the previous track (owner's run: a learned pick replayed
 # media_control "previous" during an Amazon task). "previous song" stays MEDIA.
 GO_BACK = re.compile(
@@ -215,7 +209,7 @@ def match_rules(text: str) -> RouteDecision | None:
     command = clean_command(text)
     if not command:
         return None
-    if STOP.match(command):
+    if (found := stop.parse(command)) is not None and found.target in ("", "everything"):
         return RouteDecision("stop")
     if GO_BACK.match(command):
         return RouteDecision("orchestrator")

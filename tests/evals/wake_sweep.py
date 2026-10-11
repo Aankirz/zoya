@@ -25,7 +25,8 @@ import numpy as np  # noqa: E402
 import soundfile as sf  # noqa: E402
 
 from zoya.config import LOG_DIR, MIC_SAMPLE_RATE_HZ, WAKE_WINDOW_S  # noqa: E402
-from zoya.voice import NAME, is_wake, words  # noqa: E402
+from zoya.spoken import NAME, words  # noqa: E402
+from zoya.voice import is_wake  # noqa: E402
 
 CLIPS = LOG_DIR / "wake_clips"
 RESULTS = Path(__file__).parent / "results" / "wake_sweep.json"

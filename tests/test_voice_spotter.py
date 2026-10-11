@@ -1,4 +1,4 @@
-"""Wake-word and "Zoya, stop" spotters are parsers on the safety path (D37, §9.1).
+"""Wake-word spotters are parsers on the safety path (D37, §9.1).
 
 A miss means Zoya can't be stopped; a false hit means she wakes or stops on her own.
 """
@@ -10,11 +10,8 @@ from zoya.voice import (
     is_bare_confirmation,
     is_junk_reply,
     is_runaway,
-    is_stop,
-    is_stop_command,
     is_usable_command,
     is_wake,
-    stop_name,
     strip_wake,
     vetoes_wake,
 )
@@ -56,42 +53,6 @@ def test_wake_on_zoya_like_name_in_first_three_words(heard):
 )
 def test_no_wake_on_near_misses(heard):
     assert not is_wake(heard)
-
-
-@pytest.mark.parametrize(
-    "heard",
-    [
-        "Zoya, stop.",
-        "Stop, Zoya!",
-        "Hey Zoya stop everything",
-        "Zoya, ruko",
-        "Ruk jao Zoya",
-        "zoia cancel",
-        "Zoya Stop.",
-    ],
-)
-def test_stop_needs_name_and_stop_word(heard):
-    assert is_stop(heard)
-
-
-@pytest.mark.parametrize(
-    "heard",
-    [
-        "Okay, stopped.",  # Zoya's own speech must never stop her
-        "stop",
-        "Zoya, open Spotify",
-        "Hey Sonia, stop",
-        "Soya stop",
-        "Tokyo is the capital of Japan and Zoya can stop by the store later today",
-    ],
-)
-def test_no_stop_without_name_or_in_long_speech(heard):
-    assert not is_stop(heard)
-
-
-def test_captured_stop_command_without_name_still_stops():
-    assert is_stop_command("Hey Zoya, cancel")
-    assert is_stop_command("ruk jao")
 
 
 def test_words_after_wake_name_are_the_command():
@@ -182,9 +143,3 @@ def test_junk_replies_do_not_count_as_answers(heard):
 )
 def test_real_replies_count(heard):
     assert not is_junk_reply(heard)
-
-
-def test_stop_the_task_is_a_bare_stop():
-    assert is_stop_command("stop the task.")
-    assert stop_name("stop the task", known_only=False) == ""
-    assert stop_name("stop all tasks", known_only=False) == "everything"

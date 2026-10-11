@@ -111,14 +111,14 @@ STOP_PHRASES = ("Zoya stop", "Zoya, stop it now", "Zoya ruk jao", "Zoya bas", "Z
 
 
 def test_the_regex_catches_stop_with_no_model_and_no_network(monkeypatch):
-    from zoya import voice
+    from zoya import stop, voice
 
     def unreachable(*_args, **_kwargs):
         raise AssertionError("the offline stop path asked the network")
 
     monkeypatch.setattr(voice.decisions, "ask", unreachable)
-    assert all(voice.is_stop(phrase) for phrase in STOP_PHRASES)
-    assert all(voice.is_stop_command(phrase) for phrase in STOP_PHRASES)
+    assert all(stop.is_named_stop(phrase) for phrase in STOP_PHRASES)
+    assert all(stop.parse(phrase, known=voice.known_task) for phrase in STOP_PHRASES)
 
 
 def test_jev_is_never_asked_about_a_stop_the_regex_already_caught(monkeypatch):
@@ -156,7 +156,7 @@ def test_a_jev_stop_only_fires_while_there_is_something_to_stop(monkeypatch):
     loop.jev_stop = (1.0, "Zoya that's enough")
     monkeypatch.setattr(voice.VoiceLoop, "_zoya_busy", lambda self: True)
     voice.VoiceLoop._take_jev_stop(loop)
-    assert stopped == [((1.0, "Zoya that's enough"), {"partial": True})]
+    assert stopped == [((1.0, "Zoya that's enough"), {"partial": True, "source": "jev"})]
 
 
 def test_an_unreachable_jev_never_raises_into_the_voice_loop(monkeypatch):

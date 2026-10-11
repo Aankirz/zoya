@@ -18,6 +18,7 @@ from __future__ import annotations
 import itertools
 import json
 import logging
+import math
 import os
 import queue
 import subprocess
@@ -25,6 +26,7 @@ import threading
 import time
 import urllib.parse
 import urllib.request
+from collections import deque
 from collections.abc import Callable, Iterator
 
 from zoya import audio, aws, events
@@ -47,9 +49,11 @@ from zoya.config import (
     relay_url,
 )
 from zoya.decisions import LOOPBACK_HOSTS
+from zoya.spoken import words
 
 BYTES_PER_SAMPLE = 2
 DRAIN_POLL_S = 0.02
+SAID_KEPT = 8
 
 log = logging.getLogger(__name__)
 
@@ -57,6 +61,7 @@ _queue: queue.Queue[str] = queue.Queue()
 _worker: threading.Thread | None = None
 _worker_lock = threading.Lock()
 _generation = 0  # bumped by cancel(); a sentence from an older generation stops
+_said: deque[list] = deque(maxlen=SAID_KEPT)  # [words, ended_at]; inf while playing
 _busy = threading.Event()
 _say_process: subprocess.Popen | None = None
 first_audio_at: float | None = None  # monotonic time of the first audio since reset_timing()
@@ -203,6 +208,8 @@ def _run_worker() -> None:
         text = _queue.get()
         generation = _generation
         _busy.set()
+        said = [frozenset(words(text)), math.inf]
+        _said.append(said)
         try:
             speak_now(text, generation)
         except Cancelled:
@@ -210,6 +217,7 @@ def _run_worker() -> None:
         except Exception:  # noqa: BLE001 — speech must never kill the worker
             log.exception("speech playback failed")
         finally:
+            said[1] = time.monotonic()
             _busy.clear()
             _queue.task_done()
             if _queue.empty():  # stage overlay: back from "speaking" (Phase 7)
@@ -259,6 +267,13 @@ def say_and_wait(text: str, timeout_s: float) -> bool:
             return False
         time.sleep(DRAIN_POLL_S)
     return generation == _generation
+
+
+def recently_said(word: str, within_s: float) -> bool:
+    """Zoya's own voice may have carried `word` back into the mic: a sentence holding it is playing
+    or ended within the last `within_s` (D177, a bare "cancel" after "…confirm or cancel?")."""
+    since = time.monotonic() - within_s
+    return any(ended >= since and word in said for said, ended in list(_said))
 
 
 def is_speaking() -> bool:

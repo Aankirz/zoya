@@ -422,14 +422,18 @@ def test_voice_confirm_naming_the_waiting_task_is_passed_on(loop, monkeypatch):
 
 
 def test_spoken_stop_with_a_task_name_is_a_named_stop():
-    from zoya import voice
+    from zoya import stop, voice
 
     _task("presentation")
 
-    assert voice.stop_name("Zoya, stop the presentation") == "presentation"
-    assert voice.stop_name("Zoya, stop everything") == "everything"
-    assert voice.stop_name("Zoya, stop") == ""
-    assert voice.stop_name("stop the music") == ""  # not a task: stays a media command
+    def target(text: str) -> str | None:
+        found = stop.parse(text, known=voice.known_task)
+        return None if found is None else found.target
+
+    assert target("Zoya, stop the presentation") == "presentation"
+    assert target("Zoya, stop everything") == "everything"
+    assert target("Zoya, stop") == ""
+    assert target("stop the music") is None  # not a task: stays a media command
 
 
 def test_a_stop_naming_no_running_task_never_becomes_a_bare_stop(loop, monkeypatch):
