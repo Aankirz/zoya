@@ -33,7 +33,11 @@ APP_BUNDLE = (
     if _EXECUTABLE.parent.name == "MacOS" and _EXECUTABLE.parents[2].suffix == ".app"
     else None
 )
-LOG_DIR = Path.home() / "Library" / "Logs" / "Zoya" if APP_BUNDLE else REPO_ROOT / "logs"
+LOG_DIR_ENV = "ZOYA_LOG_DIR"  # tests write their logs elsewhere, never into the real timing log
+LOG_DIR = Path(
+    os.environ.get(LOG_DIR_ENV)
+    or (Path.home() / "Library" / "Logs" / "Zoya" if APP_BUNDLE else REPO_ROOT / "logs")
+)
 TIMING_LOG = LOG_DIR / "timing.log"
 SAID_LOG = LOG_DIR / "said.log"
 

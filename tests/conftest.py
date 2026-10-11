@@ -1,6 +1,10 @@
+import os
+import tempfile
 from pathlib import Path
 
 import pytest
+
+os.environ.setdefault("ZOYA_LOG_DIR", tempfile.mkdtemp(prefix="zoya-test-logs-"))
 
 # evals/autotune never imports zoya (the app is macOS-only), so its tests must run where zoya
 # cannot be imported.
