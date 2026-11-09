@@ -1,0 +1,458 @@
+{
+ "sent": [
+  {
+   "step": "start idle",
+   "m": 548241.8329182918,
+   "ids": [
+    1
+   ]
+  },
+  {
+   "step": "key-down \u2192 listening",
+   "m": 548243.0380007084,
+   "ids": [
+    2
+   ]
+  },
+  {
+   "step": "you said, Hindi",
+   "m": 548243.6416101668,
+   "ids": [
+    3
+   ]
+  },
+  {
+   "step": "key-up \u2192 heard + working",
+   "m": 548244.2467040834,
+   "ids": [
+    4,
+    5
+   ]
+  },
+  {
+   "step": "step update, same state",
+   "m": 548244.8520925001,
+   "ids": [
+    6
+   ]
+  },
+  {
+   "step": "step update again",
+   "m": 548245.4565245002,
+   "ids": [
+    7
+   ]
+  },
+  {
+   "step": "speaking, long",
+   "m": 548246.0599497501,
+   "ids": [
+    8
+   ]
+  },
+  {
+   "step": "asking while speaking",
+   "m": 548247.2658407501,
+   "ids": [
+    9
+   ]
+  },
+  {
+   "step": "warning earcon",
+   "m": 548248.4703886668,
+   "ids": [
+    10
+   ]
+  },
+  {
+   "step": "cancel by timeout",
+   "m": 548249.0755825834,
+   "ids": [
+    11,
+    12
+   ]
+  },
+  {
+   "step": "late ask after timeout",
+   "m": 548249.6802738751,
+   "ids": [
+    13
+   ]
+  },
+  {
+   "step": "key-down \u2192 listening (2)",
+   "m": 548250.2853355418,
+   "ids": [
+    14
+   ]
+  },
+  {
+   "step": "key-up \u2192 heard (2)",
+   "m": 548250.8905354585,
+   "ids": [
+    15,
+    16
+   ]
+  },
+  {
+   "step": "aim and act",
+   "m": 548251.4937004168,
+   "ids": [
+    17
+   ]
+  },
+  {
+   "step": "asking (gift)",
+   "m": 548252.6989472085,
+   "ids": [
+    18
+   ]
+  },
+  {
+   "step": "duplicate ask while asking",
+   "m": 548253.9040273752,
+   "ids": [
+    19
+   ]
+  },
+  {
+   "step": "confirmed",
+   "m": 548254.5091423334,
+   "ids": [
+    20
+   ]
+  },
+  {
+   "step": "purchase earcon",
+   "m": 548255.1143116668,
+   "ids": [
+    21
+   ]
+  },
+  {
+   "step": "task cancelled",
+   "m": 548255.7189644168,
+   "ids": [
+    22
+   ]
+  },
+  {
+   "step": "late ask after task ended",
+   "m": 548256.3217915834,
+   "ids": [
+    23
+   ]
+  },
+  {
+   "step": "speaking, Hindi",
+   "m": 548256.9264048334,
+   "ids": [
+    24
+   ]
+  },
+  {
+   "step": "failed",
+   "m": 548257.5301359585,
+   "ids": [
+    25
+   ]
+  },
+  {
+   "step": "idle",
+   "m": 548258.1337745001,
+   "ids": [
+    26
+   ]
+  }
+ ],
+ "rows": [
+  {
+   "step": "start idle",
+   "kind": "exit",
+   "sound": "",
+   "messages": 1,
+   "states": "idle",
+   "visual": false,
+   "first_ms": null,
+   "frames": 0,
+   "total_ms": null
+  },
+  {
+   "step": "key-down \u2192 listening",
+   "kind": "enter",
+   "sound": "listening",
+   "messages": 1,
+   "states": "idle \u2192 listening",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 22.8,
+   "total_ms": 153.5,
+   "motion_ms": 130.7,
+   "skew_high_ms": -9.5,
+   "skew_low_ms": -0.2
+  },
+  {
+   "step": "you said, Hindi",
+   "kind": "enter",
+   "sound": "",
+   "messages": 1,
+   "states": "listening",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 12.4,
+   "total_ms": 129.1,
+   "motion_ms": 116.7
+  },
+  {
+   "step": "key-up \u2192 heard + working",
+   "kind": "enter",
+   "sound": "heard",
+   "messages": 2,
+   "states": "listening \u2192 thinking",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 15.6,
+   "total_ms": 132.3,
+   "motion_ms": 116.7,
+   "skew_high_ms": -16.7,
+   "skew_low_ms": -7.3
+  },
+  {
+   "step": "step update, same state",
+   "kind": "enter",
+   "sound": "",
+   "messages": 1,
+   "states": "thinking \u2192 acting",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 24.4,
+   "total_ms": 126.9,
+   "motion_ms": 102.5
+  },
+  {
+   "step": "step update again",
+   "kind": "enter",
+   "sound": "",
+   "messages": 1,
+   "states": "acting",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 14.1,
+   "total_ms": 14.1,
+   "motion_ms": 0.0
+  },
+  {
+   "step": "speaking, long",
+   "kind": "enter",
+   "sound": "",
+   "messages": 1,
+   "states": "acting \u2192 speaking",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 22.6,
+   "total_ms": 144.0,
+   "motion_ms": 121.5
+  },
+  {
+   "step": "asking while speaking",
+   "kind": "enter",
+   "sound": "",
+   "messages": 1,
+   "states": "speaking \u2192 waiting",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 56.8,
+   "total_ms": 188.2,
+   "motion_ms": 131.4
+  },
+  {
+   "step": "warning earcon",
+   "kind": "beat",
+   "sound": "warning",
+   "messages": 1,
+   "states": "waiting",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 12.7,
+   "total_ms": 112.7,
+   "motion_ms": 100.0,
+   "skew_high_ms": -19.5,
+   "skew_low_ms": -10.2
+  },
+  {
+   "step": "cancel by timeout",
+   "kind": "exit",
+   "sound": "cancel",
+   "messages": 2,
+   "states": "waiting \u2192 stopped",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 26.7,
+   "total_ms": 149.2,
+   "motion_ms": 122.6,
+   "skew_high_ms": -5.6,
+   "skew_low_ms": 3.7
+  },
+  {
+   "step": "late ask after timeout",
+   "kind": "door",
+   "sound": "",
+   "messages": 1,
+   "states": "stopped",
+   "visual": false,
+   "first_ms": null,
+   "frames": 0,
+   "total_ms": null
+  },
+  {
+   "step": "key-down \u2192 listening (2)",
+   "kind": "enter",
+   "sound": "listening",
+   "messages": 1,
+   "states": "stopped \u2192 listening",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 14.5,
+   "total_ms": 139.5,
+   "motion_ms": 125.0,
+   "skew_high_ms": -17.8,
+   "skew_low_ms": -8.5
+  },
+  {
+   "step": "key-up \u2192 heard (2)",
+   "kind": "enter",
+   "sound": "heard",
+   "messages": 2,
+   "states": "listening \u2192 thinking",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 25.5,
+   "total_ms": 159.3,
+   "motion_ms": 133.8,
+   "skew_high_ms": -6.8,
+   "skew_low_ms": 2.5
+  },
+  {
+   "step": "aim and act",
+   "kind": "ring",
+   "sound": "",
+   "messages": 1,
+   "states": "thinking",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 26.1,
+   "total_ms": 114.4,
+   "motion_ms": 88.3
+  },
+  {
+   "step": "asking (gift)",
+   "kind": "enter",
+   "sound": "",
+   "messages": 1,
+   "states": "thinking \u2192 waiting",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 19.6,
+   "total_ms": 150.9,
+   "motion_ms": 131.2
+  },
+  {
+   "step": "duplicate ask while asking",
+   "kind": "door",
+   "sound": "",
+   "messages": 1,
+   "states": "waiting",
+   "visual": false,
+   "first_ms": null,
+   "frames": 0,
+   "total_ms": null
+  },
+  {
+   "step": "confirmed",
+   "kind": "enter",
+   "sound": "",
+   "messages": 1,
+   "states": "waiting \u2192 thinking",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 15.6,
+   "total_ms": 149.0,
+   "motion_ms": 133.3
+  },
+  {
+   "step": "purchase earcon",
+   "kind": "beat",
+   "sound": "purchase",
+   "messages": 1,
+   "states": "thinking",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 10.5,
+   "total_ms": 110.5,
+   "motion_ms": 100.0,
+   "skew_high_ms": -21.8,
+   "skew_low_ms": -12.5
+  },
+  {
+   "step": "task cancelled",
+   "kind": "exit",
+   "sound": "",
+   "messages": 1,
+   "states": "thinking \u2192 stopped",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 14.1,
+   "total_ms": 97.5,
+   "motion_ms": 83.3
+  },
+  {
+   "step": "late ask after task ended",
+   "kind": "door",
+   "sound": "",
+   "messages": 1,
+   "states": "stopped",
+   "visual": false,
+   "first_ms": null,
+   "frames": 0,
+   "total_ms": null
+  },
+  {
+   "step": "speaking, Hindi",
+   "kind": "enter",
+   "sound": "",
+   "messages": 1,
+   "states": "stopped",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 15.0,
+   "total_ms": 140.0,
+   "motion_ms": 125.0
+  },
+  {
+   "step": "failed",
+   "kind": "enter",
+   "sound": "",
+   "messages": 1,
+   "states": "stopped \u2192 error",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 29.0,
+   "total_ms": 153.0,
+   "motion_ms": 124.0
+  },
+  {
+   "step": "idle",
+   "kind": "exit",
+   "sound": "",
+   "messages": 1,
+   "states": "error \u2192 idle",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 16.0,
+   "total_ms": 107.7,
+   "motion_ms": 91.7
+  }
+ ],
+ "dark": true,
+ "set": "held-out"
+}

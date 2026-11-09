@@ -1,0 +1,728 @@
+{
+ "sent": [
+  {
+   "step": "start idle",
+   "m": 548728.9649809585,
+   "ids": [
+    1
+   ]
+  },
+  {
+   "step": "key-down \u2192 listening",
+   "m": 548730.1652575001,
+   "ids": [
+    2
+   ]
+  },
+  {
+   "step": "voice level",
+   "m": 548730.7703222501,
+   "ids": [
+    3,
+    4
+   ]
+  },
+  {
+   "step": "you said (caption grows)",
+   "m": 548731.3766370418,
+   "ids": [
+    5
+   ]
+  },
+  {
+   "step": "intent chips",
+   "m": 548731.9793467917,
+   "ids": [
+    6
+   ]
+  },
+  {
+   "step": "key-up \u2192 heard + working",
+   "m": 548732.5838455001,
+   "ids": [
+    7,
+    8
+   ]
+  },
+  {
+   "step": "aim at the window",
+   "m": 548733.1883330417,
+   "ids": [
+    9
+   ]
+  },
+  {
+   "step": "working (acting + glow)",
+   "m": 548733.7899398751,
+   "ids": [
+    10
+   ]
+  },
+  {
+   "step": "ring + cursor glide",
+   "m": 548734.9950395834,
+   "ids": [
+    11
+   ]
+  },
+  {
+   "step": "progress tick",
+   "m": 548736.2001282502,
+   "ids": [
+    12
+   ]
+  },
+  {
+   "step": "speaking",
+   "m": 548736.8008870418,
+   "ids": [
+    13
+   ]
+  },
+  {
+   "step": "speech done",
+   "m": 548737.4049165001,
+   "ids": [
+    14
+   ]
+  },
+  {
+   "step": "asking (confirm)",
+   "m": 548738.1467742501,
+   "ids": [
+    15
+   ]
+  },
+  {
+   "step": "warning earcon",
+   "m": 548739.3500119168,
+   "ids": [
+    16
+   ]
+  },
+  {
+   "step": "warning earcon again",
+   "m": 548739.9544100001,
+   "ids": [
+    17
+   ]
+  },
+  {
+   "step": "confirmed",
+   "m": 548740.5568028335,
+   "ids": [
+    18
+   ]
+  },
+  {
+   "step": "late duplicate ask (confirmed)",
+   "m": 548741.1578764585,
+   "ids": [
+    19
+   ]
+  },
+  {
+   "step": "purchase earcon",
+   "m": 548741.7594984585,
+   "ids": [
+    20
+   ]
+  },
+  {
+   "step": "task done",
+   "m": 548742.3640241668,
+   "ids": [
+    21,
+    22
+   ]
+  },
+  {
+   "step": "key-down \u2192 listening (2)",
+   "m": 548743.5682744168,
+   "ids": [
+    23
+   ]
+  },
+  {
+   "step": "key-up \u2192 heard (2)",
+   "m": 548744.1730353751,
+   "ids": [
+    24,
+    25
+   ]
+  },
+  {
+   "step": "asking (2)",
+   "m": 548744.7779641668,
+   "ids": [
+    26
+   ]
+  },
+  {
+   "step": "cancelled",
+   "m": 548745.9830562501,
+   "ids": [
+    27,
+    28
+   ]
+  },
+  {
+   "step": "late duplicate ask (cancelled)",
+   "m": 548746.5878092084,
+   "ids": [
+    29
+   ]
+  },
+  {
+   "step": "thinking (3)",
+   "m": 548747.1929357084,
+   "ids": [
+    30
+   ]
+  },
+  {
+   "step": "error",
+   "m": 548747.7981083335,
+   "ids": [
+    31
+   ]
+  },
+  {
+   "step": "thinking (4)",
+   "m": 548748.4032642918,
+   "ids": [
+    32
+   ]
+  },
+  {
+   "step": "add-to-cart earcon",
+   "m": 548749.0075491251,
+   "ids": [
+    33
+   ]
+  },
+  {
+   "step": "checkpoint earcon",
+   "m": 548749.6126710417,
+   "ids": [
+    34
+   ]
+  },
+  {
+   "step": "queued earcon",
+   "m": 548750.2177788335,
+   "ids": [
+    35
+   ]
+  },
+  {
+   "step": "complete earcon",
+   "m": 548750.8228331251,
+   "ids": [
+    36
+   ]
+  },
+  {
+   "step": "attention earcon",
+   "m": 548751.4279415001,
+   "ids": [
+    37
+   ]
+  },
+  {
+   "step": "blocked",
+   "m": 548752.0330250835,
+   "ids": [
+    38
+   ]
+  },
+  {
+   "step": "thinking (5)",
+   "m": 548752.6381197501,
+   "ids": [
+    39
+   ]
+  },
+  {
+   "step": "stopped",
+   "m": 548753.2417293334,
+   "ids": [
+    40
+   ]
+  },
+  {
+   "step": "idle",
+   "m": 548753.8447261668,
+   "ids": [
+    41
+   ]
+  }
+ ],
+ "rows": [
+  {
+   "step": "start idle",
+   "kind": "exit",
+   "sound": "",
+   "messages": 1,
+   "states": "idle",
+   "visual": false,
+   "first_ms": null,
+   "frames": 0,
+   "total_ms": null
+  },
+  {
+   "step": "key-down \u2192 listening",
+   "kind": "enter",
+   "sound": "listening",
+   "messages": 1,
+   "states": "idle \u2192 listening",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 11.3,
+   "total_ms": 144.6,
+   "motion_ms": 133.3,
+   "skew_high_ms": -21.0,
+   "skew_low_ms": -11.7
+  },
+  {
+   "step": "voice level",
+   "kind": "level",
+   "sound": "",
+   "messages": 2,
+   "states": "listening",
+   "visual": false,
+   "first_ms": null,
+   "frames": 0,
+   "total_ms": null
+  },
+  {
+   "step": "you said (caption grows)",
+   "kind": "enter",
+   "sound": "",
+   "messages": 1,
+   "states": "listening",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 24.8,
+   "total_ms": 145.7,
+   "motion_ms": 121.0
+  },
+  {
+   "step": "intent chips",
+   "kind": "enter",
+   "sound": "",
+   "messages": 1,
+   "states": "listening",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 21.8,
+   "total_ms": 21.8,
+   "motion_ms": 0.0
+  },
+  {
+   "step": "key-up \u2192 heard + working",
+   "kind": "enter",
+   "sound": "heard",
+   "messages": 2,
+   "states": "listening \u2192 thinking",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 13.5,
+   "total_ms": 138.5,
+   "motion_ms": 125.0,
+   "skew_high_ms": -18.8,
+   "skew_low_ms": -9.4
+  },
+  {
+   "step": "aim at the window",
+   "kind": "ring",
+   "sound": "",
+   "messages": 1,
+   "states": "thinking",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 20.9,
+   "total_ms": 109.0,
+   "motion_ms": 88.1
+  },
+  {
+   "step": "working (acting + glow)",
+   "kind": "enter",
+   "sound": "",
+   "messages": 1,
+   "states": "thinking \u2192 acting",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 15.8,
+   "total_ms": 115.8,
+   "motion_ms": 100.0
+  },
+  {
+   "step": "ring + cursor glide",
+   "kind": "ring",
+   "sound": "",
+   "messages": 1,
+   "states": "acting",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 10.7,
+   "total_ms": 10.7,
+   "motion_ms": 0.0
+  },
+  {
+   "step": "progress tick",
+   "kind": "beat",
+   "sound": "progress-step",
+   "messages": 1,
+   "states": "acting",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 13.9,
+   "total_ms": 113.9,
+   "motion_ms": 100.0,
+   "skew_high_ms": -18.4,
+   "skew_low_ms": -9.0
+  },
+  {
+   "step": "speaking",
+   "kind": "enter",
+   "sound": "",
+   "messages": 1,
+   "states": "acting \u2192 speaking",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 13.2,
+   "total_ms": 138.1,
+   "motion_ms": 125.0
+  },
+  {
+   "step": "speech done",
+   "kind": "exit",
+   "sound": "",
+   "messages": 1,
+   "states": "speaking \u2192 acting",
+   "visual": false,
+   "first_ms": null,
+   "frames": 0,
+   "total_ms": null
+  },
+  {
+   "step": "asking (confirm)",
+   "kind": "enter",
+   "sound": "",
+   "messages": 1,
+   "states": "acting \u2192 waiting",
+   "visual": true,
+   "frames": 2,
+   "first_ms": 53.5,
+   "total_ms": 179.7,
+   "motion_ms": 126.2
+  },
+  {
+   "step": "warning earcon",
+   "kind": "beat",
+   "sound": "warning",
+   "messages": 1,
+   "states": "waiting",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 9.8,
+   "total_ms": 109.8,
+   "motion_ms": 100.0,
+   "skew_high_ms": -22.5,
+   "skew_low_ms": -13.1
+  },
+  {
+   "step": "warning earcon again",
+   "kind": "beat",
+   "sound": "warning",
+   "messages": 1,
+   "states": "waiting",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 13.8,
+   "total_ms": 113.8,
+   "motion_ms": 100.0,
+   "skew_high_ms": -18.5,
+   "skew_low_ms": -9.2
+  },
+  {
+   "step": "confirmed",
+   "kind": "enter",
+   "sound": "",
+   "messages": 1,
+   "states": "waiting \u2192 thinking",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 11.4,
+   "total_ms": 153.0,
+   "motion_ms": 141.7
+  },
+  {
+   "step": "late duplicate ask (confirmed)",
+   "kind": "door",
+   "sound": "",
+   "messages": 1,
+   "states": "thinking",
+   "visual": false,
+   "first_ms": null,
+   "frames": 0,
+   "total_ms": null
+  },
+  {
+   "step": "purchase earcon",
+   "kind": "beat",
+   "sound": "purchase",
+   "messages": 1,
+   "states": "thinking",
+   "visual": true,
+   "frames": 2,
+   "first_ms": 17.0,
+   "total_ms": 117.0,
+   "motion_ms": 100.0,
+   "skew_high_ms": -15.3,
+   "skew_low_ms": -6.0
+  },
+  {
+   "step": "task done",
+   "kind": "exit",
+   "sound": "success",
+   "messages": 2,
+   "states": "thinking \u2192 idle",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 12.5,
+   "total_ms": 120.8,
+   "motion_ms": 108.3,
+   "skew_high_ms": -19.8,
+   "skew_low_ms": -10.5
+  },
+  {
+   "step": "key-down \u2192 listening (2)",
+   "kind": "enter",
+   "sound": "listening",
+   "messages": 1,
+   "states": "idle \u2192 listening",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 37.6,
+   "total_ms": 174.9,
+   "motion_ms": 137.3,
+   "skew_high_ms": 5.3,
+   "skew_low_ms": 14.7
+  },
+  {
+   "step": "key-up \u2192 heard (2)",
+   "kind": "enter",
+   "sound": "heard",
+   "messages": 2,
+   "states": "listening \u2192 thinking",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 11.8,
+   "total_ms": 153.4,
+   "motion_ms": 141.7,
+   "skew_high_ms": -20.5,
+   "skew_low_ms": -11.2
+  },
+  {
+   "step": "asking (2)",
+   "kind": "enter",
+   "sound": "",
+   "messages": 1,
+   "states": "thinking \u2192 waiting",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 15.2,
+   "total_ms": 148.5,
+   "motion_ms": 133.3
+  },
+  {
+   "step": "cancelled",
+   "kind": "exit",
+   "sound": "cancel",
+   "messages": 2,
+   "states": "waiting \u2192 stopped",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 10.1,
+   "total_ms": 101.8,
+   "motion_ms": 91.7,
+   "skew_high_ms": -22.2,
+   "skew_low_ms": -12.9
+  },
+  {
+   "step": "late duplicate ask (cancelled)",
+   "kind": "door",
+   "sound": "",
+   "messages": 1,
+   "states": "stopped",
+   "visual": false,
+   "first_ms": null,
+   "frames": 0,
+   "total_ms": null
+  },
+  {
+   "step": "thinking (3)",
+   "kind": "enter",
+   "sound": "",
+   "messages": 1,
+   "states": "stopped \u2192 thinking",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 191.7,
+   "total_ms": 325.2,
+   "motion_ms": 133.5
+  },
+  {
+   "step": "error",
+   "kind": "enter",
+   "sound": "error",
+   "messages": 1,
+   "states": "thinking \u2192 error",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 20.9,
+   "total_ms": 153.4,
+   "motion_ms": 132.4,
+   "skew_high_ms": -11.4,
+   "skew_low_ms": -2.0
+  },
+  {
+   "step": "thinking (4)",
+   "kind": "enter",
+   "sound": "",
+   "messages": 1,
+   "states": "error \u2192 thinking",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 14.9,
+   "total_ms": 139.9,
+   "motion_ms": 125.0
+  },
+  {
+   "step": "add-to-cart earcon",
+   "kind": "beat",
+   "sound": "add-to-cart",
+   "messages": 1,
+   "states": "thinking",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 10.6,
+   "total_ms": 110.6,
+   "motion_ms": 100.0,
+   "skew_high_ms": -21.7,
+   "skew_low_ms": -12.4
+  },
+  {
+   "step": "checkpoint earcon",
+   "kind": "beat",
+   "sound": "checkpoint",
+   "messages": 1,
+   "states": "thinking",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 13.8,
+   "total_ms": 113.8,
+   "motion_ms": 100.0,
+   "skew_high_ms": -18.5,
+   "skew_low_ms": -9.2
+  },
+  {
+   "step": "queued earcon",
+   "kind": "beat",
+   "sound": "queued",
+   "messages": 1,
+   "states": "thinking",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 8.7,
+   "total_ms": 108.7,
+   "motion_ms": 100.0,
+   "skew_high_ms": -23.6,
+   "skew_low_ms": -14.3
+  },
+  {
+   "step": "complete earcon",
+   "kind": "beat",
+   "sound": "complete",
+   "messages": 1,
+   "states": "thinking",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 11.9,
+   "total_ms": 111.9,
+   "motion_ms": 100.0,
+   "skew_high_ms": -20.4,
+   "skew_low_ms": -11.0
+  },
+  {
+   "step": "attention earcon",
+   "kind": "beat",
+   "sound": "attention",
+   "messages": 1,
+   "states": "thinking",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 15.2,
+   "total_ms": 115.2,
+   "motion_ms": 100.0,
+   "skew_high_ms": -17.1,
+   "skew_low_ms": -7.8
+  },
+  {
+   "step": "blocked",
+   "kind": "enter",
+   "sound": "blocked",
+   "messages": 1,
+   "states": "thinking \u2192 error",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 10.1,
+   "total_ms": 151.7,
+   "motion_ms": 141.7,
+   "skew_high_ms": -22.2,
+   "skew_low_ms": -12.9
+  },
+  {
+   "step": "thinking (5)",
+   "kind": "enter",
+   "sound": "",
+   "messages": 1,
+   "states": "error \u2192 thinking",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 13.3,
+   "total_ms": 146.7,
+   "motion_ms": 133.3
+  },
+  {
+   "step": "stopped",
+   "kind": "exit",
+   "sound": "stop",
+   "messages": 1,
+   "states": "thinking \u2192 stopped",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 9.7,
+   "total_ms": 101.4,
+   "motion_ms": 91.7,
+   "skew_high_ms": -22.6,
+   "skew_low_ms": -13.2
+  },
+  {
+   "step": "idle",
+   "kind": "exit",
+   "sound": "",
+   "messages": 1,
+   "states": "stopped \u2192 idle",
+   "visual": true,
+   "frames": 1,
+   "first_ms": 15.0,
+   "total_ms": 106.7,
+   "motion_ms": 91.7
+  }
+ ],
+ "dark": true,
+ "set": "dev"
+}
