@@ -430,13 +430,46 @@ def browser_open(url: str) -> str:
     return f"Opened {title or url}."
 
 
+PAGE_DIGEST_JS = """([maxChars, lineChars, skip]) => {
+  const tidy = text => (text || '').split('\\n').map(line => line.replace(/\\s+/g, ' ').trim())
+    .filter(Boolean);
+  if (!document.body) return '';
+  const main = document.querySelector('main, [role=main], article');
+  const boilerplate = new Set([...document.body.querySelectorAll(skip)]
+    .filter(e => !main || !e.contains(main)).flatMap(e => tidy(e.innerText)));
+  const kept = [], seen = new Set();
+  let length = 0;
+  for (const line of [...tidy(main?.innerText), ...tidy(document.body.innerText)]) {
+    if (boilerplate.has(line) || seen.has(line)) continue;
+    seen.add(line);
+    const cut = line.slice(0, lineChars);
+    kept.push(cut);
+    length += cut.length + 1;
+    if (length >= maxChars) break;
+  }
+  return kept.join('\\n');
+}"""
+BOILERPLATE = (
+    "nav, header, footer, [role=navigation], [role=banner], [role=contentinfo], [role=search], "
+    "[aria-hidden=true]"
+)
+DIGEST_LINE_CHARS = 300
+
+
+def page_digest(page: Any) -> str:
+    """D164: the page as the model reads it: its main content first, navigation, headers and
+    footers dropped, each line once and capped, the whole capped at BROWSER_TEXT_MAX_CHARS."""
+    digest = page.evaluate(PAGE_DIGEST_JS, [BROWSER_TEXT_MAX_CHARS, DIGEST_LINE_CHARS, BOILERPLATE])
+    return f"{page.title()}\n{digest}"
+
+
 @tool
 def browser_read() -> str:
-    """Read the text of the page open in Zoya's browser (title, then visible text)."""
+    """Read the text of the page open in Zoya's browser (title, then its main text)."""
 
     def read(page: Any) -> tuple[str, str]:
         note = SIGN_IN_NOTE if sign_in_wall(page) else ""
-        return f"{page.title()}\n{page.inner_text('body')[:BROWSER_TEXT_MAX_CHARS]}", note
+        return page_digest(page), note
 
     text, note = on_page(read)
     return safety.wrap_untrusted(text) + note

@@ -73,6 +73,21 @@ SETTLE_JS = """action => new Promise(resolve => {
   };
   requestAnimationFrame(ready);
 })"""
+FRAME_MARK = "data-zoya-frame"
+FRAME_SHARE = 0.2
+MAX_FRAMES = 2
+FRAME_NODE_STRIDE = 1_000_000
+COVERING_FRAMES_JS = """([mark, share, most]) => { const marked = [];
+  for (const f of document.querySelectorAll('iframe')) {
+    f.removeAttribute(mark);
+    const r = f.getBoundingClientRect(), x = r.x + r.width / 2, y = r.y + r.height / 2;
+    if (marked.length >= most || r.width * r.height < innerWidth * innerHeight * share) continue;
+    if (x < 0 || y < 0 || x >= innerWidth || y >= innerHeight) continue;
+    if (document.elementFromPoint(x, y) !== f) continue;
+    marked.push(marked.length + 1);
+    f.setAttribute(mark, String(marked.length));
+  }
+  return marked; }"""
 
 OPERATION_OF = {"click": "CLICK", "fill": "TYPE_TEXT", "select": "SELECT"}
 OPERATION_MEANING = {
@@ -92,14 +107,16 @@ satisfied steps. Fill required fields before submitting. A typed query still nee
 suggestion selected. For date pickers, CLICK the field, the date, then the confirmation. Submit a \
 filled search before opening a result. If Search or Submit is visible and the fields are ready, \
 CLICK it. WAIT only when the control needed is absent or disabled, or results are still loading. \
-Recent WAIT actions are not evidence of loading. Prefer a useful visible element over WAIT. The \
+Recent WAIT actions are not evidence of loading. Prefer a useful visible element over WAIT. Leave \
+cookie, consent and sign-up banners alone unless they hide everything else. The \
 elements listed in the state are the ones you can act on. DONE needs visible evidence that ALL \
 requirements are met; a matching link is not an opened result. BLOCKED means no offered operation \
 can make progress."""
 TARGET = """\
 Choose the best observed element if the next operation is {operation}. Another question decides \
 the operation; this one only picks its target. Do not choose a field that already holds the \
-requested value. Choose only an offered index."""
+requested value. Prefer a control whose name says what it does over one named only by its role. \
+Choose only an offered index."""
 TEXT_VALUE = """\
 Return a JSON object with exactly one key, text: the exact string to enter in the selected field. \
 Infer it from the goal and the field's meaning, using the page and recent actions. No commentary, \
@@ -246,16 +263,35 @@ def state_text(goal: str, page: dict[str, Any], history: list[dict[str, Any]], t
     )
 
 
+FINISHES = ("DONE", "BLOCKED")
+
+
+def next_action(finish: decisions.Pick, offered: list[str]) -> decisions.Pick | None:
+    """The offered operation Jev rated highest after an unsure finish, or None."""
+    rated = [
+        (probability, name)
+        for name, probability in finish.probabilities.items()
+        if name in offered and name not in FINISHES
+    ]
+    if not rated:
+        return None
+    probability, name = max(rated)
+    return decisions.Pick(name, probability, finish.probabilities)
+
+
 def decide(answers: decisions.Answers, table: Table, offered: list[str]) -> Decision | None:
-    """Jev's answer as a decision on an observed action, or None (not an offered choice, or a
-    DONE Jev isn't sure of). Only the head the operation names can act; the other heads are
-    discarded. An input is Jev's best pick at any confidence, as in jev-ultrafast: a choice among
-    many offered elements is rarely confident, and Guard 2 still checks every click."""
+    """Jev's answer as a decision on an observed action, or None (not an offered choice). Only
+    the head the operation names can act; the other heads are discarded. An input is Jev's best
+    pick at any confidence, as in jev-ultrafast: a choice among many offered elements is rarely
+    confident, and Guard 2 still checks every click. Stopping is different: a DONE or BLOCKED
+    Jev isn't sure of gives way to the operation it rated next."""
     operation = answers.pick("operation")
     if operation is None or operation.name not in offered:
         return None
-    if operation.name == "DONE" and operation.confidence < JEV_STEP_CONFIDENCE:
-        return None
+    if operation.name in FINISHES and operation.confidence < JEV_STEP_CONFIDENCE:
+        operation = next_action(operation, offered)
+        if operation is None:
+            return None
     candidates = table.targets.get(operation.name)
     if candidates is None:
         return Decision(operation.name, None, operation.confidence)
@@ -305,7 +341,49 @@ def field_text(goal: str, action: dict[str, Any], page: dict[str, Any], history:
 
 
 def _observe_on(page: Any) -> dict[str, Any] | None:
-    return page.evaluate(SNAPSHOT_JS)
+    """A click that navigates destroys the page being read; the new one is read once it loads."""
+    from playwright.sync_api import Error as PageError
+
+    try:
+        observed = page.evaluate(SNAPSHOT_JS)
+        if observed:
+            observed["frames"] = {}
+            for number in page.evaluate(COVERING_FRAMES_JS, [FRAME_MARK, FRAME_SHARE, MAX_FRAMES]):
+                _add_frame(page, observed, number)
+        return observed
+    except PageError:
+        page.wait_for_load_state("domcontentloaded")
+        return None
+
+
+def _add_frame(page: Any, observed: dict[str, Any], number: int) -> None:
+    """A frame drawn over the page (a consent dialog, an embedded form) is read like the page,
+    its node ids offset so they never collide with the page's own."""
+    handle = page.query_selector(f'iframe[{FRAME_MARK}="{number}"]')
+    frame = handle.content_frame() if handle else None
+    inner = frame.evaluate(SNAPSHOT_JS) if frame else None
+    if not inner:
+        return
+    base = number * FRAME_NODE_STRIDE
+    observed["actions"] += [{**action, "node": base + action["node"]} for action in inner["actions"]]
+    observed["text"] = f"{observed['text']}\n{inner['text']}".strip()
+    observed["marker"] = [observed["marker"], inner["marker"]]
+    observed["frames"][number] = {
+        "frame": frame,
+        "page_key": inner["page_key"],
+        "guards": inner["guards"],
+    }
+
+
+def _scope(page: Any, observed: dict[str, Any], node: int) -> tuple[Any, int, dict[str, Any]]:
+    """Where an observed node lives: the page, or the frame it was read from, and its own id."""
+    number, inner = divmod(node, FRAME_NODE_STRIDE)
+    if not number:
+        return page, node, observed
+    known = observed.get("frames", {}).get(number)
+    if known is None:
+        raise StalePage("that control is gone")
+    return known["frame"], inner, known
 
 
 def observe() -> dict[str, Any]:
@@ -343,16 +421,17 @@ def locate(page: Any, observed: dict[str, Any], action: dict[str, Any]) -> Any:
     node = action["node"]
     if type(node) is not int:
         raise StalePage("not an observed node")
-    now = page.evaluate(CHECK_JS, node)
-    if not now or now[0] != observed["page_key"] or now[1] != observed["guards"].get(str(node)):
+    scope, own, known = _scope(page, observed, node)
+    now = scope.evaluate(CHECK_JS, own)
+    if not now or now[0] != known["page_key"] or now[1] != known["guards"].get(str(own)):
         raise StalePage("the page changed since it was read")
     if not now[2]:
         raise StalePage("that control is covered or off screen")
     browser.use_test_id_attribute(TEST_ID_ATTRIBUTE)
     tag = _tag(node)
-    if not page.evaluate(MARK_JS, [node, TEST_ID_ATTRIBUTE, tag]):
+    if not scope.evaluate(MARK_JS, [own, TEST_ID_ATTRIBUTE, tag]):
         raise StalePage("that control is gone")
-    locator = page.get_by_test_id(tag)
+    locator = scope.get_by_test_id(tag)
     if locator.count() != 1:
         raise StalePage("that control is not unique")
     return locator
@@ -500,7 +579,10 @@ def run(goal: str, cancel: threading.Event, max_steps: int = WEB_MAX_STEPS) -> O
     return outcome
 
 
-DONE_SAY = "Done on the page. Steps: {steps}. It now shows:\n{title}"
+DONE_SAY = (
+    "Done on the page. Steps: {steps}. The page it is on now is below: answer from it, without "
+    "browser_read or browser_results unless the answer is not there.\n{page}"
+)
 HANDED_BACK = (
     "I couldn't finish that on the page by myself ({reason}). Steps so far: {steps}. Carry on with "
     "browser_read, browser_click and browser_type."
@@ -528,23 +610,32 @@ def hand_back(outcome: Outcome, steps: str) -> str:
     )
 
 
+def read_back(steps: str) -> str:
+    """A finished goal hands the brain the page itself, so it answers without reading it again."""
+    page = browser.on_page(lambda p: f"{p.url}\n{browser.page_digest(p)}")
+    return DONE_SAY.format(steps=steps, page=safety.wrap_untrusted(page))
+
+
 @tool
-def browser_task(goal: str) -> str:
-    """Do a whole goal on the page open in Zoya's browser: search a site, fill a form, pick dates,
-    compose a post, open a result. Call it first, before browser_click or browser_type, for any
-    goal with more than one step on a site. If it hands back, carry on yourself.
+def browser_task(goal: str, url: str = "") -> str:
+    """Do a whole goal on a site in Zoya's browser: search it, look something up, fill a form,
+    pick dates, compose a post, open a result. Call it first, before browser_click or
+    browser_type, for any goal with more than one step on a site. When it's done it returns the
+    page's text: answer from it. If it hands back, carry on yourself.
 
     Args:
         goal: The complete goal in the user's words, e.g. "search for hotels in Goa for 17 to 19
             October for two adults".
+        url: The site to open first, e.g. "gov.uk"; leave empty to carry on from the open page.
     """
     from zoya.orchestrator import cancel_signal
 
+    if url:
+        browser.goto(url)
     outcome = run(goal, cancel_signal())
     steps = "; ".join(h["action"] for h in outcome.history) or "none"
     if outcome.done:
-        title = clean(observe().get("title", "")) if outcome.steps else ""
-        return DONE_SAY.format(steps=steps, title=safety.wrap_untrusted(title or "the same page"))
+        return read_back(steps)
     return hand_back(outcome, steps)
 
 

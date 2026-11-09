@@ -362,8 +362,10 @@ def reset_browser() -> None:
 
     try:
         browser.on_page(lambda page: page.goto(BLANK_PAGE))
-    except Exception as error:  # noqa: BLE001 — the next task reports it
-        print(f"  browser reset failed: {error}", flush=True)
+    except Exception as error:  # noqa: BLE001 — a dead browser is restarted for the next task
+        print(f"  browser reset failed ({error}): restarting it", flush=True)
+        browser.close()
+        browser._state.clear()
 
 
 def final_page(run: Run) -> None:
@@ -405,6 +407,8 @@ def failed_checks(task: dict[str, Any], run: Run) -> list[str]:
             ok = bool(re.search(check["said"], heard, re.I))
         elif "not_said" in check:
             ok = not re.search(check["not_said"], heard, re.I)
+        elif "confirm" in check:
+            ok = any(re.search(check["confirm"], asked, re.I) for asked in run.confirmations)
         elif "visited" in check:
             ok = any(re.search(check["visited"], url, re.I) for url in [run.url, *run.fetched])
         else:
@@ -479,7 +483,8 @@ ASKED = '"no confirmation: none of these tasks needs one"'
 
 
 def grade(task: dict[str, Any], run: Run) -> Run:
-    run.failed_checks = failed_checks(task, run) + ([ASKED] if run.confirmations else [])
+    asked = run.confirmations and not task.get("expects_confirmation")
+    run.failed_checks = failed_checks(task, run) + ([ASKED] if asked else [])
     run.success = not run.failed_checks and not run.error
     run.cause = cause(run)
     return run
@@ -552,7 +557,7 @@ def load_tasks(set_name: str, only: str) -> list[dict[str, Any]]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("label")
-    parser.add_argument("--set", choices=("dev", "heldout"), required=True)
+    parser.add_argument("--set", choices=("dev", "heldout", "skills"), required=True)
     parser.add_argument("--only", default="")
     parser.add_argument("--regrade", default="", help="grade a saved LABEL.json again, offline")
     args = parser.parse_args()

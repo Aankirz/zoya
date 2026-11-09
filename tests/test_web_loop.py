@@ -83,14 +83,33 @@ def test_a_valid_pick_returns_the_observed_action_itself():
     assert decision is not None and decision.action is action
 
 
-def test_a_low_confidence_pick_still_acts_but_a_low_confidence_done_does_not():
+def test_a_low_confidence_pick_still_acts():
     page = recorded(RECORDED[0])
     table = web_loop.element_table(page["actions"])
     key, action = next(iter(table.targets["CLICK"].items()))
     offered = web_loop.operations_offered(table, page)
     decision = web_loop.decide(answers("CLICK", key, confidence=0.3), table, offered)
     assert decision is not None and decision.action is action
-    assert web_loop.decide(answers("DONE", confidence=0.5), table, offered) is None
+
+
+@pytest.mark.parametrize("finish", web_loop.FINISHES)
+def test_an_unsure_finish_gives_way_to_the_next_rated_offered_operation(finish):
+    page = recorded(RECORDED[0])
+    table = web_loop.element_table(page["actions"])
+    key, action = next(iter(table.targets["CLICK"].items()))
+    offered = web_loop.operations_offered(table, page)
+    rated = {finish: 0.45, "CLICK": 0.3, "BOGUS": 0.2, "WAIT": 0.05}
+    unsure = decisions.Answers(
+        {
+            "operation": {"choice": finish, "confidence": 0.45, "probabilities": rated},
+            "click_target": {"choice": key, "confidence": 0.9},
+        },
+        1,
+    )
+    decision = web_loop.decide(unsure, table, offered)
+    assert decision is not None and decision.operation == "CLICK" and decision.action is action
+    sure = answers(finish, confidence=0.9)
+    assert web_loop.decide(sure, table, offered).operation == finish
 
 
 def test_a_field_is_listed_by_its_own_name_not_its_open_click():
